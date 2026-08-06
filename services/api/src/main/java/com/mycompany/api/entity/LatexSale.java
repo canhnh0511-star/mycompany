@@ -10,7 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -86,8 +85,10 @@ public class LatexSale {
     @Builder.Default
     private RecordStatus status = RecordStatus.DRAFT;
 
+    // KHÔNG dùng @OrderBy("latexType.code") — Hibernate 6 lỗi PathResolutionException khi @OrderBy trỏ
+    // qua property của 1 @ManyToOne association (fail ngay lúc build SessionFactory, không phải runtime).
+    // Sắp xếp theo latexType.code ở tầng service/DTO khi đọc items nếu cần thứ tự hiển thị ổn định.
     @OneToMany(mappedBy = "latexSale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @OrderBy("latexType.code")
     @Builder.Default
     private List<LatexSaleItem> items = new ArrayList<>();
 
