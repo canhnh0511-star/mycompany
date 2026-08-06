@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  JSON có cấu trúc ra stdout — xem docs/adr/0008-logging-conventions.md và CLAUDE.md §7.
+  MDC (bao gồm requestId gắn bởi RequestIdFilter) tự động được logstash-logback-encoder đưa vào mỗi dòng JSON.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+
+    <!-- SQL của Hibernate/Flyway khá ồn ở DEBUG — chỉ bật khi cần tự điều tra local -->
+    <logger name="org.hibernate.SQL" level="WARN" />
+    <logger name="com.mycompany.api" level="INFO" />
+</configuration>

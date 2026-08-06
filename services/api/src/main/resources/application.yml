@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mycompany}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway sở hữu schema (xem docs/adr/0003-flyway-for-migrations.md) — Hibernate chỉ validate,
+      # KHÔNG bao giờ tự tạo/sửa bảng.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+
+  flyway:
+    enabled: true
+    # Nguồn migration DUY NHẤT là db/migrations ở gốc repo (không copy vào resources) — tránh 2 bản lệch nhau.
+    # Giả định chạy từ working directory services/api (mặc định khi chạy ./gradlew hoặc IDE run config).
+    locations: filesystem:../../db/migrations
+    sql-migration-prefix: ""
+    sql-migration-separator: "_"
+    sql-migration-suffixes: .sql
+    baseline-on-migrate: false
+
+server:
+  port: ${PORT:8080}
+
+app:
+  jwt:
+    # KHÔNG commit secret thật — đặt qua biến môi trường JWT_SECRET (xem application-secrets.yml.example)
+    secret: ${JWT_SECRET:CHANGE_ME_IN_ENV_LOCAL_DEV_ONLY_DO_NOT_USE_IN_PROD}
+    # 1 ngày, không refresh token (docs/adr/0004-auth-simplified-for-v1.md)
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}

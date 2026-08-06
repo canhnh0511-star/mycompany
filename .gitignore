@@ -1,0 +1,28 @@
+# --- Secrets (CLAUDE.md §6: KHÔNG commit secrets ngay từ đầu) ---
+.env
+.env.*
+application-secrets.yml
+application-secrets.yaml
+*.pem
+*.key
+
+# --- services/api (Gradle / Java) ---
+services/api/build/
+services/api/.gradle/
+services/api/out/
+services/api/bin/
+
+# --- apps/mobile (Expo / Node) ---
+apps/mobile/node_modules/
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+
+# --- IDE ---
+.idea/
+.vscode/
+*.iml
+
+# --- OS ---
+.DS_Store
+Thumbs.db
