@@ -31,6 +31,9 @@ client cho OCR — cần thêm khi bắt tay từng phase tương ứng bên dư
   hay trả nguyên constraint name? (Phase 1)
 - [ ] Giới hạn kích thước/định dạng ảnh upload lên Supabase Storage (chỉ JPEG/PNG? giới hạn MB?) — chưa
   chốt, cần quyết trước khi code signed upload URL (Phase 3)
+- [ ] Có nên thêm dotenv loader (vd `me.paulschwarz:spring-dotenv`) để `./gradlew bootRun`/IDE tự đọc
+  `services/api/.env`, hay giữ quy ước export biến môi trường thủ công? Hiện tại `.env` KHÔNG tự nạp — dev
+  máy mới dễ quên bước này (phát hiện 2026-08-06, xem Phase 0)
 
 ## Phase 0 — Supabase & môi trường
 
@@ -39,6 +42,15 @@ client cho OCR — cần thêm khi bắt tay từng phase tương ứng bên dư
 - [x] `services/api/.env` ghi xong (DB_URL/USERNAME/PASSWORD, JWT_SECRET, PORT)
 - [x] `.env.example` có placeholder `ANTHROPIC_API_KEY` (giá trị thật điền khi bắt tay Phase 3)
 - [x] `bootRun` chạy lên, Flyway áp 001+002+003 thành công, `POST /auth/login` trả JWT hợp lệ
+  — xác nhận lại 2026-08-06 với Supabase project hiện tại: host trực tiếp (`db.<ref>.supabase.co`) chỉ có
+  DNS IPv6, mạng dev không đi IPv6 được nên phải dùng **Session Pooler** (IPv4) thay thế —
+  `DB_URL=jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require`,
+  `DB_USERNAME=postgres.<project-ref>` (không phải `postgres` trơn). `./gradlew bootRun` KHÔNG tự đọc
+  `.env` — chưa có dotenv loader trong `build.gradle.kts`, phải export biến môi trường vào shell (hoặc IDE
+  run config) trước khi chạy, xem Open Question bên dưới.
+  Nhân tiện phát hiện + sửa: Hibernate 6 báo lỗi `PathResolutionException` (fail lúc build
+  `SessionFactory`) với `@OrderBy("latexType.code")` trên `ProductionRecord.items`/`LatexSale.items` — đã
+  xóa annotation khỏi 2 entity, để dành việc sắp xếp cho tầng service/DTO khi cần.
 - [ ] User đã đổi mật khẩu admin seed (`changeme123!`) sang mật khẩu thật — nhắc lại nếu chưa làm; xem Open
   Question về endpoint đổi mật khẩu ở trên
 
