@@ -9,6 +9,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -63,6 +64,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Dữ liệu không hợp lệ");
         problem.setDetail("Không đọc được request body — kiểm tra định dạng JSON và giá trị enum (viết hoa, vd \"PER_DAY\")");
+        return problem;
+    }
+
+    // Thiếu @RequestParam bắt buộc (vd fromDate/toDate ở /api/v1/reports/*, tableName/recordId ở
+    // /api/v1/edit-history — docs/TASKS.md Phase 4, những endpoint đầu tiên dùng required query param).
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParameter(MissingServletRequestParameterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Thiếu tham số bắt buộc");
+        problem.setDetail("Thiếu tham số '" + ex.getParameterName() + "' (kiểu " + ex.getParameterType() + ")");
         return problem;
     }
 

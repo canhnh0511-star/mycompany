@@ -36,3 +36,16 @@ app:
     secret: ${JWT_SECRET:CHANGE_ME_IN_ENV_LOCAL_DEV_ONLY_DO_NOT_USE_IN_PROD}
     # 1 ngày, không refresh token (docs/adr/0004-auth-simplified-for-v1.md)
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  anthropic:
+    # Rỗng ở dev nếu chưa điền ANTHROPIC_API_KEY trong .env — luồng OCR sẽ lỗi rõ ràng (401 từ
+    # Claude API, ghi vào ocr_call_logs.success=false) thay vì crash lúc khởi động.
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+    base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+  supabase:
+    url: ${SUPABASE_URL:}
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    bucket: ${SUPABASE_STORAGE_BUCKET:receipt-photos}
+    # 5MB — đúng giới hạn ảnh base64 của Claude Vision API (docs/TASKS.md Open Question, resolved 2026-08-06)
+    max-upload-bytes: ${SUPABASE_MAX_UPLOAD_BYTES:5242880}
+    allowed-content-types: ${SUPABASE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png}
