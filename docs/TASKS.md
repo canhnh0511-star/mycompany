@@ -7,33 +7,50 @@
 ## Trạng thái hiện tại (tính đến khi file này được tạo)
 
 Đã xong: 13 JPA entity + converter (đủ toàn bộ data model), JWT auth (`POST /api/v1/auth/login`,
-`GET/PATCH /api/v1/users/me`), `RequestIdFilter` + JSON structured logging
-(`docs/adr/0008-logging-conventions.md`), `GlobalExceptionHandler`, `./gradlew build` xanh, Supabase
-project + Storage + kết nối DB thật đã chạy (`bootRun` áp Flyway 001–003 thành công, login trả JWT hợp lệ).
+`GET/PATCH /api/v1/users/me`, `PATCH /api/v1/users/me/password`), `RequestIdFilter` + JSON structured
+logging (`docs/adr/0008-logging-conventions.md`), `GlobalExceptionHandler` (validation/404/409/400/500 +
+lưới an toàn `DataIntegrityViolationException`), `./gradlew build` xanh, Supabase project + Storage + kết
+nối DB thật đã chạy (`bootRun` áp Flyway 001–003 thành công, login trả JWT hợp lệ). **Phase 1 xong**: CRUD
+đủ cho Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs (`controller/service/dto`, không expose
+entity trực tiếp), tất cả đã smoke-test bằng curl trên Supabase dev thật (2026-08-06) — happy path + từng
+loại lỗi (404/400/409) cho mỗi resource.
 
-Chưa có: package `service/`, controller/service cho bất kỳ bảng nghiệp vụ nào (Team, Employee, LatexType,
-RateConfig, AllowanceConfig, ProductionRecord, AttendanceRecord, LatexSale, OcrCallLog, EditHistory), tích
-hợp Claude Vision OCR, export Excel/PDF, springdoc-openapi, `docs/api.md`, test (unit lẫn integration).
+Chưa có: controller/service cho các bảng nghiệp vụ vận hành (ProductionRecord, AttendanceRecord,
+LatexSale, OcrCallLog, EditHistory — Phase 2+), tích hợp Claude Vision OCR, export Excel/PDF,
+springdoc-openapi, `docs/api.md`, test (unit lẫn integration).
 
 `build.gradle.kts` hiện chưa có dependency cho: springdoc-openapi, Apache POI, OpenPDF, Anthropic SDK/HTTP
 client cho OCR — cần thêm khi bắt tay từng phase tương ứng bên dưới (không thêm trước khi cần).
+
+**Lưu ý cho Phase 2+ (phát hiện lúc làm Phase 1, 2026-08-06):** entity nào có `@CreationTimestamp`
+(`createdAt`) và id sinh client-side (`GenerationType.UUID`, tất cả entity trong repo đều vậy) — nếu
+service `create()` gọi `repository.save(entity)` rồi map sang response NGAY trong cùng transaction,
+`createdAt` sẽ là `null` trong response (Hibernate trì hoãn INSERT tới lúc flush/commit, mặc định AUTO
+flush mode không flush ngay sau `save()`). Phải dùng `repository.saveAndFlush(entity)` ở nhánh create khi
+cần đọc lại field do Hibernate tự sinh ngay lập tức — xem `TeamService`/`EmployeeService`/`RateConfigService`
+làm mẫu. `ProductionRecord`, `LatexSale` cũng có `createdAt` — nhớ áp dụng khi làm Phase 2.
 
 ## Open Questions còn treo (khác với "Quyết định đã chốt" — những cái NÀY chưa quyết)
 
 - [ ] Swagger UI (`springdoc-openapi`) mở ở profile nào — chỉ dev/local, hay cho phép truy cập ở prod có
   auth riêng? (Phase 5)
-- [ ] Chưa có endpoint đổi mật khẩu cho tài khoản admin seed (`002_seed_admin_user.sql`) — user đã được
-  nhắc đổi mật khẩu thủ công sau khi xác nhận login lần đầu ở Phase 0, nhưng về lâu dài cần
-  `PATCH /api/v1/users/me/password` hay tương tự. Quyết định khi làm `UserController` mở rộng — chưa rõ
-  thuộc Phase nào, tạm xếp cuối Phase 1.
-- [ ] Định dạng response lỗi 409 khi vi phạm EXCLUDE constraint (effective_from/to chồng lấn) của
-  `rate_configs`/`allowance_configs` — cần map lỗi Postgres constraint thành JSON lỗi dễ hiểu cho frontend
-  hay trả nguyên constraint name? (Phase 1)
+- [x] ~~Chưa có endpoint đổi mật khẩu~~ — RESOLVED 2026-08-06: `PATCH /api/v1/users/me/password`
+  (`ChangePasswordRequest`: `currentPassword`/`newPassword`, verify bằng `PasswordEncoder.matches` trước
+  khi cho đổi). Đã test round-trip (đổi → login bằng mật khẩu mới OK, login bằng mật khẩu cũ 401 → đổi lại)
+  nhưng **CHƯA đổi mật khẩu admin seed thật** — vẫn còn `changeme123!`, xem Phase 0 bên dưới.
+- [x] ~~Định dạng response lỗi 409~~ — RESOLVED 2026-08-06: service layer tự validate chồng lấn
+  effective_from/to TRƯỚC khi insert/update (`RateConfigService`/`AllowanceConfigService`,
+  `DateRangeOverlap` helper dùng chung) → ném `ConflictException` (409, `ProblemDetail`, message có id +
+  khoảng ngày của dòng xung đột). `DataIntegrityViolationException` (race condition lọt qua check ở app,
+  hoặc vi phạm UNIQUE khác) → 409 chung chung ở `GlobalExceptionHandler`, không lộ tên constraint SQL.
 - [ ] Giới hạn kích thước/định dạng ảnh upload lên Supabase Storage (chỉ JPEG/PNG? giới hạn MB?) — chưa
   chốt, cần quyết trước khi code signed upload URL (Phase 3)
 - [ ] Có nên thêm dotenv loader (vd `me.paulschwarz:spring-dotenv`) để `./gradlew bootRun`/IDE tự đọc
   `services/api/.env`, hay giữ quy ước export biến môi trường thủ công? Hiện tại `.env` KHÔNG tự nạp — dev
   máy mới dễ quên bước này (phát hiện 2026-08-06, xem Phase 0)
+- [ ] `LatexType` xóa được (hard delete có guard tham chiếu) thay vì chỉ "ngừng dùng" như Employee — quyết
+  định 2026-08-06 chọn nhánh không cần schema mới (không thêm cột status) để không chặn Phase 1. Nếu sau
+  này muốn giữ lịch sử ngay cả khi không còn tham chiếu, cần đổi sang thêm cột status + migration mới.
 
 ## Phase 0 — Supabase & môi trường
 
@@ -51,29 +68,37 @@ client cho OCR — cần thêm khi bắt tay từng phase tương ứng bên dư
   Nhân tiện phát hiện + sửa: Hibernate 6 báo lỗi `PathResolutionException` (fail lúc build
   `SessionFactory`) với `@OrderBy("latexType.code")` trên `ProductionRecord.items`/`LatexSale.items` — đã
   xóa annotation khỏi 2 entity, để dành việc sắp xếp cho tầng service/DTO khi cần.
-- [ ] User đã đổi mật khẩu admin seed (`changeme123!`) sang mật khẩu thật — nhắc lại nếu chưa làm; xem Open
-  Question về endpoint đổi mật khẩu ở trên
+- [ ] User đã đổi mật khẩu admin seed (`changeme123!`) sang mật khẩu thật — endpoint đã có
+  (`PATCH /api/v1/users/me/password`, xong 2026-08-06) nhưng **user vẫn cần tự gọi để đổi** — nhắc lại nếu
+  chưa làm.
 
-## Phase 1 — Admin config CRUD
+## Phase 1 — Admin config CRUD ✅ (xong 2026-08-06)
 
 Tạo package `service/` (business logic tách khỏi controller, theo layer — CLAUDE.md §6). Mỗi resource:
 controller + service + DTO request/response (không expose entity trực tiếp qua API).
 
-- [ ] **Teams**: `GET /api/v1/teams`, `GET /api/v1/teams/{id}`, `POST /api/v1/teams`,
+- [x] **Teams**: `GET /api/v1/teams`, `GET /api/v1/teams/{id}`, `POST /api/v1/teams`,
   `PATCH /api/v1/teams/{id}` (chỉ `name`/`description`). KHÔNG có DELETE ở v1 (CLAUDE.md §4, được tham
   chiếu bởi employees/production_records/latex_sales).
-- [ ] **Employees**: CRUD đủ (kể cả đổi `status` active/inactive, đổi `team_id`). List có filter theo
-  `team_id`/`status`.
-- [ ] **LatexTypes**: danh mục MỞ (`docs/adr/0002-normalize-latex-type-storage.md`) — CRUD đủ, không hard
-  delete nếu đã có `production_record_items`/`latex_sale_items` tham chiếu (kiểm tra trước khi cho xóa
-  hoặc chỉ cho phép "ngừng dùng" tương tự Employee status).
-- [ ] **RateConfigs**: CRUD theo `latex_type_id` + `effective_from`/`effective_to`. Bắt lỗi vi phạm
-  EXCLUDE constraint (2 dòng cùng `latex_type_id` chồng khoảng hiệu lực) → trả 409 rõ ràng (xem Open
-  Question về format lỗi).
-- [ ] **AllowanceConfigs**: cùng mô hình CRUD + cùng ràng buộc chống chồng lấn effective_from/to như
-  RateConfigs. Lưu ý "lighting" (tiền đèn) không gắn `attendance_records` theo ngày (CLAUDE.md §4) — chỉ
-  là khai báo cấu hình, chưa tính lương ở Module 1.
-- [ ] (Open Question) Endpoint đổi mật khẩu admin — nếu quyết làm ở phase này.
+- [x] **Employees**: CRUD đủ (kể cả đổi `status` active/inactive, đổi `team_id`). List có filter theo
+  `team_id`/`status` (`EmployeeRepository.findByTeamIdAndStatus`); trùng `user_id` (UNIQUE ở DB) chặn ở
+  service → 409 thay vì lộ `DataIntegrityViolationException`.
+- [x] **LatexTypes**: danh mục MỞ (`docs/adr/0002-normalize-latex-type-storage.md`) — CRUD đủ, `code`
+  KHÔNG sửa được sau khi tạo (chỉ `label`/`unit`), DELETE có guard: chặn (409) nếu còn tham chiếu ở
+  `rate_configs`/`production_record_items`/`latex_sale_items` — xem Open Question đã resolve về hướng này.
+- [x] **RateConfigs**: CRUD theo `latex_type_id` + `effective_from`/`effective_to`. Validate chồng lấn ở
+  service TRƯỚC khi insert/update → 409 rõ ràng kèm id + khoảng ngày dòng xung đột (xem Open Question đã
+  resolve). Không có DELETE (giữ lịch sử đơn giá).
+- [x] **AllowanceConfigs**: cùng mô hình CRUD + cùng ràng buộc chống chồng lấn effective_from/to như
+  RateConfigs (theo `code`, không phải id — nhiều dòng cùng code theo thời gian là hợp lệ). Lưu ý
+  "lighting" (tiền đèn) không gắn `attendance_records` theo ngày (CLAUDE.md §4) — chỉ là khai báo cấu
+  hình, chưa tính lương ở Module 1. Không có DELETE.
+- [x] Endpoint đổi mật khẩu admin (`PATCH /api/v1/users/me/password`) — làm ở phase này, xem Phase 0.
+
+Smoke-test 2026-08-06 (curl thủ công trên Supabase dev thật, chưa phải automated test — xem Phase 5):
+mỗi resource đã test happy path + validation error (400) + not-found (404) + conflict (409) tương ứng;
+riêng RateConfigs/AllowanceConfigs đã test cả overlap chặn đúng lẫn range liền kề (`effective_to` =
+`effective_from` dòng sau) KHÔNG bị coi là chồng lấn (nửa mở `[from, to)` đúng ngữ nghĩa `daterange`).
 
 ## Phase 2 — Nhập liệu batch (ADR-0007: best-effort theo từng dòng)
 

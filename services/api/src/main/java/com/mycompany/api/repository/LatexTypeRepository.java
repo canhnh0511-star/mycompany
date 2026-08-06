@@ -5,4 +5,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface LatexTypeRepository extends JpaRepository<LatexType, UUID> {
+
+    boolean existsByCode(String code);
 }
