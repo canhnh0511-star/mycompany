@@ -1,6 +1,7 @@
 # --- Secrets (CLAUDE.md §6: KHÔNG commit secrets ngay từ đầu) ---
 .env
 .env.*
+!.env.example
 application-secrets.yml
 application-secrets.yaml
 *.pem

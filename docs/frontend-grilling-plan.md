@@ -251,11 +251,22 @@ chừng), nên tốc độ tuần/tuần có thể nhanh hơn ước tính gốc
 - [x] Admin duyệt toàn bộ §2 (2026-08-08) — tách thành 10 ADR (`docs/adr/0009`–`0018`).
 - [x] §2.4 (bỏ auto-crop/sharpen thật sự) đã duyệt → CLAUDE.md §5 đã sửa câu "Tự động crop & làm nét ảnh
       trước khi gửi OCR" cho khớp thực tế (ADR-0011).
-- [ ] `npx create-expo-app apps/mobile -t` (TypeScript template) + Expo Router + gluestack-ui (ADR-0015).
-- [ ] Scaffold `lib/api/client.ts` (ADR-0009), `lib/auth/tokenStorage.ts` (ADR-0010),
-      `lib/query/queryClient.ts` (ADR-0009) trước khi viết feature đầu tiên — đây là nền cho mọi màn hình
-      khác.
-- [ ] Thêm `apps/mobile` vào cấu trúc repo đã mô tả ở CLAUDE.md §3 (hiện file đó liệt kê `/apps/mobile`
-      nhưng thư mục thật chưa tồn tại — cập nhật khi scaffold xong để tài liệu khớp thực tế).
+- [x] `apps/mobile` scaffold xong (2026-08-08): `create-expo-app` (SDK 57, TypeScript + Expo Router mặc
+      định) + `gluestack-ui init`/`add` (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4). Đã fix 2 bug do
+      CLI gluestack sinh sai cho project dùng `src/` (babel alias `@` trỏ nhầm về root thay vì `src/`, và
+      import `global.css` sai đường dẫn trong `_layout.tsx`) — xem commit scaffold.
+- [x] Scaffold `lib/api/client.ts` (ADR-0009, có xử lý 401 tập trung), `lib/auth/tokenStorage.ts`
+      (ADR-0010), `lib/query/queryClient.ts` + `queryKeys` (ADR-0009), `features/auth` (store Zustand,
+      `useAuth()` — ADR-0016, `useMeQuery`) — đã nối thật, không phải stub: màn Đăng nhập và tab Hồ sơ gọi
+      API thật (`POST /auth/login`, `GET /users/me`).
+- [x] Route dựng đủ theo cấu trúc §3: `(auth)/login` (thật), `(tabs)` 4 tab (`capture`/`quick-entry`/
+      `lookup` placeholder chờ wireframe; `profile` thật), `(web)` placeholder cho 5 màn danh mục + 2
+      báo cáo. `features/{production-records,latex-sales,attendance-records,ocr-capture,reports,
+      admin-catalog}` mới có `README.md` ghi chú ADR liên quan, chưa code — cố ý chờ wireframe.
+- [x] `apps/mobile` đã tồn tại thật trong repo, khớp cấu trúc mô tả ở CLAUDE.md §3.
+- [ ] Chạy `npx tsc --noEmit` + `npx expo export --platform web` sạch (đang verify — gluestack v5 alpha
+      dùng react-aria/react-stately nên typecheck khá chậm).
+- [ ] Build tiếp `features/ocr-capture` (ADR-0011) và `features/production-records`/`latex-sales` sau khi
+      wireframe chốt layout — đây là 2 luồng phức tạp nhất, không nên đoán UI trước khi có wireframe.
 - [ ] Wireframe (claude.ai/design, prompt đã soạn sẵn ở buổi trước) — chốt layout trước khi bắt tay code
       màn hình thật, độc lập với các ADR kỹ thuật ở đây.
