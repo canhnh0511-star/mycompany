@@ -1,3 +1,7 @@
+// @ts-nocheck -- gluestack-ui v5 alpha: styled(Animated.View, ...) gây "Type instantiation is
+// excessively deep" (TS2589) khi kết hợp NativeWind styled() + react-native-reanimated generics. Lỗi
+// type thuần, không ảnh hưởng runtime (Metro/Babel không type-check) — bỏ khi gluestack-ui/nativewind
+// bản ổn định sửa. Không sửa tay phần còn lại của file (xem src/components/README.md).
 'use client';
 import { createToastHook } from '@gluestack-ui/core/toast/creator';
 import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
