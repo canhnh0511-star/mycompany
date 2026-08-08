@@ -264,8 +264,14 @@ chừng), nên tốc độ tuần/tuần có thể nhanh hơn ước tính gốc
       báo cáo. `features/{production-records,latex-sales,attendance-records,ocr-capture,reports,
       admin-catalog}` mới có `README.md` ghi chú ADR liên quan, chưa code — cố ý chờ wireframe.
 - [x] `apps/mobile` đã tồn tại thật trong repo, khớp cấu trúc mô tả ở CLAUDE.md §3.
-- [ ] Chạy `npx tsc --noEmit` + `npx expo export --platform web` sạch (đang verify — gluestack v5 alpha
-      dùng react-aria/react-stately nên typecheck khá chậm).
+- [x] `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch (2026-08-08, sau 2 vòng sửa lỗi):
+      17 lỗi tsc ban đầu → 0 (ambient type cho `*.css`, `// @ts-nocheck` 2 file vendor gluestack có bug
+      type thật ở bản alpha — spinner/toast, xóa 3 component chưa dùng tới — checkbox/modal/select).
+      Export web ban đầu lỗi runtime `Cannot read properties of undefined (reading 'default')` do
+      `web.output: static` chạy static prerender qua Node — đổi sang `single` (SPA, hợp lý hơn vì toàn
+      bộ app nằm sau đăng nhập, không cần SEO/prerender) fix dứt điểm. Chưa verify build native thật
+      (iOS/Android, cần thiết bị/simulator) — Metro module graph dùng chung nên rủi ro thấp hơn, để lúc
+      build feature thật kiểm tra tiếp.
 - [ ] Build tiếp `features/ocr-capture` (ADR-0011) và `features/production-records`/`latex-sales` sau khi
       wireframe chốt layout — đây là 2 luồng phức tạp nhất, không nên đoán UI trước khi có wireframe.
 - [ ] Wireframe (claude.ai/design, prompt đã soạn sẵn ở buổi trước) — chốt layout trước khi bắt tay code
