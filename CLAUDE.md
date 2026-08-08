@@ -189,9 +189,12 @@ dành cho nhập liệu hàng loạt kiểu bảng tính, quản lý danh mục,
 - **Hồ sơ** — thông tin cá nhân, đăng xuất
 
 **UX riêng cho màn Chụp ảnh:**
-- Tự động crop & làm nét ảnh trước khi gửi OCR (giống app scan tài liệu — tăng cả tiện lợi lẫn độ chính xác OCR)
-- Cảnh báo lỗi/`type_mismatch` ngay tại chỗ trên chính màn hình chụp (không phải đợi vào tab Tra cứu mới biết) — để Admin xử lý trong lúc còn đứng ở đúng Tổ
-- Ghi nhớ Tổ đang làm việc trong phiên — ảnh tiếp theo mặc định vẫn gán Tổ vừa chọn, có nút "Đổi Tổ" rõ ràng khi di chuyển
+- **V1 KHÔNG có auto-crop/sharpen tự động phát hiện cạnh giấy** (khác bản mô tả gốc — không khả thi
+  trong Expo managed workflow, xem `docs/adr/0011-ocr-capture-flow-v1-scope.md`). Chỉ có crop thủ công
+  đơn giản (Admin tự kéo khung nếu muốn) qua `expo-image-manipulator`; ảnh gửi Claude Vision gần như
+  nguyên gốc. Đo lại nhu cầu auto-crop sau khi có dữ liệu OCR thật.
+- Cảnh báo lỗi/`type_mismatch` ngay tại chỗ trên chính màn hình chụp (không phải đợi vào tab Tra cứu mới biết) — để Admin xử lý trong lúc còn đứng ở đúng Tổ; hiện dưới dạng toast/banner không chặn, kèm nút "Xem chi tiết".
+- Ghi nhớ Tổ đang làm việc trong phiên — ảnh tiếp theo mặc định vẫn gán Tổ vừa chọn, có nút "Đổi Tổ" rõ ràng khi di chuyển. Lưu ở state trong bộ nhớ (không persist), reset khi app bị kill.
 
 ---
 

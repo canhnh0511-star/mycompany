@@ -3,9 +3,12 @@
 > "Grilling" = buổi truy vấn/phản biện có chủ đích TRƯỚC khi viết dòng code frontend đầu tiên, để lộ ra
 > hết các giả định ngầm, quyết định còn treo, và rủi ro kỹ thuật — giống cách backend đã chốt qua các ADR
 > (`docs/adr/`) thay vì để lộ ra giữa chừng lúc code. Format mỗi mục: **câu hỏi** → **đề xuất** (mặc định
-> nếu không ai phản đối) → mức độ chắc chắn. Đề xuất ở đây **CHƯA phải ADR** — cần Admin (chủ dự án) duyệt
-> qua trước khi khóa lại; mục nào duyệt xong nên tách thành ADR riêng (`docs/adr/000X-...md`) như backend
-> đã làm, không giữ quyết định kiến trúc chỉ nằm trong file kế hoạch này.
+> nếu không ai phản đối) → mức độ chắc chắn.
+>
+> **CẬP NHẬT 2026-08-08 — toàn bộ §2 đã được Admin duyệt.** Mỗi mục đã tách thành ADR riêng
+> (`docs/adr/0009`–`0018`) — file này giữ nguyên làm lịch sử buổi grilling (lý do/phương án đã cân nhắc),
+> nhưng **nguồn sự thật cho quyết định là các ADR**, không phải mục §2 bên dưới. §2.8 (UI kit) có 1 thay
+> đổi so với đề xuất gốc ở đây — xem ADR-0015.
 
 ---
 
@@ -58,6 +61,7 @@ cache, refetch, retry tự nhiên rất hợp với UX "mất mạng thực đ�
 trên `fetch` (không cần axios) để gắn `Authorization` header + xử lý 401 tập trung. Mutation (POST/PATCH
 batch, OCR capture, confirm) dùng `useMutation`, invalidate query liên quan sau khi thành công.
 **Mức độ chắc chắn:** cao — pattern chuẩn cho RN+web, không phải build queue tay.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0009-frontend-data-layer-tanstack-query.md`.
 
 ### 2.2 — Token storage cross-platform (web + native)
 **Câu hỏi:** `expo-secure-store` KHÔNG chạy trên web. App phải chạy được cả web (CLAUDE.md §3) — vậy lưu
@@ -66,6 +70,7 @@ JWT ở đâu để vừa an toàn trên mobile vừa hoạt động trên web?
 `localStorage` (chấp nhận rủi ro XSS thấp hơn mức cần lo ở v1, vì chỉ 1 vai trò Admin, không có nội dung
 user-generated render lại dạng HTML). Token hết hạn 1 ngày (ADR-0004) nên rủi ro lộ token có cửa sổ ngắn.
 **Mức độ chắc chắn:** trung bình — cần Admin xác nhận có chấp nhận `localStorage` trên web hay không.
+**Quyết định:** chốt, chấp nhận `localStorage` trên web — xem `docs/adr/0010-frontend-token-storage.md`.
 
 ### 2.3 — Xử lý 401/hết hạn token giữa chừng
 **Câu hỏi:** JWT hết hạn 1 ngày, không có refresh (ADR-0004) — khi 401 xảy ra giữa lúc Admin đang thao
@@ -75,6 +80,7 @@ login, hiện toast "Phiên đăng nhập hết hạn, vui lòng đăng nhập l
 OCR ghi draft ngay theo ADR-0006, nên ảnh đã chụp trước đó không mất, chỉ ảnh đang xử lý dở khi 401 xảy ra
 mới cần chụp lại).
 **Mức độ chắc chắn:** cao.
+**Quyết định:** chốt theo đề xuất — gộp chung `docs/adr/0009-frontend-data-layer-tanstack-query.md`.
 
 ### 2.4 — Luồng Chụp ảnh/OCR: chi tiết còn thiếu trong spec
 CLAUDE.md §5 đã tả luồng nghiệp vụ, nhưng còn khoảng trống kỹ thuật:
@@ -105,6 +111,10 @@ CLAUDE.md §5 đã tả luồng nghiệp vụ, nhưng còn khoảng trống kỹ
   "đi thực địa cả buổi" nên không cần bền vững; nếu Admin tắt app giữa chừng, chọn lại Tổ 1 lần không phải
   chi phí lớn.
 
+**Quyết định:** chốt theo đề xuất cho cả 4 điểm trên (bỏ auto-crop thật sự, hàng đợi trong bộ nhớ,
+toast/banner không chặn, Zustand không persist) — xem `docs/adr/0011-ocr-capture-flow-v1-scope.md`.
+CLAUDE.md §5 đã cập nhật lại câu "tự động crop & làm nét ảnh" cho khớp.
+
 ### 2.5 — Bảng review OCR đọc thẳng từ draft row (ADR-0006)
 **Câu hỏi:** ADR-0006 + CLAUDE.md §5 yêu cầu bảng kết quả sau OCR đọc TRỰC TIẾP từ draft row (không phải
 state tạm client) để chống mất dữ liệu nếu gián đoạn. Vậy sau khi `POST /ocr/capture` trả về danh sách
@@ -116,6 +126,7 @@ nguồn sự thật, hay dùng thẳng response của `capture`?
 filter `status=draft`, không được giữ list draft nào ở AsyncStorage riêng. Sửa (`PATCH`) trên bảng review
 gọi thẳng `PATCH /production-records/{id}` từng dòng — không gom thành batch riêng vì đây là sửa aggregate
 đã tồn tại, không phải tạo mới.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0012-ocr-review-table-data-source.md`.
 
 ### 2.6 — Form "Nhập tay nhanh" (nhiều dòng/tổ/ngày) & validate client-side
 **Câu hỏi:** validate phía client trùng lặp với Jakarta Validation phía backend đến mức nào? Dùng thư viện
@@ -125,6 +136,7 @@ form gì để quản lý nhiều dòng động (thêm/xóa dòng, mỗi dòng n
 âm, ngày hợp lệ) — KHÔNG cố mô phỏng lại toàn bộ business rule phía backend (vd overlap effective_from/to,
 partial unique index) vì nguồn sự thật vẫn là response `BatchResult` theo `index` (§1). Lỗi 1 dòng từ
 batch response → map ngược lại đúng dòng trong `useFieldArray` để hiển thị inline, không phải alert chung.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0013-quick-entry-form-stack.md`.
 
 ### 2.7 — Tải file export (Excel/PDF) — khác nhau giữa web và mobile
 **Câu hỏi:** endpoint export trả file nhị phân trực tiếp — trên web trigger download qua `<a download>`/
@@ -132,14 +144,20 @@ blob URL là chuyện nhỏ, nhưng trên native (Expo) không có "Downloads" m
 **Đề xuất:** dùng `expo-file-system` (`downloadAsync`) tải về sandbox app rồi `expo-sharing`
 (`shareAsync`) mở share sheet (lưu vào Files/gửi Zalo/in...) — vì báo cáo chủ yếu dùng ở web/tablet
 (CLAUDE.md §5 đã nói rõ), nhánh native chỉ cần làm **best-effort**, không phải ưu tiên polish.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0014-report-export-delivery-per-platform.md`.
 
 ### 2.8 — UI kit / component library
 **Câu hỏi:** tự build toàn bộ component (Button, TextInput, DataTable...) hay dùng 1 thư viện có sẵn
 tương thích Expo + web?
-**Đề xuất:** **react-native-paper** — hỗ trợ `react-native-web` tốt, có sẵn `DataTable`, `List`, form
-control cần cho cả tab Tra cứu (bảng) lẫn Nhập tay nhanh, theo Material Design nên không cần tự thiết kế
-design system từ đầu (đúng tinh thần CLAUDE.md §9 "ưu tiên must-have, UI polish để sau"). Cân nhắc lại nếu
-sau này cần tuỳ biến rất sâu, nhưng v1 nên ưu tiên tốc độ.
+**Đề xuất ban đầu (KHÔNG được chọn):** react-native-paper — hỗ trợ `react-native-web` tốt, có sẵn
+`DataTable`, `List`, form control theo Material Design. Giữ lại đây làm lịch sử cân nhắc.
+
+**Quyết định (khác đề xuất ban đầu):** dùng **gluestack-ui** làm nền tảng UI, wrap qua lớp abstraction
+riêng của project (`AppButton`, `AppInput`, `AppModal`, `AppSelect`, `AppCheckbox`, `AppToast`...) —
+feature code không import thẳng gluestack. Component nghiệp vụ xây trên abstraction này. Ưu tiên component
+dùng chung Native/Web; UI khác biệt lớn (DataTable, Sidebar, Dashboard layout) cho phép implementation
+riêng theo platform. Chỉ định nghĩa token cơ bản (color, spacing, font size, border radius), không xây
+design system phức tạp ở v1. Xem `docs/adr/0015-frontend-ui-kit-gluestack.md`.
 
 ### 2.9 — Ai xem báo cáo/danh mục/OCR logs? Có cần route-guard theo role không?
 **Câu hỏi:** release 1 chỉ Admin login (ADR-0001) — vậy có cần route-guard theo `role` claim từ JWT không,
@@ -148,6 +166,7 @@ hay mọi màn hình đều mở vì chỉ có 1 role thực sự đăng nhập 
 ẩn/hiện theo `team_lead` (chưa có ai login bằng role đó ở v1), nhưng tổ chức code sao cho thêm 1 role sau
 này không phải viết lại từ đầu (theo đúng tinh thần ADR-0001 "không cần viết lại code khi mở tính năng
 release sau"). Cụ thể: 1 hook `useAuth()` trả `role`, các nơi cần thu hẹp sau này chỉ cần check hook này.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0016-frontend-role-gating-minimal-v1.md`.
 
 ### 2.10 — Testing frontend
 **Câu hỏi:** backend Phase 5 còn treo cả unit lẫn integration test (`docs/TASKS.md`). Frontend có test từ
@@ -156,6 +175,7 @@ release sau"). Cụ thể: 1 hook `useAuth()` trả `role`, các nơi cần thu 
 e2e (Detox/Maestro) ngay; chỉ viết unit test cho phần logic thuần không phụ thuộc UI dễ vỡ nhất: mapping
 lỗi `BatchResult` → field form (§2.6), interceptor 401 (§2.3), fuzzy-match hiển thị `unmatchedLines`
 (§2.4/§1). Để dành component/e2e test tới khi tính năng ổn định.
+**Quyết định:** chốt theo đề xuất — xem `docs/adr/0017-frontend-testing-scope-v1.md`.
 
 ### 2.11 — Build & deploy target
 **Câu hỏi:** Expo Go đủ dùng suốt quá trình dev, hay cần custom dev client ngay từ đầu (vd nếu chọn
@@ -167,6 +187,7 @@ build thật để cài lên điện thoại Admin dùng thực địa (không p
 tự set up native toolchain thủ công). Deploy web: `expo export --platform web` ra static site, host ở đâu
 (Vercel/Netlify/cùng chỗ với backend) — **chưa chốt, để quyết khi tới Phase báo cáo/web** vì chưa cấp
 thiết ở tuần 1–2.
+**Quyết định:** chốt theo đề xuất (Expo Go + EAS Build) — xem `docs/adr/0018-frontend-build-target-expo-go-eas.md`.
 
 ---
 
@@ -198,7 +219,7 @@ apps/mobile/
     api/client.ts     (fetch wrapper + 401 interceptor, §2.1/§2.3)
     auth/tokenStorage.ts (§2.2)
     query/queryClient.ts
-  components/          (shared UI, wrap react-native-paper theo theme riêng nếu cần)
+  components/          (shared UI — wrap gluestack-ui: AppButton/AppInput/..., xem ADR-0015)
   types/api.ts          (mirror DTO backend — cân nhắc generate từ OpenAPI khi Phase 5 backend xong)
 ```
 
@@ -227,11 +248,14 @@ chừng), nên tốc độ tuần/tuần có thể nhanh hơn ước tính gốc
 
 ## 5. Việc cần làm ngay khi buổi grilling này được duyệt
 
-- [ ] Admin duyệt/chỉnh từng mục ở §2 — mục nào chốt xong, tách thành ADR riêng (đánh số tiếp từ 0009)
-      thay vì để nằm rải rác trong file kế hoạch này.
-- [ ] Nếu §2.4 (bỏ auto-crop/sharpen thật sự) được duyệt → sửa câu "Tự động crop & làm nét ảnh trước khi
-      gửi OCR" ở CLAUDE.md §5 cho khớp thực tế.
-- [ ] `npx create-expo-app apps/mobile -t` (TypeScript template) + Expo Router, không thêm gì khác cho
-      tới khi §2.8 (UI kit) được duyệt.
+- [x] Admin duyệt toàn bộ §2 (2026-08-08) — tách thành 10 ADR (`docs/adr/0009`–`0018`).
+- [x] §2.4 (bỏ auto-crop/sharpen thật sự) đã duyệt → CLAUDE.md §5 đã sửa câu "Tự động crop & làm nét ảnh
+      trước khi gửi OCR" cho khớp thực tế (ADR-0011).
+- [ ] `npx create-expo-app apps/mobile -t` (TypeScript template) + Expo Router + gluestack-ui (ADR-0015).
+- [ ] Scaffold `lib/api/client.ts` (ADR-0009), `lib/auth/tokenStorage.ts` (ADR-0010),
+      `lib/query/queryClient.ts` (ADR-0009) trước khi viết feature đầu tiên — đây là nền cho mọi màn hình
+      khác.
 - [ ] Thêm `apps/mobile` vào cấu trúc repo đã mô tả ở CLAUDE.md §3 (hiện file đó liệt kê `/apps/mobile`
       nhưng thư mục thật chưa tồn tại — cập nhật khi scaffold xong để tài liệu khớp thực tế).
+- [ ] Wireframe (claude.ai/design, prompt đã soạn sẵn ở buổi trước) — chốt layout trước khi bắt tay code
+      màn hình thật, độc lập với các ADR kỹ thuật ở đây.
