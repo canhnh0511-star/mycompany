@@ -13,6 +13,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Trả lỗi dạng ProblemDetail (RFC 7807, mặc định của Spring Boot 3). Mọi exception không được bắt
@@ -102,6 +103,17 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
         problem.setTitle("Xung đột dữ liệu");
         problem.setDetail("Dữ liệu vi phạm ràng buộc (trùng lặp hoặc chồng lấn khoảng thời gian hiệu lực).");
+        return problem;
+    }
+
+    // Route/path không tồn tại (vd gõ nhầm URL) — Spring ném exception này thay vì 404 mặc định khi
+    // không match được static resource/handler nào. Không bắt riêng sẽ bị handler Exception.class ở
+    // dưới nuốt thành 500, sai status.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Không tìm thấy dữ liệu");
+        problem.setDetail("Không tìm thấy đường dẫn '" + ex.getResourcePath() + "'");
         return problem;
     }
 
