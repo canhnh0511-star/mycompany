@@ -340,27 +340,29 @@ lên Supabase dev (không mock DB).
   (đổi `web.output` sang `single` — SPA, hợp lý vì toàn bộ app nằm sau đăng nhập). Chưa verify build
   native thật (iOS/Android, cần thiết bị/simulator).
 
-**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm — form nhiều dòng vẫn chờ wireframe, admin-catalog
-không cần wireframe nên bắt đầu trước)*
+**Wireframe ✅ xong (2026-08-09)** — 10 màn hình, 5 điểm layout/scope tự đánh dấu đã duyệt hết, xem
+`docs/adr/0019-wireframe-layout-decisions.md`. Tuần 2-6 dưới đây không còn bị chặn bởi wireframe nữa.
+
+**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm)*
 
 - [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
   nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
-  lỗi `BatchResult` theo `index` ngược lại đúng dòng. *(vẫn chờ wireframe — luồng phức tạp, xem
-  frontend-grilling-plan.md §5)*
+  lỗi `BatchResult` theo `index` ngược lại đúng dòng. Layout theo màn "Nhập tay nhanh" ở wireframe (seg
+  control Sản lượng/Bán mủ/Chuyên cần, mỗi dòng 1 `draft-row` có pill trạng thái + lỗi inline).
 - [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
-  layout web/tablet (route nhóm `(web)`).
+  layout web/tablet (route nhóm `(web)`). Theo wireframe: 1 trang dùng chung, rail con bên trái điều
+  hướng 5 danh mục (ADR-0019 mục 3) — KHÁC layout hiện tại của Teams (route riêng), cần refactor.
   - [x] **Teams** (2026-08-09) — CRUD đủ (`teams/api.ts`, `useTeams.ts`, `TeamsScreen.tsx`, thay
     `PlaceholderScreen` ở `app/(web)/admin-catalog/teams.tsx`). List + form inline (không Modal —
     gluestack-ui bản alpha chưa có Modal ổn định), react-query invalidate theo `queryKeys.teams.all`.
     Dùng làm mẫu pattern cho 4 resource còn lại. `npx tsc --noEmit` + `npx expo export --platform web`
-    chạy sạch sau khi thêm.
+    chạy sạch sau khi thêm. **Chưa áp dụng layout rail con** (build trước khi có wireframe) — refactor
+    khi làm tiếp 4 resource còn lại, gộp chung vào 1 layout cha `(web)/admin-catalog/_layout.tsx`.
   - [ ] Employees (có `team_id`/`status` select), LatexTypes (`code` không sửa được sau khi tạo),
     RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
     — lặp lại pattern của Teams, chưa làm.
-- [ ] Wireframe (claude.ai/design) chốt layout trước khi code màn hình thật (production-records/
-  latex-sales/attendance-records/ocr-capture) — độc lập với các ADR kỹ thuật, đang treo.
 
-**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu — chờ wireframe)*
+**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu, không còn bị chặn)*
 
 - [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
   (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
@@ -375,12 +377,15 @@ không cần wireframe nên bắt đầu trước)*
 **Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
 
 - [ ] `features/*/lookup` — tab Tra cứu, filter theo Tổ/ngày/status (kể cả `draft`), xem `edit_history`
-  trong màn chi tiết record.
+  trong màn chi tiết record. Layout dạng card theo wireframe (ADR-0019 mục 2), không phải bảng compact.
 
-**Tuần 6 — Báo cáo & export** *(chưa bắt đầu)*
+**Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
 
-- [ ] `features/reports` — bảng report JSON (2 loại) + nút export; web dùng `<a download>`/blob, native
-  dùng `expo-file-system` (`downloadAsync`) + `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
+- [ ] `features/reports` — bảng report JSON (2 loại), CHỈ bảng số liệu ở v1, không biểu đồ (ADR-0019 mục
+  5) + nút export; web dùng `<a download>`/blob, native dùng `expo-file-system` (`downloadAsync`) +
+  `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
+- [ ] Màn Theo dõi OCR (`ocr_call_logs` list + `/stats`) — làm ở v1 theo wireframe (ADR-0019 mục 4),
+  backend đã sẵn API (Phase 4). Route web, chỉ Admin xem.
 - [ ] Test với dữ liệu thật, sửa lỗi UI.
 
 **Testing frontend** (ADR-0017/§2.10, không theo tuần cố định — làm song song khi logic ổn định): unit

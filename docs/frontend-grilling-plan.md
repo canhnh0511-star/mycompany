@@ -272,7 +272,13 @@ chừng), nên tốc độ tuần/tuần có thể nhanh hơn ước tính gốc
       bộ app nằm sau đăng nhập, không cần SEO/prerender) fix dứt điểm. Chưa verify build native thật
       (iOS/Android, cần thiết bị/simulator) — Metro module graph dùng chung nên rủi ro thấp hơn, để lúc
       build feature thật kiểm tra tiếp.
-- [ ] Build tiếp `features/ocr-capture` (ADR-0011) và `features/production-records`/`latex-sales` sau khi
-      wireframe chốt layout — đây là 2 luồng phức tạp nhất, không nên đoán UI trước khi có wireframe.
-- [ ] Wireframe (claude.ai/design, prompt đã soạn sẵn ở buổi trước) — chốt layout trước khi bắt tay code
-      màn hình thật, độc lập với các ADR kỹ thuật ở đây.
+- [x] Wireframe (claude.ai/design) xong (2026-08-09) — mid-fidelity, 10 màn hình (Đăng nhập/Chụp ảnh/
+      Bảng review OCR/Nhập tay nhanh/Tra cứu/Chi tiết record/Hồ sơ/Quản lý danh mục/Báo cáo/Theo dõi
+      OCR), tự đánh dấu 5 điểm cần chốt layout/scope — đã duyệt hết, xem
+      `docs/adr/0019-wireframe-layout-decisions.md`. Không lưu file HTML wireframe vào repo (mockup
+      dựng ở claude.ai/design, không phải asset cần version); ADR-0019 là nguồn quyết định lâu dài.
+- [ ] Build tiếp `features/ocr-capture` (ADR-0011) và `features/production-records`/`latex-sales` —
+      wireframe đã chốt layout, không còn lý do phải đoán UI trước khi code màn hình thật.
+- [x] `features/admin-catalog/teams` xong (2026-08-09, xem `docs/TASKS.md`) — build TRƯỚC khi có
+      wireframe (không cần layout đặc thù, chỉ CRUD 2 field). Cần refactor sang layout rail con khi build
+      tiếp 4 resource còn lại, xem ADR-0019 mục 3.
