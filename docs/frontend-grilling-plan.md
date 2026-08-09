@@ -251,10 +251,12 @@ chừng), nên tốc độ tuần/tuần có thể nhanh hơn ước tính gốc
 - [x] Admin duyệt toàn bộ §2 (2026-08-08) — tách thành 10 ADR (`docs/adr/0009`–`0018`).
 - [x] §2.4 (bỏ auto-crop/sharpen thật sự) đã duyệt → CLAUDE.md §5 đã sửa câu "Tự động crop & làm nét ảnh
       trước khi gửi OCR" cho khớp thực tế (ADR-0011).
-- [x] `apps/mobile` scaffold xong (2026-08-08): `create-expo-app` (SDK 57, TypeScript + Expo Router mặc
-      định) + `gluestack-ui init`/`add` (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4). Đã fix 2 bug do
-      CLI gluestack sinh sai cho project dùng `src/` (babel alias `@` trỏ nhầm về root thay vì `src/`, và
-      import `global.css` sai đường dẫn trong `_layout.tsx`) — xem commit scaffold.
+- [x] `apps/mobile` scaffold xong (2026-08-08): `create-expo-app` (ban đầu SDK 57, TypeScript + Expo
+      Router mặc định) + `gluestack-ui init`/`add` (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4). Đã
+      fix 2 bug do CLI gluestack sinh sai cho project dùng `src/` (babel alias `@` trỏ nhầm về root thay
+      vì `src/`, và import `global.css` sai đường dẫn trong `_layout.tsx`) — xem commit scaffold.
+      **Cập nhật 2026-08-09: hạ về SDK 54** — Expo Go (kênh dev chính, ADR-0018) chưa hỗ trợ SDK 57 dù
+      npm đã publish bản ổn định; `npx expo install --fix` tự chỉnh version từng package `expo-*`.
 - [x] Scaffold `lib/api/client.ts` (ADR-0009, có xử lý 401 tập trung), `lib/auth/tokenStorage.ts`
       (ADR-0010), `lib/query/queryClient.ts` + `queryKeys` (ADR-0009), `features/auth` (store Zustand,
       `useAuth()` — ADR-0016, `useMeQuery`) — đã nối thật, không phải stub: màn Đăng nhập và tab Hồ sơ gọi
