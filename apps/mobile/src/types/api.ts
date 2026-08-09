@@ -38,3 +38,17 @@ export interface ProblemDetail {
   detail?: string;
   instance?: string;
 }
+
+/** Khớp services/api dto/TeamResponse.java */
+export interface TeamResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
+
+/** Khớp services/api dto/CreateTeamRequest.java + UpdateTeamRequest.java (2 request cùng field) */
+export interface TeamRequest {
+  name: string;
+  description: string | null;
+}

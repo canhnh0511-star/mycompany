@@ -340,15 +340,25 @@ lên Supabase dev (không mock DB).
   (đổi `web.output` sang `single` — SPA, hợp lý vì toàn bộ app nằm sau đăng nhập). Chưa verify build
   native thật (iOS/Android, cần thiết bị/simulator).
 
-**Tuần 2 — Form nhập tay & CRUD danh mục** *(chưa bắt đầu — chờ wireframe)*
+**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm — form nhiều dòng vẫn chờ wireframe, admin-catalog
+không cần wireframe nên bắt đầu trước)*
 
 - [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
   nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
-  lỗi `BatchResult` theo `index` ngược lại đúng dòng.
+  lỗi `BatchResult` theo `index` ngược lại đúng dòng. *(vẫn chờ wireframe — luồng phức tạp, xem
+  frontend-grilling-plan.md §5)*
 - [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
   layout web/tablet (route nhóm `(web)`).
-- [ ] Wireframe (claude.ai/design) chốt layout trước khi code màn hình thật — độc lập với các ADR kỹ
-  thuật, đang treo.
+  - [x] **Teams** (2026-08-09) — CRUD đủ (`teams/api.ts`, `useTeams.ts`, `TeamsScreen.tsx`, thay
+    `PlaceholderScreen` ở `app/(web)/admin-catalog/teams.tsx`). List + form inline (không Modal —
+    gluestack-ui bản alpha chưa có Modal ổn định), react-query invalidate theo `queryKeys.teams.all`.
+    Dùng làm mẫu pattern cho 4 resource còn lại. `npx tsc --noEmit` + `npx expo export --platform web`
+    chạy sạch sau khi thêm.
+  - [ ] Employees (có `team_id`/`status` select), LatexTypes (`code` không sửa được sau khi tạo),
+    RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
+    — lặp lại pattern của Teams, chưa làm.
+- [ ] Wireframe (claude.ai/design) chốt layout trước khi code màn hình thật (production-records/
+  latex-sales/attendance-records/ocr-capture) — độc lập với các ADR kỹ thuật, đang treo.
 
 **Tuần 3-4 — OCR capture & review** *(chưa bắt đầu — chờ wireframe)*
 
