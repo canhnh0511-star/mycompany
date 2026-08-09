@@ -265,11 +265,44 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
 
 ## Phase 5 — Test & tài liệu
 
-- [ ] Thêm dependency `springdoc-openapi` — tự sinh Swagger UI, chặn ở profile non-prod (xem Open
-  Question về prod).
-- [ ] `docs/api.md` viết tay — phần luồng nghiệp vụ mà OpenAPI không diễn tả tốt: OCR end-to-end
-  (capture → draft → confirm), batch contract (`BatchResult<T>` best-effort per-row), auth (JWT 1 ngày,
-  không refresh token).
+- [x] Thêm dependency `springdoc-openapi` (2026-08-07) — `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0`.
+  `OpenApiConfig` khai báo Bearer JWT security scheme (nút "Authorize" trên Swagger UI, dán
+  `accessToken` từ `POST /auth/login`, không cần gõ tiền tố `Bearer `) + metadata. `SecurityConfig`
+  permitAll `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**` (vô hại vì bị tắt hẳn ở prod, xem
+  dưới). **RESOLVED Open Question về profile prod**: mặc định BẬT (dev/local/staging chưa đặt
+  profile), tạo `application-prod.yml` set `springdoc.api-docs.enabled=false` +
+  `springdoc.swagger-ui.enabled=false` — kích hoạt bằng `SPRING_PROFILES_ACTIVE=prod` lúc deploy thật
+  (chưa chốt nền tảng host nên chưa set ở đâu cả, cần nhớ set biến này khi deploy). Đã verify thật:
+  `bootRun` không profile → `GET /v3/api-docs` 200 (JSON spec đủ toàn bộ path), `/swagger-ui.html`
+  redirect 302 → `/swagger-ui/index.html` 200; `SPRING_PROFILES_ACTIVE=prod` → cả 2 endpoint biến mất
+  hoàn toàn (route không còn tồn tại).
+  **Gotcha phát hiện lúc verify (không phải do thay đổi lần này, có sẵn từ trước)**: khi 1 path không
+  khớp route nào (vd springdoc bị tắt, hoặc `/actuator/health` — dependency `spring-boot-starter-
+  actuator` thực ra CHƯA có trong `build.gradle.kts` dù `SecurityConfig` đã permitAll path này),
+  Spring ném `NoResourceFoundException` (404 đúng ra) nhưng `GlobalExceptionHandler`'s catch-all
+  `Exception` handler bắt luôn thành **500** thay vì 404 — sai lệch status code, chưa sửa (ngoài phạm
+  vi việc thêm springdoc, ghi lại để xử lý sau; có thể cần thêm handler riêng cho
+  `NoResourceFoundException` → 404 nếu muốn đúng semantics, hoặc thêm actuator dependency thật nếu vẫn
+  muốn dùng `/actuator/health`).
+  **FIXED (2026-08-07)**: đã xử lý cả 2 vế của gotcha trên trong cùng 1 lần. (1) Thêm
+  `@ExceptionHandler(NoResourceFoundException.class)` riêng trong `GlobalExceptionHandler` trả về 404
+  `ProblemDetail` (cùng style/title "Không tìm thấy dữ liệu" như bảng lỗi ở `docs/api.md` §6), đặt trước
+  catch-all `Exception.class` nên không còn bị nuốt thành 500. (2) Thêm
+  `implementation("org.springframework.boot:spring-boot-starter-actuator")` vào `build.gradle.kts` để
+  `/actuator/health` (đã permitAll từ trước ở `SecurityConfig`) thực sự tồn tại thay vì trả lỗi sai
+  status. Verify thật bằng `./gradlew build -x test` (BUILD SUCCESSFUL) + `bootRun` thủ công: `GET
+  /actuator/health` → 200 `{"status":"UP"}`; `GET /swagger-ui/does-not-exist.js` (path permitAll nhưng
+  không khớp resource nào, dùng để né việc security filter trả 403 trước khi tới controller cho các path
+  không permitAll) → 404 đúng `ProblemDetail` mới thay vì 500 như trước.
+- [x] `docs/api.md` viết tay (2026-08-07) — phần luồng nghiệp vụ mà OpenAPI không diễn tả tốt: OCR
+  end-to-end (upload-url → capture → draft → confirm, cả 3 nhánh success/typeMismatch/unmatchedLines),
+  batch contract (`BatchResult<T>` best-effort per-row, luôn HTTP 200), auth (JWT 1 ngày, không refresh
+  token, 401 mặc định của Spring Security cho token thiếu/sai KHÔNG đảm bảo đúng format `ProblemDetail`
+  như các lỗi khác), vòng đời status (draft/confirmed/cancelled, không hard delete, `edit_history` chỉ
+  ghi khi sửa record đã CONFIRMED), bảng quy ước lỗi (`ProblemDetail` theo từng exception type), bảng
+  tham chiếu nhanh toàn bộ endpoint. Viết tay dựa trên đọc trực tiếp source (controller/dto/
+  GlobalExceptionHandler/SecurityConfig), chưa cross-check với Swagger UI vì springdoc-openapi chưa
+  thêm (mục kế tiếp).
 - [ ] Unit test (Mockito) theo từng service — ưu tiên logic nghiệp vụ phức tạp (fuzzy-match, EditHistory
   chỉ ghi sau confirmed, batch best-effort, EXCLUDE constraint handling).
 - [ ] Integration test chạy thẳng lên Supabase dev thật, `@Transactional` rollback mỗi test (đã xác nhận

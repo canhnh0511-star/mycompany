@@ -1,0 +1,11 @@
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod lúc deploy thật (chưa chốt nền tảng host — Railway/
+# Render/Fly.io/VPS, CLAUDE.md §7). Chỉ override phần cần khác dev/local; mọi giá trị khác (DB, JWT,
+# Anthropic, Supabase...) vẫn đọc từ application.yml + biến môi trường/.env như bình thường.
+#
+# Tắt hẳn Swagger UI / OpenAPI spec ở prod (docs/TASKS.md Phase 5, Open Question đã resolve theo
+# hướng "chặn ở profile non-prod") — nội bộ dùng để review/test API lúc dev, không cần lộ ra ở prod.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

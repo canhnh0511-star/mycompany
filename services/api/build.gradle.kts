@@ -36,6 +36,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
+    // Health check endpoint (/actuator/health) — dùng cho deploy platform health checks (CLAUDE.md §7);
+    // đã được permitAll ở SecurityConfig nên cần dependency này để endpoint thực sự tồn tại.
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+
     // Persistence
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.flywaydb:flyway-core")
@@ -58,6 +62,10 @@ dependencies {
     // có dấu tiếng Việt.
     implementation("org.apache.poi:poi-ooxml:5.5.1")
     implementation("com.github.librepdf:openpdf:3.0.5")
+
+    // Tự sinh Swagger UI / OpenAPI spec từ controller + DTO có sẵn (docs/TASKS.md Phase 5). Chặn ở
+    // profile prod qua application-prod.yml (springdoc.*.enabled=false) — xem OpenApiConfig.java.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 
     // Boilerplate reduction
     compileOnly("org.projectlombok:lombok")

@@ -33,6 +33,11 @@ public class SecurityConfig {
                         // Không có đăng ký công khai — tài khoản Admin seed qua migration (ADR-0004)
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Swagger UI / OpenAPI spec — vô hại khi permitAll vì bản thân springdoc đã
+                        // bị tắt hẳn ở profile prod (application-prod.yml, xem OpenApiConfig); các
+                        // request thử API thật qua nút "Authorize" vẫn cần JWT hợp lệ như bình thường.
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
