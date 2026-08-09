@@ -30,15 +30,17 @@ spring:
 server:
   port: ${PORT:8080}
 
-# Swagger UI/OpenAPI (docs/TASKS.md Phase 5) — bật mặc định (dev/local). application-prod.yml override
-# tắt hoàn toàn khi chạy với SPRING_PROFILES_ACTIVE=prod (Open Question đã resolve: không mở ở prod,
-# kể cả sau JWT auth, để giảm bề mặt tấn công — nếu sau này cần xem ở prod thì bật lại tay theo nhu cầu).
+# Swagger UI / OpenAPI spec (docs/TASKS.md Phase 5) — BẬT theo mặc định (dev/local/staging chưa đặt
+# profile). Bị TẮT hẳn ở profile "prod" (xem application-prod.yml) — khi deploy thật, đặt biến môi
+# trường SPRING_PROFILES_ACTIVE=prod để kích hoạt override này (chưa có ở .env hiện tại vì chưa deploy
+# thật, xem docs/TASKS.md Open Question về profile prod).
 springdoc:
   api-docs:
-    enabled: true
+    path: /v3/api-docs
   swagger-ui:
-    enabled: true
     path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
 
 app:
   cors:

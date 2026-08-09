@@ -268,18 +268,46 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
 
 ## Phase 5 — Test & tài liệu ✅ (xong 2026-08-09)
 
-- [x] Thêm dependency `springdoc-openapi-starter-webmvc-ui:2.6.0` — tự sinh Swagger UI
-  (`/swagger-ui.html`) + OpenAPI JSON (`/v3/api-docs`), `OpenApiConfig` khai báo scheme Bearer JWT để
-  nút "Authorize" gửi đúng header. Resolve Open Question "mở ở profile nào": bật mặc định (dev/local),
-  **tắt hoàn toàn ở prod** (`application-prod.yml`, kích hoạt qua `SPRING_PROFILES_ACTIVE=prod`) — dù
-  bật hay tắt, các đường dẫn này vẫn nằm sau JWT auth như mọi endpoint khác (`SecurityConfig` không
-  permitAll), giảm bề mặt tấn công thêm 1 lớp ở prod thay vì dựa hoàn toàn vào auth.
-- [x] `docs/api.md` viết tay — auth (JWT 1 ngày không refresh token), hợp đồng `BatchResult<T>`
-  best-effort per-row (ADR-0007, kèm ví dụ JSON), luồng OCR end-to-end đủ 5 bước (upload-url → PUT ảnh →
-  capture → review draft → confirm, bảng phân 3 nhánh success/type_mismatch/lỗi kỹ thuật), quy tắc
-  `edit_history` (khi nào ghi/không ghi), bảng mã lỗi chung (400/401/404/409/500).
+- [x] Thêm dependency `springdoc-openapi` (2026-08-07) — `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0`.
+  `OpenApiConfig` khai báo Bearer JWT security scheme (nút "Authorize" trên Swagger UI, dán
+  `accessToken` từ `POST /auth/login`, không cần gõ tiền tố `Bearer `) + metadata. `SecurityConfig`
+  permitAll `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**` (vô hại vì bị tắt hẳn ở prod, xem
+  dưới). **RESOLVED Open Question về profile prod**: mặc định BẬT (dev/local/staging chưa đặt
+  profile), tạo `application-prod.yml` set `springdoc.api-docs.enabled=false` +
+  `springdoc.swagger-ui.enabled=false` — kích hoạt bằng `SPRING_PROFILES_ACTIVE=prod` lúc deploy thật
+  (chưa chốt nền tảng host nên chưa set ở đâu cả, cần nhớ set biến này khi deploy). Đã verify thật:
+  `bootRun` không profile → `GET /v3/api-docs` 200 (JSON spec đủ toàn bộ path), `/swagger-ui.html`
+  redirect 302 → `/swagger-ui/index.html` 200; `SPRING_PROFILES_ACTIVE=prod` → cả 2 endpoint biến mất
+  hoàn toàn (route không còn tồn tại).
+  **Gotcha phát hiện lúc verify (không phải do thay đổi lần này, có sẵn từ trước)**: khi 1 path không
+  khớp route nào (vd springdoc bị tắt, hoặc `/actuator/health` — dependency `spring-boot-starter-
+  actuator` thực ra CHƯA có trong `build.gradle.kts` dù `SecurityConfig` đã permitAll path này),
+  Spring ném `NoResourceFoundException` (404 đúng ra) nhưng `GlobalExceptionHandler`'s catch-all
+  `Exception` handler bắt luôn thành **500** thay vì 404 — sai lệch status code, chưa sửa (ngoài phạm
+  vi việc thêm springdoc, ghi lại để xử lý sau; có thể cần thêm handler riêng cho
+  `NoResourceFoundException` → 404 nếu muốn đúng semantics, hoặc thêm actuator dependency thật nếu vẫn
+  muốn dùng `/actuator/health`).
+  **FIXED (2026-08-07)**: đã xử lý cả 2 vế của gotcha trên trong cùng 1 lần. (1) Thêm
+  `@ExceptionHandler(NoResourceFoundException.class)` riêng trong `GlobalExceptionHandler` trả về 404
+  `ProblemDetail` (cùng style/title "Không tìm thấy dữ liệu" như bảng lỗi ở `docs/api.md` §6), đặt trước
+  catch-all `Exception.class` nên không còn bị nuốt thành 500. (2) Thêm
+  `implementation("org.springframework.boot:spring-boot-starter-actuator")` vào `build.gradle.kts` để
+  `/actuator/health` (đã permitAll từ trước ở `SecurityConfig`) thực sự tồn tại thay vì trả lỗi sai
+  status. Verify thật bằng `./gradlew build -x test` (BUILD SUCCESSFUL) + `bootRun` thủ công: `GET
+  /actuator/health` → 200 `{"status":"UP"}`; `GET /swagger-ui/does-not-exist.js` (path permitAll nhưng
+  không khớp resource nào, dùng để né việc security filter trả 403 trước khi tới controller cho các path
+  không permitAll) → 404 đúng `ProblemDetail` mới thay vì 500 như trước.
+- [x] `docs/api.md` viết tay (2026-08-07) — phần luồng nghiệp vụ mà OpenAPI không diễn tả tốt: OCR
+  end-to-end (upload-url → capture → draft → confirm, cả 3 nhánh success/typeMismatch/unmatchedLines),
+  batch contract (`BatchResult<T>` best-effort per-row, luôn HTTP 200), auth (JWT 1 ngày, không refresh
+  token, 401 mặc định của Spring Security cho token thiếu/sai KHÔNG đảm bảo đúng format `ProblemDetail`
+  như các lỗi khác), vòng đời status (draft/confirmed/cancelled, không hard delete, `edit_history` chỉ
+  ghi khi sửa record đã CONFIRMED), bảng quy ước lỗi (`ProblemDetail` theo từng exception type), bảng
+  tham chiếu nhanh toàn bộ endpoint. Viết tay dựa trên đọc trực tiếp source (controller/dto/
+  GlobalExceptionHandler/SecurityConfig), chưa cross-check với Swagger UI vì springdoc-openapi chưa
+  thêm (mục kế tiếp).
 - [x] Unit test (Mockito/JUnit 5, `src/test/java`) — ưu tiên đúng logic nghiệp vụ phức tạp nêu trong
-  task gốc:
+  task gốc (2026-08-09, merge vào `main` — xem "Lưu ý" trước đây, đã xử lý):
   - `EmployeeFuzzyMatcherTest` (9 case: khớp chính xác, bỏ dấu, hạ chữ thường, dưới ngưỡng 0.75 → rỗng
     — KHÔNG đoán bừa, blank/null/no-candidates, chọn ứng viên tốt nhất khi nhiều ứng viên gần đúng, chịu
     được 1 ký tự sai lệch)
@@ -315,6 +343,87 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
 
 Đã chạy `./gradlew build` (compile + toàn bộ unit + integration test) xanh — 21 test, 0 fail, chạy thật
 lên Supabase dev (không mock DB).
+
+> **Lưu ý (2026-08-09, đã xử lý):** trước đó PR #1 (`phase5/springdoc-openapi`) merge vào `main` chỉ
+> mang springdoc-openapi + `docs/api.md` + fix `NoResourceFoundException` 404→500 — 2 mục unit/integration
+> test bên trên từng tồn tại ở working copy local nhưng chưa commit/lên PR. Đã commit + merge vào `main`
+> trong lần merge này (21 test, 0 fail, xem chi tiết ở 2 mục trên).
+
+## Frontend (`apps/mobile`) — kế hoạch & tiến độ
+
+> Nguồn quyết định đầy đủ: `docs/frontend-grilling-plan.md` (buổi grilling §2, đã tách 10 ADR
+> `docs/adr/0009`–`0018`). Mục này chỉ là checklist tiến độ theo tuần (phần frontend của CLAUDE.md §8,
+> cụ thể hóa ở frontend-grilling-plan.md §4) — không lặp lại nội dung quyết định, chỉ tham chiếu ADR.
+
+**Tuần 1 — Setup & auth ✅ (xong 2026-08-08/09)**
+
+- [x] Scaffold Expo Router (`create-expo-app` SDK 57, TypeScript + Router mặc định) + `gluestack-ui`
+  (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4); fix 2 bug CLI gluestack sinh sai cho project dùng
+  `src/` (babel alias `@`, import `global.css`).
+- [x] `lib/api/client.ts` (fetch wrapper + 401 interceptor tập trung, ADR-0009/§2.3),
+  `lib/auth/tokenStorage.ts` (native `expo-secure-store` / web `localStorage`, ADR-0010),
+  `lib/query/queryClient.ts` + `queryKeys` (TanStack Query, ADR-0009).
+- [x] `features/auth` (store Zustand, `useAuth()` trả `role` — ADR-0016, `useMeQuery`) — nối API thật:
+  màn Đăng nhập (`POST /auth/login`) và tab Hồ sơ (`GET /users/me`).
+- [x] Route dựng đủ khung theo frontend-grilling-plan.md §3: `(auth)/login` (thật), `(tabs)` 4 tab
+  (`capture`/`quick-entry`/`lookup` placeholder chờ wireframe, `profile` thật), `(web)` placeholder cho
+  5 màn danh mục + 2 báo cáo. `features/{production-records,latex-sales,attendance-records,ocr-capture,
+  reports,admin-catalog}` mới có `README.md` ghi chú ADR liên quan, chưa code.
+- [x] Verify: `npx tsc --noEmit` sạch (17 lỗi ban đầu → 0), `npx expo export --platform web` chạy được
+  (đổi `web.output` sang `single` — SPA, hợp lý vì toàn bộ app nằm sau đăng nhập). Chưa verify build
+  native thật (iOS/Android, cần thiết bị/simulator).
+
+**Wireframe ✅ xong (2026-08-09)** — 10 màn hình, 5 điểm layout/scope tự đánh dấu đã duyệt hết, xem
+`docs/adr/0019-wireframe-layout-decisions.md`. Tuần 2-6 dưới đây không còn bị chặn bởi wireframe nữa.
+
+**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm)*
+
+- [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
+  nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
+  lỗi `BatchResult` theo `index` ngược lại đúng dòng. Layout theo màn "Nhập tay nhanh" ở wireframe (seg
+  control Sản lượng/Bán mủ/Chuyên cần, mỗi dòng 1 `draft-row` có pill trạng thái + lỗi inline).
+- [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
+  layout web/tablet (route nhóm `(web)`). Theo wireframe: 1 trang dùng chung, rail con bên trái điều
+  hướng 5 danh mục (ADR-0019 mục 3) — KHÁC layout hiện tại của Teams (route riêng), cần refactor.
+  - [x] **Teams** (2026-08-09) — CRUD đủ (`teams/api.ts`, `useTeams.ts`, `TeamsScreen.tsx`, thay
+    `PlaceholderScreen` ở `app/(web)/admin-catalog/teams.tsx`). List + form inline (không Modal —
+    gluestack-ui bản alpha chưa có Modal ổn định), react-query invalidate theo `queryKeys.teams.all`.
+    Dùng làm mẫu pattern cho 4 resource còn lại. `npx tsc --noEmit` + `npx expo export --platform web`
+    chạy sạch sau khi thêm. **Chưa áp dụng layout rail con** (build trước khi có wireframe) — refactor
+    khi làm tiếp 4 resource còn lại, gộp chung vào 1 layout cha `(web)/admin-catalog/_layout.tsx`.
+  - [ ] Employees (có `team_id`/`status` select), LatexTypes (`code` không sửa được sau khi tạo),
+    RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
+    — lặp lại pattern của Teams, chưa làm.
+
+**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu, không còn bị chặn)*
+
+- [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
+  (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
+  `uploading→processing→done/error` tối đa 2 song song (ADR-0011/§2.4) — **cần `ANTHROPIC_API_KEY` thật
+  để test end-to-end cùng backend** (xem TASKS.md Phase 3 — vẫn treo).
+- [ ] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp, nút "Xem chi tiết".
+- [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
+  list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
+  `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý
+  `unmatchedLines` (điều hướng sang Nhập tay nhanh).
+
+**Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
+
+- [ ] `features/*/lookup` — tab Tra cứu, filter theo Tổ/ngày/status (kể cả `draft`), xem `edit_history`
+  trong màn chi tiết record. Layout dạng card theo wireframe (ADR-0019 mục 2), không phải bảng compact.
+
+**Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
+
+- [ ] `features/reports` — bảng report JSON (2 loại), CHỈ bảng số liệu ở v1, không biểu đồ (ADR-0019 mục
+  5) + nút export; web dùng `<a download>`/blob, native dùng `expo-file-system` (`downloadAsync`) +
+  `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
+- [ ] Màn Theo dõi OCR (`ocr_call_logs` list + `/stats`) — làm ở v1 theo wireframe (ADR-0019 mục 4),
+  backend đã sẵn API (Phase 4). Route web, chỉ Admin xem.
+- [ ] Test với dữ liệu thật, sửa lỗi UI.
+
+**Testing frontend** (ADR-0017/§2.10, không theo tuần cố định — làm song song khi logic ổn định): unit
+test cho mapping lỗi `BatchResult` → field form, interceptor 401, hiển thị `unmatchedLines`. Chưa có
+component/e2e test (Detox/Maestro) ở v1.
 
 ## Deferred / ngoài phạm vi Module 1
 

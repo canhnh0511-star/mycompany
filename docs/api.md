@@ -1,150 +1,257 @@
 # API — Module 1: Chi phí / Sản lượng
 
-> Tài liệu tay, bổ sung cho Swagger UI (`/swagger-ui.html`, tự sinh từ code qua springdoc-openapi, chỉ
-> bật ở dev/local — xem `docs/TASKS.md` Phase 5). Swagger UI đủ để tra cứu request/response schema từng
-> endpoint; file này chỉ giải thích các **luồng nghiệp vụ** mà OpenAPI không diễn tả tốt (thứ tự bước,
-> lý do thiết kế, ràng buộc ngầm giữa nhiều request). Đọc `CLAUDE.md` trước để hiểu bối cảnh nghiệp vụ.
+> Tài liệu viết tay, tập trung vào **luồng nghiệp vụ** mà Swagger/OpenAPI (khi thêm ở Phase 5) không
+> diễn tả tốt: OCR end-to-end, batch contract, auth, quy ước lỗi. Danh sách field chi tiết từng
+> DTO nên tra ở Swagger UI (`/swagger-ui.html`, khi có) hoặc đọc thẳng `dto/*.java` — file này không
+> lặp lại toàn bộ Javadoc.
+>
+> Base path: **`/api/v1`**. Đọc `CLAUDE.md` trước để hiểu domain (Tổ/nhân viên/loại mủ/OCR).
 
 ---
 
 ## 1. Auth
 
-- `POST /api/v1/auth/login` — `{ "email", "password" }` → `{ "token", "userId", "fullName", "role" }`.
-  Không có endpoint đăng ký công khai; tài khoản Admin seed sẵn qua Flyway migration
-  (`docs/adr/0004-auth-simplified-for-v1.md`).
-- Token trả về là **access token duy nhất**, hết hạn sau `app.jwt.expiration-ms` (mặc định 1 ngày —
-  `JWT_EXPIRATION_MS`). **Không có refresh token** — hết hạn thì đăng nhập lại, không có luồng "làm mới
-  token ngầm". Client phải tự xử lý 401 bằng cách điều hướng về màn đăng nhập.
-- Gửi kèm mọi request (trừ `/auth/login`, `/actuator/health`) bằng header
-  `Authorization: Bearer <token>`. Thiếu/token hết hạn/token sai chữ ký → 401.
-- `GET/PATCH /api/v1/users/me`, `PATCH /api/v1/users/me/password` — tự đổi thông tin/mật khẩu của chính
-  mình (không có endpoint quản lý user khác ở v1 — chỉ 1 Admin, xem CLAUDE.md §2).
+Tự triển khai JWT thủ công (`docs/adr/0004-auth-simplified-for-v1.md`) — **không dùng Supabase Auth,
+không có refresh token**. Access token hết hạn sau **1 ngày** (`app.jwt.expiration-ms`); hết hạn thì
+đăng nhập lại, không có cơ chế refresh.
 
-## 2. Batch nhập tay — hợp đồng `BatchResult<T>` (ADR-0007)
+- `POST /api/v1/auth/login` — **public**. Body: `{ email, password }`. Trả `{ accessToken, userId,
+  fullName, role }`. Sai email/password đều trả 401 message chung `"Email hoặc mật khẩu không đúng"`
+  (không lộ email nào tồn tại).
+- Không có endpoint đăng ký công khai. Tài khoản Admin duy nhất được seed qua Flyway migration
+  (`002_seed_admin_user.sql`); Module 1 release 1 chỉ Admin đăng nhập (CLAUDE.md §2, ADR-0001).
 
-Áp dụng cho `POST /api/v1/production-records/batch`, `POST /api/v1/latex-sales/batch`,
-`POST /api/v1/attendance-records/batch`. Body là **mảng** các dòng cùng loại (không phải object có field
-`items`).
+**Gửi token:** header `Authorization: Bearer <accessToken>` trên mọi request trừ `POST
+/api/v1/auth/login` và `GET /actuator/health`.
 
-**Nguyên tắc: best-effort theo từng dòng — không rollback toàn batch khi 1 dòng lỗi.** Mỗi dòng chạy
-trong transaction JPA riêng (`REQUIRES_NEW`); response luôn là **200 OK** (không phải 207 hay 4xx ở mức
-request) ngay cả khi có dòng lỗi — client PHẢI đọc từng phần tử để biết dòng nào thành công:
+**Thiếu/sai/hết hạn token:** bị chặn ở Spring Security filter chain **trước khi tới controller** —
+response là 401 mặc định của Spring Security, **không đảm bảo đúng format `ProblemDetail`** như các
+lỗi khác ở mục 6. Frontend không nên parse `.title`/`.detail` cho case này, chỉ cần coi mọi 401 là
+"cần đăng nhập lại".
+
+- `GET/PATCH /api/v1/users/me` — xem/sửa hồ sơ (không đổi được email/password/role qua đây).
+- `PATCH /api/v1/users/me/password` — đổi mật khẩu, verify `currentPassword` trước. Sai mật khẩu hiện
+  tại → 401. Thành công → 204, không trả body.
+
+---
+
+## 2. Batch contract (ADR-0007 — best-effort theo từng dòng)
+
+Áp dụng cho **3 endpoint** `POST .../batch`:
+- `POST /api/v1/production-records/batch`
+- `POST /api/v1/latex-sales/batch`
+- `POST /api/v1/attendance-records/batch`
+
+**Nguyên tắc cốt lõi:** 1 dòng lỗi **không** làm hỏng cả batch. Request body là **raw JSON array**
+(không bọc trong object), *không* có `@Valid` ở tầng controller — validate diễn ra **từng dòng** bên
+trong service, mỗi dòng chạy trong transaction riêng (`REQUIRES_NEW`) nên dòng lỗi không rollback
+dòng đã lưu thành công trước/sau nó.
+
+**Response luôn là HTTP 200** (batch tự nó "thành công" — kết quả từng dòng nằm trong payload):
 
 ```jsonc
 {
   "results": [
-    { "index": 0, "success": true,  "data": { /* Response DTO đầy đủ, kể cả id vừa tạo */ }, "error": null },
-    { "index": 1, "success": false, "data": null, "error": "Nhân viên id=... đã có bản ghi sản lượng active ngày ..." },
-    { "index": 2, "success": true,  "data": { ... }, "error": null }
+    { "index": 0, "success": true,  "data": { /* Response DTO đầy đủ */ }, "error": null },
+    { "index": 1, "success": false, "data": null, "error": "Nhân viên đã có bản ghi sản lượng ngày 2026-08-06" }
   ]
 }
 ```
 
-- `index` khớp đúng vị trí trong mảng request gửi lên — dùng để highlight đúng dòng lỗi trên UI (form
-  nhập tay nhiều dòng, CLAUDE.md §5).
-- `error` là message tiếng Việt đọc được trực tiếp (409 trùng dữ liệu, 404 không tìm thấy tham chiếu,
-  400 dữ liệu sai) — không phải stack trace, an toàn hiển thị thẳng cho người dùng.
-- Không có "tất cả thành công thì mới lưu" — nếu cần vậy, tự kiểm tra `results[].success` phía client
-  trước khi coi batch là "xong", nhưng dữ liệu các dòng `success=true` **đã lưu thật vào DB**, không thể
-  "hủy cả batch" bằng cách bỏ qua response.
-- Validate từng dòng thủ công bằng Jakarta `Validator` trong service (không dùng `@Valid` trên `List` ở
-  controller — sẽ chặn toàn bộ request ngay từ binding khi có 1 dòng sai định dạng, phá vỡ tinh thần
-  best-effort).
+- `index` — vị trí (0-based) của dòng trong mảng request, dùng để frontend highlight đúng dòng lỗi.
+- Khi `success=true`, `data` là **Response DTO đầy đủ** giống hệt như `GET /{id}` trả về — không phải
+  bản rút gọn.
+- `error` là message người-đọc-được (tiếng Việt), lấy trực tiếp từ exception nghiệp vụ
+  (`ConflictException`/`InvalidRequestException`/`NoSuchElementException`) hoặc message chung nếu là
+  lỗi không lường trước.
 
-Nhập tay ghi thẳng `source=manual`, `status=confirmed` — **không qua draft**. Draft chỉ dành cho luồng
-OCR (mục 3 bên dưới).
+**Nhập tay (batch) luôn ghi thẳng `status=CONFIRMED`, `source=MANUAL`** — khác hẳn luồng OCR (mục 3)
+ghi `status=DRAFT`. Đây là điểm phân biệt quan trọng: batch endpoint **không** dùng để review dữ liệu
+OCR, chỉ dùng để nhập mới hoặc xử lý `unmatchedLines` từ OCR (nhập thủ công dòng mà fuzzy-match không
+khớp được nhân viên).
 
-"Xóa" 1 dòng đã lưu = `POST /api/v1/{resource}/{id}/cancel` (chuyển `status → cancelled`), không có
-DELETE thật (CLAUDE.md §4). Sửa 1 dòng đã lưu = `PATCH /api/v1/{resource}/{id}` — thay thế **toàn bộ**
-aggregate (record + items), không patch từng field/item riêng lẻ.
+`attendance-records` không có `/confirm` — không đi qua OCR/draft, chỉ có batch + PATCH + cancel.
 
-## 3. Luồng OCR end-to-end (CLAUDE.md §5, ADR-0005, ADR-0006)
+---
 
-Áp dụng cho cả 2 loại phiếu: sổ ghi mủ (→ `production_records`) và sổ bán mủ (→ `latex_sales`), chọn qua
-`targetType` (`PRODUCTION_RECORD` | `LATEX_SALE`).
+## 3. Luồng OCR end-to-end (CLAUDE.md §5, ADR-0005 gọi đồng bộ, ADR-0006 ghi draft ngay)
 
-```
-Bước 1 — POST /api/v1/ocr/upload-url
-  body: { "contentType": "image/jpeg" }   // chỉ image/jpeg | image/png (SUPABASE_ALLOWED_CONTENT_TYPES)
-  → { "photoPath", "uploadUrl", "token" }
-  photoPath do BACKEND tự sinh (ocr/{date}/{uuid}.ext) — client KHÔNG được tự đặt tên file (chặn path
-  traversal). Object path này dùng lại y nguyên ở bước 3.
+3 bước, đúng thứ tự, không thể bỏ bước:
 
-Bước 2 — client PUT trực tiếp ảnh lên uploadUrl (KHÔNG qua backend, backend không proxy binary)
-
-Bước 3 — POST /api/v1/ocr/capture
-  body: { "targetType", "photoPath", "teamId"? }
-  // teamId BẮT BUỘC khi targetType=LATEX_SALE (latex_sales.team_id NOT NULL); là GỢI Ý (thu hẹp danh
-  // sách fuzzy-match) khi targetType=PRODUCTION_RECORD, không bắt buộc.
-```
-
-`POST /ocr/capture` là request **đồng bộ** — chờ tới khi Claude Vision trả kết quả xong (ADR-0005, không
-có polling/webhook). Ứng dụng mobile phải hiện loading rõ ràng và xử lý timeout/mất mạng tại chỗ (rủi ro
-đã ghi nhận ở CLAUDE.md §9, chấp nhận ở v1).
-
-**Mọi lần gọi `/ocr/capture` đều ghi 1 dòng `ocr_call_logs`**, kể cả khi lỗi kỹ thuật (network, 401 từ
-Claude, timeout...) — dùng để theo dõi chi phí/tỷ lệ thành công (`GET /api/v1/ocr-call-logs`,
-`GET /api/v1/ocr-call-logs/stats`). Response `/ocr/capture` phân theo 3 nhánh:
-
-| Trường hợp | `success` | `typeMismatch` | Draft có được tạo? |
-|---|---|---|---|
-| Lỗi kỹ thuật gọi Claude (network/401/timeout) | `false` | — | Không |
-| Ảnh không khớp `targetType` đã chọn | `true` | `true` | **Không** — trả `mismatchReason`, Admin phải chụp/chọn lại đúng loại |
-| Đọc được, khớp loại phiếu | `true` | `false` | **Có, NGAY LẬP TỨC**, `status=draft` |
-
-Khi khớp và tạo draft:
-- **`production_records`**: OCR có thể trả nhiều dòng/nhân viên trong 1 ảnh (1 ảnh = 1 trang sổ, nhiều
-  người). Mỗi dòng fuzzy-match tên đọc được (`EmployeeFuzzyMatcher`, Levenshtein trên tên đã bỏ dấu/hạ
-  chữ thường, ngưỡng 0.75) với danh sách `employees` (thu hẹp theo `teamId` nếu có gửi lên). Dòng khớp →
-  tạo draft ngay (`results[]`, cùng hợp đồng `BatchResult` ở mục 2). Dòng **không khớp** → xuất hiện ở
-  `unmatchedLines` (KHÔNG tạo draft thiếu `employeeId`) — Admin xử lý tiếp bằng cách chọn nhân viên đúng
-  thủ công rồi gửi qua `POST /api/v1/production-records/batch` (mục 2), không có endpoint riêng để "gán
-  employeeId cho unmatched line".
-- **`latex_sales`**: không cần fuzzy-match (không có `employee_id` ở bảng này) — luôn tạo đúng 1 draft
-  gắn thẳng `teamId` đã truyền, `results` chỉ có 1 phần tử.
-
-Draft ghi kèm `photoUrl` (trace về ảnh gốc) và `lowConfidenceFields` (JSON `{"fields": [...]}` — tên
-field OCR không chắc chắn, ở mức DÒNG không phải từng item) — frontend đọc thẳng từ draft row để
-highlight, không phải state tạm ở client (chống mất dữ liệu nếu Admin bị gián đoạn giữa chừng, ADR-0006).
+### Bước 1 — Xin signed upload URL
 
 ```
-Bước 4 — Admin xem bảng draft (GET /api/v1/production-records?status=draft&... hoặc /latex-sales?...),
-         sửa qua PATCH /api/v1/{resource}/{id} nếu cần (có thể làm nhiều lần / bỏ dở rồi quay lại)
-
-Bước 5 — POST /api/v1/production-records/{id}/confirm  (hoặc /latex-sales/{id}/confirm)
-         draft → confirmed. KHÔNG tự động — chỉ Admin bấm "Lưu" mới gọi bước này.
-         409 nếu record không còn ở trạng thái draft (đã confirm/cancel trước đó); 404 nếu không tồn tại.
-         KHÔNG ghi edit_history (đây là bước hoàn tất review lần đầu, không phải "sửa" — xem mục 4).
+POST /api/v1/ocr/upload-url
+Body: { "contentType": "image/jpeg" }   // hoặc image/png — theo app.supabase.allowed-content-types
+→ 200: { "photoPath": "ocr/2026-08-07/<uuid>.jpg", "uploadUrl": "...", "token": "..." }
 ```
 
-**Sổ giấy tràn nhiều trang**: mỗi trang chụp 1 ảnh riêng, mỗi dòng độc lập theo `employee_id` +
-`record_date` — không có bước "gộp nhiều ảnh thành 1 phiếu" ở API; các draft từ nhiều trang cùng ngày tự
-động gộp chung khi Admin xem lại qua filter `record_date` (CLAUDE.md §5).
+`photoPath` là object path **server tự sinh** (KHÔNG dùng tên file client gửi lên — chống path
+traversal). Giữ lại `photoPath` này để dùng ở bước 2.
 
-## 4. `edit_history` — khi nào ghi, khi nào không
+### Bước 2 — App PUT ảnh trực tiếp lên `uploadUrl`
 
-- **Chỉ ghi khi sửa (`PATCH`) hoặc hủy (`cancel`) 1 record đã ở trạng thái `confirmed` TRƯỚC lần thao
-  tác đó** (`shouldLog = status trước khi sửa != DRAFT`). Sửa/hủy 1 record đang `draft` (chưa qua bước
-  review lần đầu) không ghi — đây là quy trình rà soát bình thường, không phải "sửa" theo nghĩa cần lưu
-  vết tranh chấp.
-- **Không ghi sự kiện tạo mới** (kể cả batch nhập tay lẫn tạo draft từ OCR) — chỉ ghi các lần sửa/hủy
-  SAU KHI record đã tồn tại và đã confirmed.
-- Snapshot ở mức **AGGREGATE**: mỗi lần ghi lưu toàn bộ record + tất cả items liên quan vào
-  `old_data`/`new_data` (JSONB, chính là Response DTO serialize), không tách riêng theo từng item —
-  phục vụ đối chiếu tranh chấp cần xem toàn cảnh 1 lần thay đổi.
-- Đọc lại: `GET /api/v1/edit-history?tableName=&recordId=` (`tableName` chỉ nhận
-  `production_records`/`latex_sales`/`attendance_records`, sai → 400).
+**Không đi qua Spring Boot backend** — app PUT binary thẳng lên Supabase Storage bằng `uploadUrl` +
+`token` nhận được ở bước 1. Backend chỉ tải lại ảnh này (bằng service role key) khi cần gửi cho
+Claude ở bước 3.
 
-## 5. Mã lỗi chung
+### Bước 3 — Gọi capture (đồng bộ, chờ Claude trả kết quả)
 
-Tất cả lỗi trả về dạng `ProblemDetail` (RFC 7807) qua `GlobalExceptionHandler`:
+```
+POST /api/v1/ocr/capture
+Body: {
+  "targetType": "PRODUCTION_RECORD" | "LATEX_SALE",   // Admin CHỌN TRƯỚC, không phải AI đoán
+  "photoPath": "ocr/2026-08-07/<uuid>.jpg",            // từ bước 1
+  "teamId": "<uuid>"   // BẮT BUỘC trên thực tế nếu targetType=LATEX_SALE (latex_sales.team_id NOT
+                        // NULL ở DB — DTO không @NotNull nên lỗi thiếu teamId sẽ hiện ra ở tầng DB/
+                        // service dưới dạng 400/409 thay vì validation lỗi field rõ ràng); optional
+                        // gợi ý thu hẹp fuzzy-match khi targetType=PRODUCTION_RECORD
+}
+```
 
-| HTTP status | Khi nào |
-|---|---|
-| 400 | Validation body sai (`jakarta.validation`), thiếu `@RequestParam` bắt buộc, dữ liệu nghiệp vụ không hợp lệ (`InvalidRequestException`) |
-| 401 | Thiếu/sai/hết hạn JWT, sai email/password lúc login |
-| 404 | Không tìm thấy resource theo id (`NoSuchElementException`) |
-| 409 | Xung đột nghiệp vụ (`ConflictException` — trùng active record, chồng lấn `effective_from/to`, cancel 2 lần...) hoặc vi phạm ràng buộc DB lọt qua check ở app (`DataIntegrityViolationException`, message chung, không lộ tên constraint SQL) |
-| 500 | Lỗi không mong đợi — luôn kèm stack trace đầy đủ + `X-Request-Id` trong log (CLAUDE.md §7), KHÔNG kèm trong response |
+Request này **luôn ghi 1 dòng `ocr_call_logs`**, dù kết quả ra sao — dùng để theo dõi chi phí/tỷ lệ
+thành công (xem mục 5).
 
-Mọi response (kể cả lỗi) có header `X-Request-Id` — dùng để tra log khi cần hỗ trợ debug (CLAUDE.md §7).
+Response `OcrCaptureResponse` — đọc theo đúng thứ tự ưu tiên:
+
+1. **`success=false`** — lỗi kỹ thuật khi gọi Claude API (network, 401 do sai key, timeout, JSON
+   không đúng schema...). Xem `errorMessage`. **Không có draft nào được tạo.**
+2. **`success=true` nhưng `typeMismatch=true`** — Claude đọc được ảnh nhưng xác nhận ảnh **không
+   khớp** `targetType` Admin đã chọn (vd chọn "Sổ bán mủ" nhưng ảnh là sổ ghi mủ cá nhân). Xem
+   `mismatchReason`. **Không có draft nào được tạo** — Admin cần chụp/chọn lại đúng loại hoặc đổi
+   `targetType`.
+3. **`success=true`, `typeMismatch=false`** — khớp loại phiếu. Draft đã được ghi **ngay lập tức** vào
+   DB với `status=DRAFT`, `source=OCR_IMPORT`, kèm `photoUrl`/`ocrCallLogId`:
+   - `targetType=PRODUCTION_RECORD` → `productionRecords: BatchItemResult<ProductionRecordResponse>[]`
+     (1 ảnh phiếu có thể ra nhiều dòng nếu phiếu có nhiều nhân viên — mỗi dòng 1
+     `BatchItemResult`, cùng shape với batch endpoint ở mục 2, vì bên trong dùng chung best-effort
+     per-row)
+   - `targetType=LATEX_SALE` → `latexSales: BatchItemResult<LatexSaleResponse>[]`
+   - `unmatchedLines: OcrUnmatchedLine[]` (chỉ có ý nghĩa với `PRODUCTION_RECORD`) — dòng nào Claude
+     đọc được tên nhân viên nhưng fuzzy-match (Levenshtein, ngưỡng 0.75) **không tìm ra** nhân viên
+     khớp trong `employees` thì KHÔNG tạo draft thiếu `employee_id` — trả nguyên qua đây để Admin tự
+     xử lý bằng `POST /production-records/batch` (mục 2), chọn đúng nhân viên thủ công.
+
+**Quan trọng — draft không phải "auto-save nháp ở client", đó là ghi DB thật:**
+- Frontend hiển thị bảng review đọc **trực tiếp từ các draft row vừa tạo** (đọc lại qua `GET
+  /production-records`/`GET /latex-sales` với `status=DRAFT`), không phải giữ state tạm ở app — nếu
+  Admin bị gián đoạn giữa chừng (mất mạng, tắt app), draft vẫn còn nguyên trong DB để quay lại sau.
+- `lowConfidenceFields` trên draft row (JSON, dạng `{"fields": [...]}`) — field nào Claude không chắc
+  chắn (chữ mờ, khó đọc) — frontend đọc thẳng field này để highlight, không cần logic đoán riêng.
+
+### Bước 4 — Xác nhận draft → confirmed
+
+```
+POST /api/v1/production-records/{id}/confirm
+POST /api/v1/latex-sales/{id}/confirm
+```
+
+- Admin xem/sửa draft trước (PATCH như nhập tay bình thường, có thể làm nhiều lần / bỏ dở quay lại —
+  draft không tự hết hạn), rồi mới gọi `/confirm`.
+- **Không tự động confirm** — đây là ràng buộc cứng (ADR-0006). Frontend không được gọi `/confirm`
+  ngay sau khi capture mà chưa qua mắt người dùng.
+- `/confirm` **không ghi `edit_history`** — đây là bước hoàn tất review lần đầu, không phải "sửa" một
+  record đã tồn tại từ trước.
+- 409 nếu record không ở trạng thái `DRAFT` (đã confirm hoặc đã cancel rồi); 404 nếu không tồn tại.
+
+**`attendance-records` không có OCR/draft flow** — không có bước 3/4 tương ứng.
+
+---
+
+## 4. Vòng đời record (status) & sửa/xóa
+
+`RecordStatus`: `DRAFT | CONFIRMED | CANCELLED` (chỉ `production_records`/`latex_sales`;
+`attendance_records` chỉ có `CONFIRMED`/`CANCELLED`, không có `DRAFT`).
+
+```
+        (chỉ qua OCR)                (Admin review)
+  ──────────► DRAFT ──────────► CONFIRMED ──────────► CANCELLED
+  (nhập tay/batch bỏ qua DRAFT, đi thẳng CONFIRMED)     ▲
+                                                          │
+                                    CONFIRMED ────────────┘
+                                    (PATCH sửa vẫn giữ CONFIRMED, không đổi status)
+```
+
+- **Không có hard delete.** "Xóa" = `POST .../{id}/cancel` → `status=CANCELLED`. Cancel 2 lần → 409.
+  Cancel giải phóng lại slot `(employee_id, record_date)` cho `production_records` (nhập lại được
+  ngày đó).
+- **PATCH sửa AGGREGATE toàn bộ** — record + toàn bộ `items` bị **thay thế hoàn toàn**, không patch
+  từng item lẻ. Gọi PATCH trên record đã `CANCELLED` → 409.
+- **`edit_history` chỉ ghi khi sửa record đã `CONFIRMED`** (không ghi khi tạo mới, không ghi khi sửa
+  record còn `DRAFT`, không ghi ở bước `/confirm`). Đọc lại qua `GET /api/v1/edit-history?tableName=
+  production_records&recordId=<uuid>` — `tableName` phải là 1 trong 3 bảng header hợp lệ
+  (`production_records`/`latex_sales`/`attendance_records`), cả 2 param bắt buộc (thiếu → 400).
+  `oldData`/`newData` là **snapshot JSON toàn bộ record + items** (không phải diff từng field) — client
+  tự `JSON.parse`.
+
+---
+
+## 5. Theo dõi chi phí OCR
+
+`GET /api/v1/ocr-call-logs` — list có filter `targetType`/`success`/khoảng `calledAt` (`from`/`to`,
+kiểu `Instant`).
+
+`GET /api/v1/ocr-call-logs/stats` — filter `from`/`to` optional. Trả tổng số lần gọi, tỷ lệ thành
+công, tỷ lệ `type_mismatch`, tổng `estimated_cost_usd`, thời gian phản hồi trung bình. Dùng để theo
+dõi chi phí Claude API theo thời gian thực — mỗi lần gọi `/ocr/capture` đều có đúng 1 dòng tương ứng
+ở đây (mục 3), kể cả khi lỗi.
+
+---
+
+## 6. Quy ước lỗi
+
+Toàn bộ lỗi nghiệp vụ trả về **`ProblemDetail`** (RFC 7807, mặc định Spring Boot 3) — shape:
+
+```jsonc
+{ "type": "about:blank", "title": "...", "status": 404, "detail": "...", "instance": "/api/v1/..." }
+```
+
+| Tình huống | HTTP | `title` |
+|---|---|---|
+| Validation lỗi field (`@Valid` trên body) | 400 | "Dữ liệu không hợp lệ" — `detail` liệt kê từng field lỗi |
+| Business rule lỗi không diễn tả được bằng annotation (vd trùng `latexTypeId` trong `items`, `effective_to < effective_from`) | 400 | "Dữ liệu không hợp lệ" |
+| Thiếu query param bắt buộc (`fromDate`/`toDate` ở report, `tableName`/`recordId` ở edit-history) | 400 | "Thiếu tham số bắt buộc" |
+| Sai kiểu param (UUID/LocalDate không parse được) hoặc JSON/enum sai định dạng | 400 | "Tham số không hợp lệ" / "Dữ liệu không hợp lệ" |
+| Sai mật khẩu (login, đổi password) | 401 | "Đăng nhập thất bại" |
+| Không tìm thấy record/entity | 404 | "Không tìm thấy dữ liệu" |
+| Xung đột nghiệp vụ (status sai để chuyển tiếp, chồng lấn `effective_from/to`, xóa danh mục còn bị tham chiếu, trùng record active) | 409 | "Xung đột dữ liệu" |
+| Vi phạm ràng buộc DB lọt qua validate ở app (race condition, EXCLUDE constraint) | 409 | "Xung đột dữ liệu" (message chung, không lộ tên constraint SQL) |
+| Lỗi không lường trước | 500 | "Đã có lỗi xảy ra" — kèm `X-Request-Id` để tra log |
+
+**Mọi response** (kể cả 500) đều có header `X-Request-Id` — 1 UUID sinh ra ở đầu request
+(`RequestIdFilter`), gắn vào SLF4J MDC nên **mọi dòng log JSON trong lúc xử lý request đó tự động
+kèm ID này**. Khi debug lỗi production, chỉ cần ID này để lọc ra toàn bộ log liên quan (docs/adr/
+0008-logging-conventions.md).
+
+**Batch endpoints (mục 2) là ngoại lệ** — luôn 200, lỗi từng dòng nằm trong payload
+`results[i].error`, không phải ở tầng HTTP status.
+
+---
+
+## 7. Danh sách endpoint (tham chiếu nhanh)
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| POST | `/api/v1/auth/login` | public |
+| GET/PATCH | `/api/v1/users/me` | |
+| PATCH | `/api/v1/users/me/password` | |
+| GET/POST/PATCH | `/api/v1/teams`, `/api/v1/teams/{id}` | không DELETE |
+| GET/POST/PATCH | `/api/v1/employees`, `/api/v1/employees/{id}` | filter `teamId`/`status` |
+| GET/POST/PATCH/DELETE | `/api/v1/latex-types`, `/api/v1/latex-types/{id}` | DELETE có guard tham chiếu |
+| GET/POST/PATCH | `/api/v1/rate-configs`, `/api/v1/rate-configs/{id}` | không DELETE |
+| GET/POST/PATCH | `/api/v1/allowance-configs`, `/api/v1/allowance-configs/{id}` | không DELETE |
+| POST | `/api/v1/ocr/upload-url` | bước 1 OCR |
+| POST | `/api/v1/ocr/capture` | bước 3 OCR |
+| POST | `/api/v1/production-records/batch` | best-effort, xem mục 2 |
+| GET | `/api/v1/production-records`, `/{id}` | filter `teamId`/`employeeId`/`fromDate`/`toDate`/`status` |
+| PATCH | `/api/v1/production-records/{id}` | thay thế toàn bộ items |
+| POST | `/api/v1/production-records/{id}/cancel` | soft delete |
+| POST | `/api/v1/production-records/{id}/confirm` | chỉ luồng OCR, xem mục 3 |
+| POST | `/api/v1/latex-sales/batch` | tương tự production-records, theo Tổ |
+| GET/PATCH/cancel/confirm | `/api/v1/latex-sales/...` | tương tự production-records |
+| POST | `/api/v1/attendance-records/batch` | không có draft/confirm |
+| GET/PATCH/cancel | `/api/v1/attendance-records/...` | filter thêm `attendanceType` |
+| GET | `/api/v1/ocr-call-logs`, `/stats` | mục 5 |
+| GET | `/api/v1/edit-history?tableName=&recordId=` | 2 param bắt buộc |
+| GET | `/api/v1/reports/production-records`, `/latex-sales` | `fromDate`/`toDate` bắt buộc, chỉ tính CONFIRMED |
+| GET | `.../export/xlsx`, `.../export/pdf` | cùng query param với report JSON |
