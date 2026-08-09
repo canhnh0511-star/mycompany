@@ -373,13 +373,23 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
     RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
     — lặp lại pattern của Teams, chưa làm.
 
-**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu, không còn bị chặn)*
+**Tuần 3-4 — OCR capture & review** *(đang làm)*
 
-- [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
-  (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
-  `uploading→processing→done/error` tối đa 2 song song (ADR-0011/§2.4) — **cần `ANTHROPIC_API_KEY` thật
-  để test end-to-end cùng backend** (xem TASKS.md Phase 3 — vẫn treo).
-- [ ] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp, nút "Xem chi tiết".
+- [x] `features/ocr-capture` — màn Chụp ảnh (2026-08-09): thêm dependency `expo-camera` +
+  `expo-image-picker` + `expo-image-manipulator` (`npx expo install`, tự chọn version khớp SDK 57) +
+  cấu hình plugin permission trong `app.json`. `CaptureScreen.tsx` — seg control loại phiếu, chip Tổ
+  đang làm việc (`store.ts` Zustand không persist, ADR-0011) + "Đổi Tổ", viewfinder `expo-camera` +
+  shutter, nút "Thư viện" chọn nhiều ảnh (`expo-image-picker`). `useOcrQueue.ts` — hàng đợi trong bộ
+  nhớ `uploading → processing → done/error`, semaphore tự viết giới hạn tối đa 2 xử lý song song
+  (ADR-0011/§2.4). `api.ts` — `POST /ocr/upload-url` → PUT thẳng Supabase Storage (không qua backend,
+  không dùng `apiClient` vì không cần JWT của mình) → `POST /ocr/capture`. `npx tsc --noEmit` +
+  `npx expo export --platform web` chạy sạch. **Cần `ANTHROPIC_API_KEY` thật ở backend để test
+  end-to-end** (xem Phase 3 — vẫn treo); **chưa test trên thiết bị thật** (camera/thư viện cần build
+  native thật để verify quyền hệ điều hành, không đủ trong môi trường code này).
+- [x] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp — đóng được (không dùng
+  `useAppToast` cho việc này vì cần hiện liên tục khi còn ảnh lỗi chưa xử lý, dùng banner cố định thay
+  vì toast tự ẩn). *Chưa có nút "Xem chi tiết" mở ảnh lỗi riêng — hiện chỉ hiện thông báo mới nhất +
+  tổng số ảnh lỗi.*
 - [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
   list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
   `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý

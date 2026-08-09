@@ -158,3 +158,44 @@ export interface BatchItemResult<T> {
 export interface BatchResult<T> {
   results: BatchItemResult<T>[];
 }
+
+/** Khớp services/api entity/OcrTargetType.java — loại phiếu Admin ĐÃ CHỌN trước khi chụp (CLAUDE.md §5). */
+export type OcrTargetType = 'PRODUCTION_RECORD' | 'LATEX_SALE';
+
+/** Khớp services/api dto/CreateSignedUploadUrlRequest.java — chỉ chấp nhận image/jpeg, image/png. */
+export type UploadContentType = 'image/jpeg' | 'image/png';
+
+/** Khớp services/api dto/SignedUploadUrlResponse.java */
+export interface SignedUploadUrlResponse {
+  photoPath: string;
+  uploadUrl: string;
+  token: string;
+}
+
+/** Khớp services/api dto/OcrCaptureRequest.java */
+export interface OcrCaptureRequest {
+  targetType: OcrTargetType;
+  photoPath: string;
+  /** Bắt buộc khi targetType=LATEX_SALE; chỉ là gợi ý thu hẹp fuzzy-match khi PRODUCTION_RECORD. */
+  teamId: string | null;
+}
+
+/** Khớp services/api dto/OcrUnmatchedLine.java — dòng OCR không fuzzy-match ra nhân viên nào. */
+export interface OcrUnmatchedLine {
+  employeeNameRaw: string | null;
+  items: LatexItemRequest[];
+  notes: string | null;
+  lowConfidenceFields: string[];
+}
+
+/** Khớp services/api dto/OcrCaptureResponse.java */
+export interface OcrCaptureResponse {
+  ocrCallLogId: string;
+  success: boolean;
+  errorMessage: string | null;
+  typeMismatch: boolean;
+  mismatchReason: string | null;
+  productionRecords: BatchItemResult<ProductionRecordResponse>[] | null;
+  latexSales: BatchItemResult<LatexSaleResponse>[] | null;
+  unmatchedLines: OcrUnmatchedLine[] | null;
+}
