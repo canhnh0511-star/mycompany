@@ -30,7 +30,22 @@ spring:
 server:
   port: ${PORT:8080}
 
+# Swagger UI/OpenAPI (docs/TASKS.md Phase 5) — bật mặc định (dev/local). application-prod.yml override
+# tắt hoàn toàn khi chạy với SPRING_PROFILES_ACTIVE=prod (Open Question đã resolve: không mở ở prod,
+# kể cả sau JWT auth, để giảm bề mặt tấn công — nếu sau này cần xem ở prod thì bật lại tay theo nhu cầu).
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
 app:
+  cors:
+    # Origin của Expo web dev server (đổi CORS_ALLOWED_ORIGINS khi deploy — CSV các origin, không dùng "*"
+    # vì request có gửi Authorization header). 8081 là cổng mặc định "expo start --web" ở SDK hiện tại;
+    # 19006 giữ lại cho tương thích các cấu hình Expo cũ hơn.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081,http://localhost:19006}
   jwt:
     # KHÔNG commit secret thật — đặt qua biến môi trường JWT_SECRET (xem application-secrets.yml.example)
     secret: ${JWT_SECRET:CHANGE_ME_IN_ENV_LOCAL_DEV_ONLY_DO_NOT_USE_IN_PROD}

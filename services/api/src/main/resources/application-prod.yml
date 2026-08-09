@@ -1,0 +1,7 @@
+# Kích hoạt bằng SPRING_PROFILES_ACTIVE=prod khi deploy — tắt hoàn toàn Swagger UI/OpenAPI
+# (docs/TASKS.md Phase 5, Open Question đã resolve: không mở ở prod để giảm bề mặt tấn công).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

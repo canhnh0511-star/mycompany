@@ -52,6 +52,11 @@ dependencies {
     // Logging — JSON structured logs ra stdout (xem docs/adr/0008-logging-conventions.md)
     implementation("net.logstash.logback:logstash-logback-encoder:8.0")
 
+    // Tự sinh Swagger UI/OpenAPI (docs/TASKS.md Phase 5) — chặn hoàn toàn ở profile "prod"
+    // (application-prod.yml), chỉ bật ở dev/local; kể cả khi bật vẫn nằm sau JWT auth (SecurityConfig
+    // không permitAll đường dẫn springdoc) — xem Open Question "Swagger UI mở ở profile nào" đã resolve.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+
     // Xuất báo cáo (docs/TASKS.md Phase 4) — sinh ở backend, đảm bảo nhất quán web/app (CLAUDE.md §3).
     // openpdf dùng package org.openpdf.text.* (đổi từ com.lowagie.text.* ở bản cũ) — PdfReportExportService
     // phải tự nhúng font Unicode (src/main/resources/fonts/NotoSans-Regular.ttf) vì font mặc định không

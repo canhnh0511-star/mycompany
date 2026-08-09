@@ -36,12 +36,15 @@ theo Tổ, chỉ tính CONFIRMED), export Excel (Apache POI) + PDF (OpenPDF, nh�
 cho cả 2 report. Đã smoke-test bằng curl + mở file export thật trên Supabase dev — xem chi tiết ở mục
 Phase 4 bên dưới (có 1 gotcha đáng chú ý về pgjdbc + tham số timestamp null trong JPQL).
 
-Chưa có: springdoc-openapi, `docs/api.md`, test (unit lẫn integration).
+**Phase 5 xong (2026-08-09)**: springdoc-openapi (Swagger UI dev/local, tắt hẳn ở prod), `docs/api.md`,
+unit test (fuzzy-match/EXCLUDE overlap/batch best-effort/edit_history guard) + integration test chạy thật
+lên Supabase dev (`@Transactional` rollback cho CRUD thường; dọn tay ở `@AfterEach` cho endpoint batch vì
+`REQUIRES_NEW` phá vỡ rollback — xem chi tiết ở mục Phase 5 bên dưới). `./gradlew build` xanh, 21 test.
 
-`build.gradle.kts` hiện chưa có dependency cho: springdoc-openapi — cần thêm khi bắt tay Phase 5. Phase 3
-OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase Storage REST —
-quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java. Phase 4 đã thêm
-`org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục Phase 4).
+Phase 3 OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase
+Storage REST — quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java.
+Phase 4 đã thêm `org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục
+Phase 4). Phase 5 đã thêm `org.springdoc:springdoc-openapi-starter-webmvc-ui` cho Swagger UI.
 
 **Lưu ý cho Phase 2+ (phát hiện lúc làm Phase 1, 2026-08-06):** entity nào có `@CreationTimestamp`
 (`createdAt`) và id sinh client-side (`GenerationType.UUID`, tất cả entity trong repo đều vậy) — nếu
@@ -263,17 +266,55 @@ tiếng Việt hiển thị đúng; `ocr_call_logs` list + `/stats` (khớp tay 
 lỗi 401, tổng cost/avg duration đúng); `edit_history` (đúng snapshot before/after 1 record đã PATCH từ
 Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nhờ handler mới).
 
-## Phase 5 — Test & tài liệu
+## Phase 5 — Test & tài liệu ✅ (xong 2026-08-09)
 
-- [ ] Thêm dependency `springdoc-openapi` — tự sinh Swagger UI, chặn ở profile non-prod (xem Open
-  Question về prod).
-- [ ] `docs/api.md` viết tay — phần luồng nghiệp vụ mà OpenAPI không diễn tả tốt: OCR end-to-end
-  (capture → draft → confirm), batch contract (`BatchResult<T>` best-effort per-row), auth (JWT 1 ngày,
-  không refresh token).
-- [ ] Unit test (Mockito) theo từng service — ưu tiên logic nghiệp vụ phức tạp (fuzzy-match, EditHistory
-  chỉ ghi sau confirmed, batch best-effort, EXCLUDE constraint handling).
-- [ ] Integration test chạy thẳng lên Supabase dev thật, `@Transactional` rollback mỗi test (đã xác nhận
-  với user — không Docker/Testcontainers ở v1).
+- [x] Thêm dependency `springdoc-openapi-starter-webmvc-ui:2.6.0` — tự sinh Swagger UI
+  (`/swagger-ui.html`) + OpenAPI JSON (`/v3/api-docs`), `OpenApiConfig` khai báo scheme Bearer JWT để
+  nút "Authorize" gửi đúng header. Resolve Open Question "mở ở profile nào": bật mặc định (dev/local),
+  **tắt hoàn toàn ở prod** (`application-prod.yml`, kích hoạt qua `SPRING_PROFILES_ACTIVE=prod`) — dù
+  bật hay tắt, các đường dẫn này vẫn nằm sau JWT auth như mọi endpoint khác (`SecurityConfig` không
+  permitAll), giảm bề mặt tấn công thêm 1 lớp ở prod thay vì dựa hoàn toàn vào auth.
+- [x] `docs/api.md` viết tay — auth (JWT 1 ngày không refresh token), hợp đồng `BatchResult<T>`
+  best-effort per-row (ADR-0007, kèm ví dụ JSON), luồng OCR end-to-end đủ 5 bước (upload-url → PUT ảnh →
+  capture → review draft → confirm, bảng phân 3 nhánh success/type_mismatch/lỗi kỹ thuật), quy tắc
+  `edit_history` (khi nào ghi/không ghi), bảng mã lỗi chung (400/401/404/409/500).
+- [x] Unit test (Mockito/JUnit 5, `src/test/java`) — ưu tiên đúng logic nghiệp vụ phức tạp nêu trong
+  task gốc:
+  - `EmployeeFuzzyMatcherTest` (9 case: khớp chính xác, bỏ dấu, hạ chữ thường, dưới ngưỡng 0.75 → rỗng
+    — KHÔNG đoán bừa, blank/null/no-candidates, chọn ứng viên tốt nhất khi nhiều ứng viên gần đúng, chịu
+    được 1 ký tự sai lệch)
+  - `DateRangeOverlapTest` (7 case mô phỏng EXCLUDE constraint DB: giao nhau, liền kề KHÔNG chồng lấn —
+    đúng ngữ nghĩa nửa mở `[from,to)`, tách biệt hoàn toàn, `effectiveTo=null` = vô cực, 2 range vô cực,
+    trùng hệt nhau, lồng nhau)
+  - `ProductionRecordServiceTest` (5 case: batch 1 dòng lỗi không ảnh hưởng dòng khác — best-effort thật
+    sự chạy `action.get()` trực tiếp qua `RequiresNewTransactionRunner` đã mock; `update`/`cancel`
+    **không** ghi `edit_history` khi record đang `DRAFT`; **có** ghi khi record đã `CONFIRMED`; cancel 2
+    lần → `ConflictException`)
+- [x] Integration test (`src/test/java/.../integration`, `@SpringBootTest` full context) chạy thẳng lên
+  Supabase dev thật qua `.env` có sẵn (dotenv loader, Phase 0) — KHÔNG Docker/Testcontainers (đã xác
+  nhận với user):
+  - `IntegrationTestSupport` — base class sinh JWT thật cho Admin seed qua `JwtService` trực tiếp
+    (KHÔNG gọi `/auth/login` bằng mật khẩu — mật khẩu seed có thể đã bị đổi, xem Phase 0 open item)
+  - `TeamIntegrationTest` — dùng `@Transactional` ở mức class, rollback sau MỖI test (đúng yêu cầu gốc):
+    CRUD round-trip qua MockMvc thật (create → update → get → list), 404, 400 validation, 403 thiếu token.
+    **Gotcha phát hiện lúc chạy thật**: thiếu JWT trả **403 Forbidden**, KHÔNG PHẢI 401 Unauthorized như
+    có thể nhầm tưởng (`SecurityConfig` không cấu hình `AuthenticationEntryPoint` riêng, rơi vào default
+    của Spring Security) — test ban đầu assert 401 FAIL khi chạy thật, đã sửa lại đúng hành vi.
+  - `ProductionRecordIntegrationTest` — **CHỦ Ý KHÔNG dùng `@Transactional`** (khác `TeamIntegrationTest`)
+    — dọn dữ liệu tường minh ở `@AfterEach` thay vì rollback. Lý do (gotcha quan trọng, áp dụng cho MỌI
+    integration test đụng tới batch endpoint của Production/LatexSale/AttendanceRecord sau này):
+    `createBatch()` chạy mỗi dòng trong transaction RIÊNG qua `RequiresNewTransactionRunner`
+    (PROPAGATION_REQUIRES_NEW, ADR-0007) — transaction đó COMMIT THẬT ngay khi request trả về, trên
+    connection khác với transaction bao quanh test. Nếu bọc `@Transactional`: (1) fixture Team/Employee
+    tạo ở `@BeforeEach` trong transaction test chưa commit → transaction REQUIRES_NEW của batch KHÔNG
+    nhìn thấy, `employeeRepository.findById` trả rỗng ngay trong lúc test; (2) dù có thấy fixture đi
+    nữa, dữ liệu batch tạo ra vẫn KHÔNG bị rollback khi transaction test rollback ở cuối. Test cover:
+    batch tạo → trùng ngày lỗi 409 nhưng response batch vẫn 200 (best-effort per-row) → cancel giải
+    phóng slot → nhập lại thành công → cancel lần 2 → 409; batch với employee không tồn tại → 200 kèm
+    per-row error (không phải 404 ở mức request).
+
+Đã chạy `./gradlew build` (compile + toàn bộ unit + integration test) xanh — 21 test, 0 fail, chạy thật
+lên Supabase dev (không mock DB).
 
 ## Deferred / ngoài phạm vi Module 1
 
