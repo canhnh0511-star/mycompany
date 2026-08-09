@@ -36,12 +36,15 @@ theo Tổ, chỉ tính CONFIRMED), export Excel (Apache POI) + PDF (OpenPDF, nh�
 cho cả 2 report. Đã smoke-test bằng curl + mở file export thật trên Supabase dev — xem chi tiết ở mục
 Phase 4 bên dưới (có 1 gotcha đáng chú ý về pgjdbc + tham số timestamp null trong JPQL).
 
-Chưa có: springdoc-openapi, `docs/api.md`, test (unit lẫn integration).
+**Phase 5 xong (2026-08-09)**: springdoc-openapi (Swagger UI dev/local, tắt hẳn ở prod), `docs/api.md`,
+unit test (fuzzy-match/EXCLUDE overlap/batch best-effort/edit_history guard) + integration test chạy thật
+lên Supabase dev (`@Transactional` rollback cho CRUD thường; dọn tay ở `@AfterEach` cho endpoint batch vì
+`REQUIRES_NEW` phá vỡ rollback — xem chi tiết ở mục Phase 5 bên dưới). `./gradlew build` xanh, 21 test.
 
-`build.gradle.kts` hiện chưa có dependency cho: springdoc-openapi — cần thêm khi bắt tay Phase 5. Phase 3
-OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase Storage REST —
-quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java. Phase 4 đã thêm
-`org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục Phase 4).
+Phase 3 OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase
+Storage REST — quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java.
+Phase 4 đã thêm `org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục
+Phase 4). Phase 5 đã thêm `org.springdoc:springdoc-openapi-starter-webmvc-ui` cho Swagger UI.
 
 **Lưu ý cho Phase 2+ (phát hiện lúc làm Phase 1, 2026-08-06):** entity nào có `@CreationTimestamp`
 (`createdAt`) và id sinh client-side (`GenerationType.UUID`, tất cả entity trong repo đều vậy) — nếu
@@ -304,9 +307,94 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
   GlobalExceptionHandler/SecurityConfig), chưa cross-check với Swagger UI vì springdoc-openapi chưa
   thêm (mục kế tiếp).
 - [ ] Unit test (Mockito) theo từng service — ưu tiên logic nghiệp vụ phức tạp (fuzzy-match, EditHistory
-  chỉ ghi sau confirmed, batch best-effort, EXCLUDE constraint handling).
+  chỉ ghi sau confirmed, batch best-effort, EXCLUDE constraint handling). **Chưa merge vào `main`** —
+  file test (`services/api/src/test/`) từng tồn tại ở working copy local nhưng chưa commit/lên PR, xem
+  ghi chú dưới.
 - [ ] Integration test chạy thẳng lên Supabase dev thật, `@Transactional` rollback mỗi test (đã xác nhận
-  với user — không Docker/Testcontainers ở v1).
+  với user — không Docker/Testcontainers ở v1). **Chưa merge vào `main`** — cùng lý do trên.
+
+> **Lưu ý (2026-08-09, phát hiện lúc merge nhánh frontend vào main):** PR #1 (`phase5/springdoc-openapi`)
+> thực tế chỉ mang springdoc-openapi + `docs/api.md` + fix `NoResourceFoundException` 404→500 vào `main`
+> — 2 mục unit/integration test ở trên (dù đã có kết quả "21 test, 0 fail" ghi nhận ở phiên làm việc
+> trước) CHƯA có trong lịch sử commit của `main`. Cần kiểm tra lại `services/api/src/test/` ở máy local
+> (đã từng untracked trong `git status`) và commit/mở PR riêng nếu code test vẫn còn, tránh mất công đã
+> làm.
+
+## Frontend (`apps/mobile`) — kế hoạch & tiến độ
+
+> Nguồn quyết định đầy đủ: `docs/frontend-grilling-plan.md` (buổi grilling §2, đã tách 10 ADR
+> `docs/adr/0009`–`0018`). Mục này chỉ là checklist tiến độ theo tuần (phần frontend của CLAUDE.md §8,
+> cụ thể hóa ở frontend-grilling-plan.md §4) — không lặp lại nội dung quyết định, chỉ tham chiếu ADR.
+
+**Tuần 1 — Setup & auth ✅ (xong 2026-08-08/09)**
+
+- [x] Scaffold Expo Router (`create-expo-app` SDK 57, TypeScript + Router mặc định) + `gluestack-ui`
+  (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4); fix 2 bug CLI gluestack sinh sai cho project dùng
+  `src/` (babel alias `@`, import `global.css`).
+- [x] `lib/api/client.ts` (fetch wrapper + 401 interceptor tập trung, ADR-0009/§2.3),
+  `lib/auth/tokenStorage.ts` (native `expo-secure-store` / web `localStorage`, ADR-0010),
+  `lib/query/queryClient.ts` + `queryKeys` (TanStack Query, ADR-0009).
+- [x] `features/auth` (store Zustand, `useAuth()` trả `role` — ADR-0016, `useMeQuery`) — nối API thật:
+  màn Đăng nhập (`POST /auth/login`) và tab Hồ sơ (`GET /users/me`).
+- [x] Route dựng đủ khung theo frontend-grilling-plan.md §3: `(auth)/login` (thật), `(tabs)` 4 tab
+  (`capture`/`quick-entry`/`lookup` placeholder chờ wireframe, `profile` thật), `(web)` placeholder cho
+  5 màn danh mục + 2 báo cáo. `features/{production-records,latex-sales,attendance-records,ocr-capture,
+  reports,admin-catalog}` mới có `README.md` ghi chú ADR liên quan, chưa code.
+- [x] Verify: `npx tsc --noEmit` sạch (17 lỗi ban đầu → 0), `npx expo export --platform web` chạy được
+  (đổi `web.output` sang `single` — SPA, hợp lý vì toàn bộ app nằm sau đăng nhập). Chưa verify build
+  native thật (iOS/Android, cần thiết bị/simulator).
+
+**Wireframe ✅ xong (2026-08-09)** — 10 màn hình, 5 điểm layout/scope tự đánh dấu đã duyệt hết, xem
+`docs/adr/0019-wireframe-layout-decisions.md`. Tuần 2-6 dưới đây không còn bị chặn bởi wireframe nữa.
+
+**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm)*
+
+- [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
+  nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
+  lỗi `BatchResult` theo `index` ngược lại đúng dòng. Layout theo màn "Nhập tay nhanh" ở wireframe (seg
+  control Sản lượng/Bán mủ/Chuyên cần, mỗi dòng 1 `draft-row` có pill trạng thái + lỗi inline).
+- [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
+  layout web/tablet (route nhóm `(web)`). Theo wireframe: 1 trang dùng chung, rail con bên trái điều
+  hướng 5 danh mục (ADR-0019 mục 3) — KHÁC layout hiện tại của Teams (route riêng), cần refactor.
+  - [x] **Teams** (2026-08-09) — CRUD đủ (`teams/api.ts`, `useTeams.ts`, `TeamsScreen.tsx`, thay
+    `PlaceholderScreen` ở `app/(web)/admin-catalog/teams.tsx`). List + form inline (không Modal —
+    gluestack-ui bản alpha chưa có Modal ổn định), react-query invalidate theo `queryKeys.teams.all`.
+    Dùng làm mẫu pattern cho 4 resource còn lại. `npx tsc --noEmit` + `npx expo export --platform web`
+    chạy sạch sau khi thêm. **Chưa áp dụng layout rail con** (build trước khi có wireframe) — refactor
+    khi làm tiếp 4 resource còn lại, gộp chung vào 1 layout cha `(web)/admin-catalog/_layout.tsx`.
+  - [ ] Employees (có `team_id`/`status` select), LatexTypes (`code` không sửa được sau khi tạo),
+    RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
+    — lặp lại pattern của Teams, chưa làm.
+
+**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu, không còn bị chặn)*
+
+- [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
+  (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
+  `uploading→processing→done/error` tối đa 2 song song (ADR-0011/§2.4) — **cần `ANTHROPIC_API_KEY` thật
+  để test end-to-end cùng backend** (xem TASKS.md Phase 3 — vẫn treo).
+- [ ] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp, nút "Xem chi tiết".
+- [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
+  list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
+  `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý
+  `unmatchedLines` (điều hướng sang Nhập tay nhanh).
+
+**Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
+
+- [ ] `features/*/lookup` — tab Tra cứu, filter theo Tổ/ngày/status (kể cả `draft`), xem `edit_history`
+  trong màn chi tiết record. Layout dạng card theo wireframe (ADR-0019 mục 2), không phải bảng compact.
+
+**Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
+
+- [ ] `features/reports` — bảng report JSON (2 loại), CHỈ bảng số liệu ở v1, không biểu đồ (ADR-0019 mục
+  5) + nút export; web dùng `<a download>`/blob, native dùng `expo-file-system` (`downloadAsync`) +
+  `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
+- [ ] Màn Theo dõi OCR (`ocr_call_logs` list + `/stats`) — làm ở v1 theo wireframe (ADR-0019 mục 4),
+  backend đã sẵn API (Phase 4). Route web, chỉ Admin xem.
+- [ ] Test với dữ liệu thật, sửa lỗi UI.
+
+**Testing frontend** (ADR-0017/§2.10, không theo tuần cố định — làm song song khi logic ổn định): unit
+test cho mapping lỗi `BatchResult` → field form, interceptor 401, hiển thị `unmatchedLines`. Chưa có
+component/e2e test (Detox/Maestro) ở v1.
 
 ## Deferred / ngoài phạm vi Module 1
 
