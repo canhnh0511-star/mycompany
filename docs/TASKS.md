@@ -357,9 +357,7 @@ lên Supabase dev (không mock DB).
 
 **Tuần 1 — Setup & auth ✅ (xong 2026-08-08/09)**
 
-- [x] Scaffold Expo Router (`create-expo-app`, ban đầu SDK 57 — **hạ về SDK 54 ngày 2026-08-09 vì Expo
-  Go chưa hỗ trợ SDK 57**, xem `docs/adr/0018-frontend-build-target-expo-go-eas.md` mục cập nhật;
-  `npx expo install --fix` tự chỉnh version từng package `expo-*`), TypeScript + Router mặc định + `gluestack-ui`
+- [x] Scaffold Expo Router (`create-expo-app` SDK 57, TypeScript + Router mặc định) + `gluestack-ui`
   (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4); fix 2 bug CLI gluestack sinh sai cho project dùng
   `src/` (babel alias `@`, import `global.css`).
 - [x] `lib/api/client.ts` (fetch wrapper + 401 interceptor tập trung, ADR-0009/§2.3),
@@ -407,8 +405,8 @@ lên Supabase dev (không mock DB).
 **Tuần 3-4 — OCR capture & review** *(đang làm)*
 
 - [x] `features/ocr-capture` — màn Chụp ảnh (2026-08-09): thêm dependency `expo-camera` +
-  `expo-image-picker` + `expo-image-manipulator` (`npx expo install`, version tự khớp SDK hiện tại của
-  project — SDK 54 sau khi hạ, xem ghi chú Tuần 1) + cấu hình plugin permission trong `app.json`. `CaptureScreen.tsx` — seg control loại phiếu, chip Tổ
+  `expo-image-picker` + `expo-image-manipulator` (`npx expo install`, tự chọn version khớp SDK 57) +
+  cấu hình plugin permission trong `app.json`. `CaptureScreen.tsx` — seg control loại phiếu, chip Tổ
   đang làm việc (`store.ts` Zustand không persist, ADR-0011) + "Đổi Tổ", viewfinder `expo-camera` +
   shutter, nút "Thư viện" chọn nhiều ảnh (`expo-image-picker`). `useOcrQueue.ts` — hàng đợi trong bộ
   nhớ `uploading → processing → done/error`, semaphore tự viết giới hạn tối đa 2 xử lý song song
