@@ -36,12 +36,15 @@ theo Tổ, chỉ tính CONFIRMED), export Excel (Apache POI) + PDF (OpenPDF, nh�
 cho cả 2 report. Đã smoke-test bằng curl + mở file export thật trên Supabase dev — xem chi tiết ở mục
 Phase 4 bên dưới (có 1 gotcha đáng chú ý về pgjdbc + tham số timestamp null trong JPQL).
 
-Chưa có: springdoc-openapi, `docs/api.md`, test (unit lẫn integration).
+**Phase 5 xong (2026-08-09)**: springdoc-openapi (Swagger UI dev/local, tắt hẳn ở prod), `docs/api.md`,
+unit test (fuzzy-match/EXCLUDE overlap/batch best-effort/edit_history guard) + integration test chạy thật
+lên Supabase dev (`@Transactional` rollback cho CRUD thường; dọn tay ở `@AfterEach` cho endpoint batch vì
+`REQUIRES_NEW` phá vỡ rollback — xem chi tiết ở mục Phase 5 bên dưới). `./gradlew build` xanh, 21 test.
 
-`build.gradle.kts` hiện chưa có dependency cho: springdoc-openapi — cần thêm khi bắt tay Phase 5. Phase 3
-OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase Storage REST —
-quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java. Phase 4 đã thêm
-`org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục Phase 4).
+Phase 3 OCR dùng thẳng `RestClient` có sẵn từ spring-boot-starter-web để gọi Claude API + Supabase
+Storage REST — quyết định giữ dependency tối thiểu, không kéo thêm Anthropic Java SDK hay supabase-java.
+Phase 4 đã thêm `org.apache.poi:poi-ooxml` + `com.github.librepdf:openpdf` cho export báo cáo (xem mục
+Phase 4). Phase 5 đã thêm `org.springdoc:springdoc-openapi-starter-webmvc-ui` cho Swagger UI.
 
 **Lưu ý cho Phase 2+ (phát hiện lúc làm Phase 1, 2026-08-06):** entity nào có `@CreationTimestamp`
 (`createdAt`) và id sinh client-side (`GenerationType.UUID`, tất cả entity trong repo đều vậy) — nếu
@@ -263,17 +266,116 @@ tiếng Việt hiển thị đúng; `ocr_call_logs` list + `/stats` (khớp tay 
 lỗi 401, tổng cost/avg duration đúng); `edit_history` (đúng snapshot before/after 1 record đã PATCH từ
 Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nhờ handler mới).
 
-## Phase 5 — Test & tài liệu
+## Phase 5 — Test & tài liệu ✅ (xong 2026-08-09)
 
-- [ ] Thêm dependency `springdoc-openapi` — tự sinh Swagger UI, chặn ở profile non-prod (xem Open
-  Question về prod).
-- [ ] `docs/api.md` viết tay — phần luồng nghiệp vụ mà OpenAPI không diễn tả tốt: OCR end-to-end
-  (capture → draft → confirm), batch contract (`BatchResult<T>` best-effort per-row), auth (JWT 1 ngày,
-  không refresh token).
-- [ ] Unit test (Mockito) theo từng service — ưu tiên logic nghiệp vụ phức tạp (fuzzy-match, EditHistory
-  chỉ ghi sau confirmed, batch best-effort, EXCLUDE constraint handling).
-- [ ] Integration test chạy thẳng lên Supabase dev thật, `@Transactional` rollback mỗi test (đã xác nhận
-  với user — không Docker/Testcontainers ở v1).
+- [x] Thêm dependency `springdoc-openapi-starter-webmvc-ui:2.6.0` — tự sinh Swagger UI
+  (`/swagger-ui.html`) + OpenAPI JSON (`/v3/api-docs`), `OpenApiConfig` khai báo scheme Bearer JWT để
+  nút "Authorize" gửi đúng header. Resolve Open Question "mở ở profile nào": bật mặc định (dev/local),
+  **tắt hoàn toàn ở prod** (`application-prod.yml`, kích hoạt qua `SPRING_PROFILES_ACTIVE=prod`) — dù
+  bật hay tắt, các đường dẫn này vẫn nằm sau JWT auth như mọi endpoint khác (`SecurityConfig` không
+  permitAll), giảm bề mặt tấn công thêm 1 lớp ở prod thay vì dựa hoàn toàn vào auth.
+- [x] `docs/api.md` viết tay — auth (JWT 1 ngày không refresh token), hợp đồng `BatchResult<T>`
+  best-effort per-row (ADR-0007, kèm ví dụ JSON), luồng OCR end-to-end đủ 5 bước (upload-url → PUT ảnh →
+  capture → review draft → confirm, bảng phân 3 nhánh success/type_mismatch/lỗi kỹ thuật), quy tắc
+  `edit_history` (khi nào ghi/không ghi), bảng mã lỗi chung (400/401/404/409/500).
+- [x] Unit test (Mockito/JUnit 5, `src/test/java`) — ưu tiên đúng logic nghiệp vụ phức tạp nêu trong
+  task gốc:
+  - `EmployeeFuzzyMatcherTest` (9 case: khớp chính xác, bỏ dấu, hạ chữ thường, dưới ngưỡng 0.75 → rỗng
+    — KHÔNG đoán bừa, blank/null/no-candidates, chọn ứng viên tốt nhất khi nhiều ứng viên gần đúng, chịu
+    được 1 ký tự sai lệch)
+  - `DateRangeOverlapTest` (7 case mô phỏng EXCLUDE constraint DB: giao nhau, liền kề KHÔNG chồng lấn —
+    đúng ngữ nghĩa nửa mở `[from,to)`, tách biệt hoàn toàn, `effectiveTo=null` = vô cực, 2 range vô cực,
+    trùng hệt nhau, lồng nhau)
+  - `ProductionRecordServiceTest` (5 case: batch 1 dòng lỗi không ảnh hưởng dòng khác — best-effort thật
+    sự chạy `action.get()` trực tiếp qua `RequiresNewTransactionRunner` đã mock; `update`/`cancel`
+    **không** ghi `edit_history` khi record đang `DRAFT`; **có** ghi khi record đã `CONFIRMED`; cancel 2
+    lần → `ConflictException`)
+- [x] Integration test (`src/test/java/.../integration`, `@SpringBootTest` full context) chạy thẳng lên
+  Supabase dev thật qua `.env` có sẵn (dotenv loader, Phase 0) — KHÔNG Docker/Testcontainers (đã xác
+  nhận với user):
+  - `IntegrationTestSupport` — base class sinh JWT thật cho Admin seed qua `JwtService` trực tiếp
+    (KHÔNG gọi `/auth/login` bằng mật khẩu — mật khẩu seed có thể đã bị đổi, xem Phase 0 open item)
+  - `TeamIntegrationTest` — dùng `@Transactional` ở mức class, rollback sau MỖI test (đúng yêu cầu gốc):
+    CRUD round-trip qua MockMvc thật (create → update → get → list), 404, 400 validation, 403 thiếu token.
+    **Gotcha phát hiện lúc chạy thật**: thiếu JWT trả **403 Forbidden**, KHÔNG PHẢI 401 Unauthorized như
+    có thể nhầm tưởng (`SecurityConfig` không cấu hình `AuthenticationEntryPoint` riêng, rơi vào default
+    của Spring Security) — test ban đầu assert 401 FAIL khi chạy thật, đã sửa lại đúng hành vi.
+  - `ProductionRecordIntegrationTest` — **CHỦ Ý KHÔNG dùng `@Transactional`** (khác `TeamIntegrationTest`)
+    — dọn dữ liệu tường minh ở `@AfterEach` thay vì rollback. Lý do (gotcha quan trọng, áp dụng cho MỌI
+    integration test đụng tới batch endpoint của Production/LatexSale/AttendanceRecord sau này):
+    `createBatch()` chạy mỗi dòng trong transaction RIÊNG qua `RequiresNewTransactionRunner`
+    (PROPAGATION_REQUIRES_NEW, ADR-0007) — transaction đó COMMIT THẬT ngay khi request trả về, trên
+    connection khác với transaction bao quanh test. Nếu bọc `@Transactional`: (1) fixture Team/Employee
+    tạo ở `@BeforeEach` trong transaction test chưa commit → transaction REQUIRES_NEW của batch KHÔNG
+    nhìn thấy, `employeeRepository.findById` trả rỗng ngay trong lúc test; (2) dù có thấy fixture đi
+    nữa, dữ liệu batch tạo ra vẫn KHÔNG bị rollback khi transaction test rollback ở cuối. Test cover:
+    batch tạo → trùng ngày lỗi 409 nhưng response batch vẫn 200 (best-effort per-row) → cancel giải
+    phóng slot → nhập lại thành công → cancel lần 2 → 409; batch với employee không tồn tại → 200 kèm
+    per-row error (không phải 404 ở mức request).
+
+Đã chạy `./gradlew build` (compile + toàn bộ unit + integration test) xanh — 21 test, 0 fail, chạy thật
+lên Supabase dev (không mock DB).
+
+## Frontend (`apps/mobile`) — kế hoạch & tiến độ
+
+> Nguồn quyết định đầy đủ: `docs/frontend-grilling-plan.md` (buổi grilling §2, đã tách 10 ADR
+> `docs/adr/0009`–`0018`). Mục này chỉ là checklist tiến độ theo tuần (phần frontend của CLAUDE.md §8,
+> cụ thể hóa ở frontend-grilling-plan.md §4) — không lặp lại nội dung quyết định, chỉ tham chiếu ADR.
+
+**Tuần 1 — Setup & auth ✅ (xong 2026-08-08/09)**
+
+- [x] Scaffold Expo Router (`create-expo-app` SDK 57, TypeScript + Router mặc định) + `gluestack-ui`
+  (ADR-0015, v5 alpha — NativeWind v5/Tailwind v4); fix 2 bug CLI gluestack sinh sai cho project dùng
+  `src/` (babel alias `@`, import `global.css`).
+- [x] `lib/api/client.ts` (fetch wrapper + 401 interceptor tập trung, ADR-0009/§2.3),
+  `lib/auth/tokenStorage.ts` (native `expo-secure-store` / web `localStorage`, ADR-0010),
+  `lib/query/queryClient.ts` + `queryKeys` (TanStack Query, ADR-0009).
+- [x] `features/auth` (store Zustand, `useAuth()` trả `role` — ADR-0016, `useMeQuery`) — nối API thật:
+  màn Đăng nhập (`POST /auth/login`) và tab Hồ sơ (`GET /users/me`).
+- [x] Route dựng đủ khung theo frontend-grilling-plan.md §3: `(auth)/login` (thật), `(tabs)` 4 tab
+  (`capture`/`quick-entry`/`lookup` placeholder chờ wireframe, `profile` thật), `(web)` placeholder cho
+  5 màn danh mục + 2 báo cáo. `features/{production-records,latex-sales,attendance-records,ocr-capture,
+  reports,admin-catalog}` mới có `README.md` ghi chú ADR liên quan, chưa code.
+- [x] Verify: `npx tsc --noEmit` sạch (17 lỗi ban đầu → 0), `npx expo export --platform web` chạy được
+  (đổi `web.output` sang `single` — SPA, hợp lý vì toàn bộ app nằm sau đăng nhập). Chưa verify build
+  native thật (iOS/Android, cần thiết bị/simulator).
+
+**Tuần 2 — Form nhập tay & CRUD danh mục** *(chưa bắt đầu — chờ wireframe)*
+
+- [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
+  nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
+  lỗi `BatchResult` theo `index` ngược lại đúng dòng.
+- [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
+  layout web/tablet (route nhóm `(web)`).
+- [ ] Wireframe (claude.ai/design) chốt layout trước khi code màn hình thật — độc lập với các ADR kỹ
+  thuật, đang treo.
+
+**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu — chờ wireframe)*
+
+- [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
+  (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
+  `uploading→processing→done/error` tối đa 2 song song (ADR-0011/§2.4) — **cần `ANTHROPIC_API_KEY` thật
+  để test end-to-end cùng backend** (xem TASKS.md Phase 3 — vẫn treo).
+- [ ] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp, nút "Xem chi tiết".
+- [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
+  list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
+  `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý
+  `unmatchedLines` (điều hướng sang Nhập tay nhanh).
+
+**Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
+
+- [ ] `features/*/lookup` — tab Tra cứu, filter theo Tổ/ngày/status (kể cả `draft`), xem `edit_history`
+  trong màn chi tiết record.
+
+**Tuần 6 — Báo cáo & export** *(chưa bắt đầu)*
+
+- [ ] `features/reports` — bảng report JSON (2 loại) + nút export; web dùng `<a download>`/blob, native
+  dùng `expo-file-system` (`downloadAsync`) + `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
+- [ ] Test với dữ liệu thật, sửa lỗi UI.
+
+**Testing frontend** (ADR-0017/§2.10, không theo tuần cố định — làm song song khi logic ổn định): unit
+test cho mapping lỗi `BatchResult` → field form, interceptor 401, hiển thị `unmatchedLines`. Chưa có
+component/e2e test (Detox/Maestro) ở v1.
 
 ## Deferred / ngoài phạm vi Module 1
 
