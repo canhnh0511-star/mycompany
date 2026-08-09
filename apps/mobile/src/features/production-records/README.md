@@ -1,5 +1,12 @@
 # features/production-records
 
-Sản lượng CÁ NHÂN theo ngày (CLAUDE.md §4). Chưa build — chờ wireframe (docs/frontend-grilling-plan.md
-§5). Khi bắt tay: batch nhập tay dùng ADR-0013 (react-hook-form + zod), bảng review OCR dùng ADR-0012
-(render từ response `capture`, PATCH từng dòng theo `id`).
+Sản lượng CÁ NHÂN theo ngày (CLAUDE.md §4).
+
+- [x] **Nhập tay nhanh** (`api.ts`, `useProductionRecordsBatch.ts`, `QuickEntryForm.tsx`, 2026-08-09) —
+  react-hook-form + `useFieldArray` cho rows (ADR-0013), mỗi dòng render field theo TOÀN BỘ danh mục
+  `LatexType` đã fetch (không hardcode 4 loại — danh mục MỞ, ADR-0002). Validate rẻ ở client (nhân viên
+  bắt buộc, ≥1 loại mủ > 0/dòng); lỗi từ `BatchResult` map ngược theo `index` vào đúng dòng
+  (`submitStatus`/`submitError`), không alert chung. Route: `app/(tabs)/quick-entry/index.tsx` (tab
+  "Sản lượng").
+- [ ] Bảng review OCR (ADR-0012) — chưa build, chờ `features/ocr-capture`.
+- [ ] Tra cứu/chi tiết record — chưa build (Tuần 5).

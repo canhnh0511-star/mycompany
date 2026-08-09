@@ -378,10 +378,17 @@ lên Supabase dev (không mock DB).
 
 **Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm)*
 
-- [ ] `features/production-records` + `features/latex-sales` + `features/attendance-records`: form
-  nhiều dòng động (`react-hook-form` + `useFieldArray`, `zod` validate tối thiểu — ADR-0013/§2.6), map
-  lỗi `BatchResult` theo `index` ngược lại đúng dòng. Layout theo màn "Nhập tay nhanh" ở wireframe (seg
-  control Sản lượng/Bán mủ/Chuyên cần, mỗi dòng 1 `draft-row` có pill trạng thái + lỗi inline).
+- [x] `features/production-records` + `features/latex-sales` (2026-08-09) — form nhiều dòng động
+  (`react-hook-form` + `useFieldArray` cho rows, ADR-0013/§2.6), map lỗi `BatchResult` theo `index`
+  ngược lại đúng dòng (`submitStatus`/`submitError` inline, không alert chung). Layout theo màn "Nhập
+  tay nhanh" ở wireframe: seg control Sản lượng/Bán mủ/Chuyên cần (`app/(tabs)/quick-entry/index.tsx`),
+  mỗi dòng 1 box có pill trạng thái. Field mỗi dòng render theo TOÀN BỘ danh mục `LatexType` đã fetch
+  (không hardcode — danh mục MỞ, ADR-0002), DRC(%) chỉ hiện khi `code === 'water'`. Validate rẻ ở
+  client: bắt buộc chọn Nhân viên/Tổ, ≥1 loại mủ > 0/dòng — không mô phỏng business rule backend.
+  Component mới `components/AppSelect.tsx` (select tối giản tự viết, không dùng gluestack Select).
+  `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch.
+  - [ ] `features/attendance-records` — CHƯA làm, để riêng vì data shape khác hẳn (attendanceType +
+    quantity, không phải danh sách loại mủ) — tab "Chuyên cần" hiện vẫn `PlaceholderScreen`.
 - [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
   layout web/tablet (route nhóm `(web)`). Theo wireframe: 1 trang dùng chung, rail con bên trái điều
   hướng 5 danh mục (ADR-0019 mục 3) — KHÁC layout hiện tại của Teams (route riêng), cần refactor.
@@ -395,13 +402,23 @@ lên Supabase dev (không mock DB).
     RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
     — lặp lại pattern của Teams, chưa làm.
 
-**Tuần 3-4 — OCR capture & review** *(chưa bắt đầu, không còn bị chặn)*
+**Tuần 3-4 — OCR capture & review** *(đang làm)*
 
-- [ ] `features/ocr-capture`: camera liên tục (`expo-camera`) + chọn nhiều ảnh thư viện
-  (`expo-image-picker`), upload signed URL, gọi `/ocr/capture`, hàng đợi trong bộ nhớ
-  `uploading→processing→done/error` tối đa 2 song song (ADR-0011/§2.4) — **cần `ANTHROPIC_API_KEY` thật
-  để test end-to-end cùng backend** (xem TASKS.md Phase 3 — vẫn treo).
-- [ ] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp, nút "Xem chi tiết".
+- [x] `features/ocr-capture` — màn Chụp ảnh (2026-08-09): thêm dependency `expo-camera` +
+  `expo-image-picker` + `expo-image-manipulator` (`npx expo install`, tự chọn version khớp SDK 57) +
+  cấu hình plugin permission trong `app.json`. `CaptureScreen.tsx` — seg control loại phiếu, chip Tổ
+  đang làm việc (`store.ts` Zustand không persist, ADR-0011) + "Đổi Tổ", viewfinder `expo-camera` +
+  shutter, nút "Thư viện" chọn nhiều ảnh (`expo-image-picker`). `useOcrQueue.ts` — hàng đợi trong bộ
+  nhớ `uploading → processing → done/error`, semaphore tự viết giới hạn tối đa 2 xử lý song song
+  (ADR-0011/§2.4). `api.ts` — `POST /ocr/upload-url` → PUT thẳng Supabase Storage (không qua backend,
+  không dùng `apiClient` vì không cần JWT của mình) → `POST /ocr/capture`. `npx tsc --noEmit` +
+  `npx expo export --platform web` chạy sạch. **Cần `ANTHROPIC_API_KEY` thật ở backend để test
+  end-to-end** (xem Phase 3 — vẫn treo); **chưa test trên thiết bị thật** (camera/thư viện cần build
+  native thật để verify quyền hệ điều hành, không đủ trong môi trường code này).
+- [x] Toast/banner không chặn cho lỗi/`type_mismatch` ngay tại màn chụp — đóng được (không dùng
+  `useAppToast` cho việc này vì cần hiện liên tục khi còn ảnh lỗi chưa xử lý, dùng banner cố định thay
+  vì toast tự ẩn). *Chưa có nút "Xem chi tiết" mở ảnh lỗi riêng — hiện chỉ hiện thông báo mới nhất +
+  tổng số ảnh lỗi.*
 - [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
   list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
   `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý

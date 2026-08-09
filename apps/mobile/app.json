@@ -35,7 +35,19 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép chụp ảnh phiếu giấy để đọc bằng AI (CLAUDE.md §5)."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép chọn ảnh phiếu giấy có sẵn (vd Tổ trưởng gửi qua Zalo) để đọc bằng AI."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
