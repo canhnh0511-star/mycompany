@@ -68,7 +68,10 @@ public class ClaudeOcrService {
                           "type": "object",
                           "properties": {
                             "latex_type_code": {"type": "string", "enum": ["water", "cup", "strip", "coagulated"]},
-                            "kg": {"type": "number"},
+                            "kg": {
+                              "type": "number",
+                              "description": "CỘNG DỒN thành 1 số duy nhất nếu ô viết nhiều số (vd '79+49' nghĩa là 2 lần cạo/thu trong ngày → kg=128). KHÔNG được tách thành 2 item cùng latex_type_code — mỗi loại mủ chỉ 1 item/dòng."
+                            },
                             "drc_percent": {
                               "type": "number",
                               "description": "CHỈ điền khi latex_type_code = water. Để trống nếu ô DRC bỏ trống trên phiếu."
@@ -115,7 +118,10 @@ public class ClaudeOcrService {
                     "type": "object",
                     "properties": {
                       "latex_type_code": {"type": "string", "enum": ["water", "cup", "strip", "coagulated"]},
-                      "kg": {"type": "number"},
+                      "kg": {
+                        "type": "number",
+                        "description": "CỘNG DỒN thành 1 số duy nhất nếu ô viết nhiều số (vd nhiều lần thu trong ngày) — KHÔNG tách thành 2 item cùng latex_type_code, mỗi loại mủ chỉ 1 item/bản ghi"
+                      },
                       "drc_percent": {"type": "number", "description": "CHỈ điền khi latex_type_code = water"}
                     },
                     "required": ["latex_type_code", "kg"]
@@ -245,7 +251,10 @@ public class ClaudeOcrService {
 
     private String buildPrompt(OcrTargetType targetType) {
         String common = "Bạn đang phân tích ảnh chụp 1 trang sổ tay viết tay của trại khai thác mủ cao su Việt "
-                + "Nam. Chữ viết có thể mờ, nghiêng, hoặc khó đọc. ";
+                + "Nam. Chữ viết có thể mờ, nghiêng, hoặc khó đọc. Nếu 1 ô của 1 loại mủ ghi NHIỀU số cộng nhau "
+                + "(vd '79+49', nghĩa là nhiều lần cạo/thu trong ngày) → CỘNG DỒN thành 1 số kg duy nhất cho loại "
+                + "mủ đó, KHÔNG được tách thành 2 item cùng loại mủ trong cùng 1 dòng/bản ghi (mỗi loại mủ chỉ "
+                + "được xuất hiện đúng 1 lần). ";
         if (targetType == OcrTargetType.PRODUCTION_RECORD) {
             return common
                     + "Đây PHẢI là sổ ghi mủ cá nhân: mỗi dòng tương ứng 1 công nhân, ghi khối lượng theo từng "

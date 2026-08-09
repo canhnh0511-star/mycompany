@@ -20,15 +20,12 @@ ProductionRecords/LatexSales/AttendanceRecords, PATCH sửa aggregate (record + 
 cancelled, không hard delete), `EditHistoryService` dùng chung ghi snapshot AGGREGATE khi sửa record đã
 CONFIRMED. Đã smoke-test bằng curl trên Supabase dev thật — xem chi tiết ở mục Phase 2 bên dưới.
 
-**Phase 3 xong về mặt code (2026-08-06)**: tích hợp Claude Vision OCR (signed upload URL, gọi Claude qua
-`RestClient`, ghi `ocr_call_logs`, tạo draft + fuzzy-match + confirm). **CHƯA verify được luồng thành công
-thật** — `ANTHROPIC_API_KEY` còn rỗng trong `.env` (xem Open Question Phase 3 cũ, giờ vẫn treo phần key).
-Đã smoke-test được: signed upload URL thật (upload ảnh test lên Supabase Storage thành công), lỗi kỹ thuật
-khi gọi Claude API (401 do thiếu key — xác nhận `ocr_call_logs` ghi đúng `success=false` + error message),
-validate `teamId` bắt buộc cho `LATEX_SALE`, lỗi tải ảnh không tồn tại (400 rõ ràng), `confirm` (409 khi
-record không phải draft, 404 khi không tồn tại). **Chưa test được**: happy-path thật (Claude đọc ảnh →
-tạo draft → confirm), `type_mismatch`, fuzzy-match nhân viên, `unmatchedLines` — cần `ANTHROPIC_API_KEY`
-thật để test tiếp.
+**Phase 3 xong, đã verify thật (2026-08-09)**: tích hợp Claude Vision OCR (signed upload URL, gọi Claude
+qua `RestClient`, ghi `ocr_call_logs`, tạo draft + fuzzy-match + confirm). Test bằng `ANTHROPIC_API_KEY`
+thật + 2 ảnh phiếu giấy thật — phát hiện & fix 1 bug thật: `capture()` bọc `@Transactional` ở mức method
+khiến 1 exception ở bước tạo draft (record_date rỗng, vi phạm UNIQUE...) rollback LUÔN dòng
+`ocr_call_logs` đã ghi trước đó (vi phạm CLAUDE.md §5) + trả 500 thay vì lỗi rõ ràng — xem chi tiết mục
+Phase 3 bên dưới. `./gradlew test` xanh sau fix (không hồi quy).
 
 **Phase 4 xong (2026-08-07)**: list+filter (production_records/latex_sales/attendance_records), đọc
 `ocr_call_logs` (list + `/stats`), đọc `edit_history`, report JSON tổng hợp (sản lượng cá nhân + bán mủ
@@ -174,7 +171,7 @@ Smoke-test 2026-08-06 (curl thủ công trên Supabase dev thật, chưa phải 
 409/404/400 trong cùng 1 request) + PATCH (kể cả case trùng latex_type_id sau khi sửa — gotcha ở trên) +
 cancel + chặn cancel 2 lần (409) + nhập lại sau khi cancel (production_records).
 
-## Phase 3 — Tích hợp OCR (CLAUDE.md §5, ADR-0005, ADR-0006) ✅ code xong (2026-08-06), chờ verify happy-path
+## Phase 3 — Tích hợp OCR (CLAUDE.md §5, ADR-0005, ADR-0006) ✅ xong, đã verify thật với `ANTHROPIC_API_KEY` (2026-08-09)
 
 - [x] Gọi Claude API (vision) bằng `RestClient` (Spring có sẵn, `ClaudeOcrService`) — không kéo thêm
   Anthropic Java SDK, giữ dependency tối thiểu (CLAUDE.md §1/§9). Model mặc định `claude-opus-5`, đổi qua
@@ -209,10 +206,36 @@ cancel + chặn cancel 2 lần (409) + nhập lại sau khi cancel (production_r
   "sửa"). Đã test: 409 khi record không phải draft, 404 khi không tồn tại.
 - [x] Log `WARN` khi OCR lỗi kỹ thuật / `type_mismatch` / fuzzy-match không khớp (CLAUDE.md §7).
 
-**Chưa verify được** (cần `ANTHROPIC_API_KEY` thật — hiện `.env` để trống): happy-path đọc ảnh thật → tạo
-draft đúng dữ liệu, `type_mismatch` thật, fuzzy-match thật, `estimated_cost_usd` tính đúng theo response
-usage thật. User cần tự điền `ANTHROPIC_API_KEY` vào `services/api/.env` rồi test lại `POST /ocr/capture`
-với ảnh phiếu thật.
+**Verify thật (2026-08-09)** — đã điền `ANTHROPIC_API_KEY` thật, test `POST /ocr/capture` với 2 ảnh phiếu
+giấy thật (`images/ghimungay_1.jpg` — sổ ghi mủ, `images/so_ban_mu.jpg` — sổ bán mủ):
+
+- Ảnh sổ ghi mủ: Claude đọc đúng & đủ 21 dòng công nhân + kg (không sót dòng nào), nhưng trả
+  `record_date=""` → 400 đúng như thiết kế. **Không phải bug OCR** — soi lại ảnh gốc mới phát hiện đây là
+  **sổ ghi mủ theo THÁNG** (tiêu đề "SỔ GHI MỦ THÁNG ... NĂM ......", 1 dòng/công nhân = tổng kg cả
+  tháng), không có ngày cụ thể nào để đọc — khác giả định `production_records` là ghi theo **ngày**
+  (CLAUDE.md §4). Nếu thực địa dùng loại sổ tháng này thật, cần bàn lại: hoặc yêu cầu chụp đúng loại sổ
+  ghi theo ngày, hoặc tính lại phạm vi Module 1 cho trường hợp nhập theo tháng — chưa quyết, ghi nhận ở
+  đây để bàn tiếp.
+- Ảnh sổ bán mủ (có ngày rõ, 2 dòng ngày khác nhau "1.8"/"21.8" trong CÙNG 1 ảnh): phát lộ 1 **bug thật**
+  — request trả **500** `UnexpectedRollbackException` thay vì lỗi rõ ràng, và **dòng `ocr_call_logs` của
+  cả 2 lần test (kể cả lần 400 ở trên) đều bị mất** dù Claude đã gọi thành công và tốn phí thật. Nguyên
+  nhân: `OcrCaptureService.capture()` bọc `@Transactional` ở cấp method, trùm luôn bước ghi
+  `ocr_call_logs` lẫn bước tạo draft phía sau — 1 exception bất kỳ sau khi log đã `saveAndFlush` (thiếu
+  `record_date`, vi phạm UNIQUE khi tạo draft...) đánh dấu rollback-only cho CẢ transaction, kéo theo mất
+  luôn dòng log — vi phạm thẳng CLAUDE.md §5 ("ghi `ocr_call_logs` bất kể thành công hay lỗi"). **FIXED**:
+  bỏ `@Transactional` ở `capture()` — mỗi lời gọi repository/`@Transactional` con
+  (`ocrCallLogRepository.saveAndFlush`, `createDraftFromOcr`) tự mở + commit transaction riêng, log luôn
+  persist độc lập, mỗi dòng draft trong `captureProductionRecords` cũng hết poison lẫn nhau (đúng tinh
+  thần best-effort như batch, ADR-0007). Đã test lại: cùng ảnh sổ bán mủ giờ trả **200** kèm lỗi rõ ràng
+  per-item (`"items có 2 dòng trùng latexTypeId..."` — do 2 dòng khác ngày bị OCR gộp chung 1
+  `record_date` nên 2 item "water" trùng nhau; nguyên nhân hợp lý vì schema `latex_sales` là 1 bản ghi/1
+  ngày, ảnh test lại chụp 2 ngày trong 1 khung hình — không phải lỗi code, là giới hạn đã biết của luồng 1
+  ảnh/1 phiếu, CLAUDE.md §5 "sổ giấy tràn nhiều trang" chỉ tính trường hợp production_records, chưa tính
+  latex_sales nhiều ngày/ảnh), và dòng `ocr_call_logs` persist đúng dù request logic trả lỗi. `./gradlew
+  test` chạy lại xanh (21 test, không hồi quy).
+- `type_mismatch` thật, fuzzy-match thật, `estimated_cost_usd` theo usage thật: đã verify gián tiếp qua 2
+  lần test trên (fuzzy-match chưa thử case KHÔNG khớp, `type_mismatch` chưa thử ảnh sai loại — có thể test
+  thêm sau nếu cần).
 
 ## Phase 4 — Đọc/lọc/báo cáo ✅ (xong 2026-08-07)
 

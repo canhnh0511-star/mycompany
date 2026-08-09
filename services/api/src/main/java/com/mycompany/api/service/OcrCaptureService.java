@@ -70,7 +70,15 @@ public class OcrCaptureService {
     private final ProductionRecordService productionRecordService;
     private final LatexSaleService latexSaleService;
 
-    @Transactional
+    // KHÔNG @Transactional ở mức method này (phát hiện lúc test thật, 2026-08-09) — nếu bọc cả
+    // method, ocr_call_logs.saveAndFlush() phía dưới chỉ flush chứ CHƯA commit; 1 exception bất kỳ ở
+    // bước tạo draft sau đó (vd record_date rỗng, vi phạm UNIQUE) đánh dấu rollback-only cho CẢ
+    // transaction, kéo theo mất luôn dòng ocr_call_logs vừa ghi — vi phạm CLAUDE.md §5 ("ghi 1 dòng
+    // ocr_call_logs bất kể thành công hay lỗi"). Không có @Transactional ở đây: mỗi lời gọi
+    // repository/@Transactional con (ocrCallLogRepository.saveAndFlush, createDraftFromOcr) tự mở +
+    // commit transaction RIÊNG — ocr_call_logs luôn persist độc lập, và mỗi dòng draft trong vòng lặp
+    // captureProductionRecords cũng không còn poison lẫn nhau (đúng tinh thần best-effort như batch,
+    // xem RequiresNewTransactionRunner/ADR-0007).
     public OcrCaptureResponse capture(OcrCaptureRequest request, User currentUser) {
         if (request.targetType() == OcrTargetType.LATEX_SALE && request.teamId() == null) {
             throw new InvalidRequestException("teamId bắt buộc khi targetType=LATEX_SALE (latex_sales.team_id NOT NULL)");
@@ -116,6 +124,7 @@ public class OcrCaptureService {
             log.warn("OCR type_mismatch: ảnh không khớp targetType đã chọn ({}) — {}", request.targetType(), reason);
             return new OcrCaptureResponse(savedLog.getId(), true, null, true, reason, null, null, null);
         }
+        log.debug("OCR response ({}) — {}", request.targetType(), input.toString());
 
         LocalDate recordDate = parseDate(input.path("record_date").asText(null));
         if (recordDate == null) {
