@@ -460,10 +460,17 @@ lên Supabase dev (không mock DB).
   `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch. **Chưa test với data OCR thật**
   (cần `ANTHROPIC_API_KEY` + thiết bị thật, xem ghi chú ở mục Chụp ảnh trên).
 
-**Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
+**Tuần 5 — Tra cứu & lịch sử ✅ xong (2026-08-10)**
 
-- [ ] `features/*/lookup` — tab Tra cứu, filter theo Tổ/ngày/status (kể cả `draft`), xem `edit_history`
-  trong màn chi tiết record. Layout dạng card theo wireframe (ADR-0019 mục 2), không phải bảng compact.
+- [x] `features/lookup` — tab Tra cứu (`LookupScreen.tsx`), gộp Sản lượng cá nhân + Bán mủ theo Tổ
+  trong 1 danh sách theo ngày (KHÔNG gộp attendance-records — wireframe chỉ có 2 loại phiếu). Filter
+  loại phiếu/Tổ/status (kể cả `DRAFT`, mặc định Tất cả — CLAUDE.md §5)/khoảng ngày. Layout dạng card
+  theo wireframe (ADR-0019 mục 2), không phải bảng compact.
+- [x] `record-detail` — 2 route full-screen (`app/record-detail/production/[id].tsx`,
+  `.../latex-sale/[id].tsx`): ảnh gốc, bảng khối lượng + tổng, Hủy bản ghi (2 bước xác nhận, không hard
+  delete), `edit_history` (thời điểm + người sửa — **chưa hiện chi tiết `oldData`/`newData`, cần
+  confirm UI dạng diff hay raw JSON, xem `features/lookup/README.md`**).
+  `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch.
 
 **Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
 

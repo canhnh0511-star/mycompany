@@ -273,3 +273,29 @@ export interface AttendanceRecordResponse {
   createdAt: string;
   status: RecordStatus;
 }
+
+/** Hình dạng chung `org.springframework.data.domain.Page<T>` — dùng cho mọi endpoint list/filter có
+ * `Pageable` (Phase 4, mặc định size=50 sort=recordDate DESC). Chỉ khai field thực sự dùng ở frontend,
+ * Page thật có nhiều field hơn (pageable, sort...) nhưng không cần đọc tới. */
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+/** Khớp services/api dto/EditHistoryResponse.java — oldData/newData là chuỗi JSON snapshot AGGREGATE,
+ * tự JSON.parse khi cần hiển thị chi tiết (CLAUDE.md §4). */
+export interface EditHistoryResponse {
+  id: string;
+  tableName: string;
+  recordId: string;
+  editedBy: string;
+  editedByName: string;
+  editedAt: string;
+  oldData: string;
+  newData: string;
+}

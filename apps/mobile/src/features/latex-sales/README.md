@@ -6,5 +6,7 @@ Bán mủ theo TỔ (không có `employee_id` — chỉ `buyer_name`/`seller_sig
   pattern với `features/production-records/QuickEntryForm.tsx` (react-hook-form + `useFieldArray`,
   ADR-0013), khác ở chỗ chọn Tổ thay vì Nhân viên + có `buyerName`/`sellerSignedBy` text. Route:
   `app/(tabs)/quick-entry/index.tsx` (tab "Bán mủ").
-- [ ] Bảng review OCR (ADR-0012) — chưa build, chờ `features/ocr-capture`.
-- [ ] Tra cứu/chi tiết record — chưa build (Tuần 5).
+- [x] Bảng review OCR (ADR-0012, 2026-08-10) — build ở `features/ocr-capture/OcrReviewScreen.tsx`
+  (dùng chung với production-records), `api.ts` thêm `update()`/`confirm()`.
+- [x] Tra cứu/chi tiết record (2026-08-10) — `api.ts` thêm `list()`/`get()`/`cancel()`,
+  `useLatexSalesList.ts`. UI ở `features/lookup/` (dùng chung với production-records).
