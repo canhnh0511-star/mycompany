@@ -243,3 +243,31 @@ export interface AllowanceConfigRequest {
   effectiveFrom: string;
   effectiveTo: string | null;
 }
+
+/** Khớp services/api entity/AttendanceType.java — "lighting" (tiền đèn) cố ý KHÔNG ở đây, xem
+ * CLAUDE.md §4 (phụ cấp cố định/tháng, không gắn chấm công theo ngày). */
+export type AttendanceType = 'TAPPING_WORK' | 'ATTENDANCE' | 'STORM_ALLOWANCE' | 'MEDICATION';
+
+/** Khớp services/api dto/CreateAttendanceRecordRequest.java (nhập tay batch, ADR-0007) — ghi thẳng
+ * status=confirmed, không qua draft (khác OCR). */
+export interface CreateAttendanceRecordRequest {
+  recordDate: string;
+  employeeId: string;
+  attendanceType: AttendanceType;
+  quantity: number;
+  notes: string | null;
+}
+
+/** Khớp services/api dto/AttendanceRecordResponse.java */
+export interface AttendanceRecordResponse {
+  id: string;
+  recordDate: string;
+  employeeId: string;
+  employeeName: string;
+  attendanceType: AttendanceType;
+  quantity: number;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  status: RecordStatus;
+}
