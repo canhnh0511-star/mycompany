@@ -199,3 +199,75 @@ export interface OcrCaptureResponse {
   latexSales: BatchItemResult<LatexSaleResponse>[] | null;
   unmatchedLines: OcrUnmatchedLine[] | null;
 }
+
+/** Khớp services/api dto/RateConfigResponse.java — đơn giá theo latex_type_id, có hiệu lực theo thời
+ * gian (effectiveTo=null = đang hiệu lực, CLAUDE.md §4). */
+export interface RateConfigResponse {
+  id: string;
+  latexTypeId: string;
+  latexTypeCode: string;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  createdAt: string;
+}
+
+/** Khớp CreateRateConfigRequest.java (tạo) + UpdateRateConfigRequest.java (sửa, không có latexTypeId). */
+export interface RateConfigRequest {
+  latexTypeId?: string;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+export type CalcType = 'PER_DAY' | 'PER_TREE_SECTION' | 'PER_SHIFT' | 'FIXED';
+
+/** Khớp services/api dto/AllowanceConfigResponse.java — cùng ràng buộc chống chồng lấn theo
+ * (code, effective_from/to) như RateConfig, nhưng nhiều dòng cùng code theo thời gian là hợp lệ. */
+export interface AllowanceConfigResponse {
+  id: string;
+  code: string;
+  name: string;
+  calcType: CalcType;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** Khớp CreateAllowanceConfigRequest.java (tạo, có code) + UpdateAllowanceConfigRequest.java (sửa). */
+export interface AllowanceConfigRequest {
+  code?: string;
+  name: string;
+  calcType: CalcType;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** Khớp services/api entity/AttendanceType.java — "lighting" (tiền đèn) cố ý KHÔNG ở đây, xem
+ * CLAUDE.md §4 (phụ cấp cố định/tháng, không gắn chấm công theo ngày). */
+export type AttendanceType = 'TAPPING_WORK' | 'ATTENDANCE' | 'STORM_ALLOWANCE' | 'MEDICATION';
+
+/** Khớp services/api dto/CreateAttendanceRecordRequest.java (nhập tay batch, ADR-0007) — ghi thẳng
+ * status=confirmed, không qua draft (khác OCR). */
+export interface CreateAttendanceRecordRequest {
+  recordDate: string;
+  employeeId: string;
+  attendanceType: AttendanceType;
+  quantity: number;
+  notes: string | null;
+}
+
+/** Khớp services/api dto/AttendanceRecordResponse.java */
+export interface AttendanceRecordResponse {
+  id: string;
+  recordDate: string;
+  employeeId: string;
+  employeeName: string;
+  attendanceType: AttendanceType;
+  quantity: number;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  status: RecordStatus;
+}

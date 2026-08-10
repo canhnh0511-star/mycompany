@@ -2,17 +2,13 @@ import { useState } from 'react';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { AppButton } from '@/components/AppButton';
-import { PlaceholderScreen } from '@/components/PlaceholderScreen';
+import { AttendanceQuickEntryForm } from '@/features/attendance-records/QuickEntryForm';
 import { ProductionQuickEntryForm } from '@/features/production-records/QuickEntryForm';
 import { LatexSaleQuickEntryForm } from '@/features/latex-sales/QuickEntryForm';
 
 type Tab = 'production' | 'latex-sale' | 'attendance';
 
-/**
- * Tab "Nhập tay nhanh" — seg control 3 loại phiếu theo wireframe (Sản lượng/Bán mủ/Chuyên cần).
- * Chuyên cần (attendance-records) chưa build — data shape khác hẳn (attendanceType + quantity, không
- * phải danh sách loại mủ), để `PlaceholderScreen` chờ tới lượt.
- */
+/** Tab "Nhập tay nhanh" — seg control 3 loại phiếu theo wireframe (Sản lượng/Bán mủ/Chuyên cần). */
 export default function QuickEntryScreen() {
   const [tab, setTab] = useState<Tab>('production');
 
@@ -26,13 +22,7 @@ export default function QuickEntryScreen() {
 
       {tab === 'production' ? <ProductionQuickEntryForm /> : null}
       {tab === 'latex-sale' ? <LatexSaleQuickEntryForm /> : null}
-      {tab === 'attendance' ? (
-        <PlaceholderScreen
-          title="Chuyên cần"
-          description="Chưa build — data shape khác (attendanceType + quantity), xem features/attendance-records/README.md."
-          reference="docs/adr/0007-batch-manual-entry-best-effort.md, features/attendance-records/"
-        />
-      ) : null}
+      {tab === 'attendance' ? <AttendanceQuickEntryForm /> : null}
     </Box>
   );
 }
