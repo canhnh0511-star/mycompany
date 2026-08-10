@@ -5,4 +5,7 @@ import type { BatchResult, CreateLatexSaleRequest, LatexSaleResponse } from '@/t
 export const latexSalesApi = {
   createBatch: (requests: CreateLatexSaleRequest[]) =>
     apiClient.post<BatchResult<LatexSaleResponse>>('/api/v1/latex-sales/batch', requests),
+  update: (id: string, body: CreateLatexSaleRequest) =>
+    apiClient.patch<LatexSaleResponse>(`/api/v1/latex-sales/${id}`, body),
+  confirm: (id: string) => apiClient.post<LatexSaleResponse>(`/api/v1/latex-sales/${id}/confirm`),
 };

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Pressable as RNPressable, StyleSheet } from 'react-native';
@@ -27,6 +28,7 @@ const STATUS_LABEL: Record<QueueItemStatus, string> = {
  * có dữ liệu OCR thật).
  */
 export function CaptureScreen() {
+  const router = useRouter();
   const [targetType, setTargetType] = useState<OcrTargetType>('PRODUCTION_RECORD');
   const [changingTeam, setChangingTeam] = useState(false);
   const [dismissedBannerFor, setDismissedBannerFor] = useState<string | null>(null);
@@ -162,15 +164,26 @@ export function CaptureScreen() {
               <AppText size="sm" numberOfLines={1} className="flex-1">
                 {item.fileName}
               </AppText>
-              <Box
-                className={`rounded-full px-2 py-0.5 ${
-                  item.status === 'done' ? 'bg-accent' : item.status === 'error' ? 'bg-destructive' : 'bg-muted'
-                }`}
-              >
-                <AppText size="xs" className={item.status === 'error' ? 'text-white' : undefined}>
-                  {STATUS_LABEL[item.status]}
-                </AppText>
-              </Box>
+              <HStack space="xs" className="items-center">
+                {item.status === 'done' && item.response ? (
+                  <AppButton
+                    size="sm"
+                    variant="outline"
+                    onPress={() => router.push(`/ocr-review/${item.response!.ocrCallLogId}`)}
+                  >
+                    Xem lại
+                  </AppButton>
+                ) : null}
+                <Box
+                  className={`rounded-full px-2 py-0.5 ${
+                    item.status === 'done' ? 'bg-accent' : item.status === 'error' ? 'bg-destructive' : 'bg-muted'
+                  }`}
+                >
+                  <AppText size="xs" className={item.status === 'error' ? 'text-white' : undefined}>
+                    {STATUS_LABEL[item.status]}
+                  </AppText>
+                </Box>
+              </HStack>
             </HStack>
           ))}
         </VStack>

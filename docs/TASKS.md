@@ -376,7 +376,7 @@ lên Supabase dev (không mock DB).
 **Wireframe ✅ xong (2026-08-09)** — 10 màn hình, 5 điểm layout/scope tự đánh dấu đã duyệt hết, xem
 `docs/adr/0019-wireframe-layout-decisions.md`. Tuần 2-6 dưới đây không còn bị chặn bởi wireframe nữa.
 
-**Tuần 2 — Form nhập tay & CRUD danh mục** *(đang làm)*
+**Tuần 2 — Form nhập tay & CRUD danh mục ✅ xong (2026-08-10)**
 
 - [x] `features/production-records` + `features/latex-sales` (2026-08-09) — form nhiều dòng động
   (`react-hook-form` + `useFieldArray` cho rows, ADR-0013/§2.6), map lỗi `BatchResult` theo `index`
@@ -387,22 +387,31 @@ lên Supabase dev (không mock DB).
   client: bắt buộc chọn Nhân viên/Tổ, ≥1 loại mủ > 0/dòng — không mô phỏng business rule backend.
   Component mới `components/AppSelect.tsx` (select tối giản tự viết, không dùng gluestack Select).
   `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch.
-  - [ ] `features/attendance-records` — CHƯA làm, để riêng vì data shape khác hẳn (attendanceType +
-    quantity, không phải danh sách loại mủ) — tab "Chuyên cần" hiện vẫn `PlaceholderScreen`.
-- [ ] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs, ưu tiên
-  layout web/tablet (route nhóm `(web)`). Theo wireframe: 1 trang dùng chung, rail con bên trái điều
-  hướng 5 danh mục (ADR-0019 mục 3) — KHÁC layout hiện tại của Teams (route riêng), cần refactor.
+  - [x] `features/attendance-records` (2026-08-10) — data shape khác hẳn (1 `attendanceType` +
+    `quantity`/dòng, không phải danh sách loại mủ) nên form riêng, không dùng chung layout multi-item,
+    cùng tinh thần ADR-0007/ADR-0013. 4 loại TAPPING_WORK/ATTENDANCE/STORM_ALLOWANCE/MEDICATION
+    (`lighting` cố ý không có — phụ cấp cố định/tháng, CLAUDE.md §4).
+- [x] `features/admin-catalog`: CRUD Teams/Employees/LatexTypes/RateConfigs/AllowanceConfigs ✅ xong
+  (2026-08-10), ưu tiên layout web/tablet (route nhóm `(web)`).
   - [x] **Teams** (2026-08-09) — CRUD đủ (`teams/api.ts`, `useTeams.ts`, `TeamsScreen.tsx`, thay
     `PlaceholderScreen` ở `app/(web)/admin-catalog/teams.tsx`). List + form inline (không Modal —
     gluestack-ui bản alpha chưa có Modal ổn định), react-query invalidate theo `queryKeys.teams.all`.
-    Dùng làm mẫu pattern cho 4 resource còn lại. `npx tsc --noEmit` + `npx expo export --platform web`
-    chạy sạch sau khi thêm. **Chưa áp dụng layout rail con** (build trước khi có wireframe) — refactor
-    khi làm tiếp 4 resource còn lại, gộp chung vào 1 layout cha `(web)/admin-catalog/_layout.tsx`.
-  - [ ] Employees (có `team_id`/`status` select), LatexTypes (`code` không sửa được sau khi tạo),
-    RateConfigs/AllowanceConfigs (`effective_from`/`effective_to` + hiển thị lỗi 409 overlap từ backend)
-    — lặp lại pattern của Teams, chưa làm.
+    Dùng làm mẫu pattern cho 4 resource còn lại.
+  - [x] **Layout rail con** (2026-08-10) — `app/(web)/admin-catalog/_layout.tsx` (`Slot` + nav trái điều
+    hướng 5 danh mục, ADR-0019 mục 3). Teams tự động thừa hưởng layout mới, không cần sửa
+    `TeamsScreen.tsx`.
+  - [x] **Employees** (2026-08-10) — CRUD đủ, thêm `team_id` (`AppSelect`) + `status` (chỉ sửa được khi
+    Update, Create luôn `active` mặc định ở backend).
+  - [x] **LatexTypes** (2026-08-10) — CRUD đủ, `code` chỉ nhập lúc tạo (không sửa được), có DELETE với
+    xác nhận 2 bước (bấm "Xóa" → hiện "Xác nhận xóa", không Modal/Alert) — backend chặn 409 nếu còn
+    tham chiếu ở rate_configs/production_record_items/latex_sale_items.
+  - [x] **RateConfigs** (2026-08-10) — CRUD đủ (không DELETE), lỗi 409 overlap `effective_from`/
+    `effective_to` hiển thị NGAY trong form (không toast) để Admin đọc kỹ + sửa lại ngày.
+  - [x] **AllowanceConfigs** (2026-08-10) — cùng pattern RateConfigs + thêm `calcType` (`AppSelect`),
+    `code` chỉ nhập lúc tạo.
+  - `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch sau mỗi resource.
 
-**Tuần 3-4 — OCR capture & review** *(đang làm)*
+**Tuần 3-4 — OCR capture & review ✅ xong (2026-08-10)**
 
 - [x] `features/ocr-capture` — màn Chụp ảnh (2026-08-09): thêm dependency `expo-camera` +
   `expo-image-picker` + `expo-image-manipulator` (`npx expo install`, tự chọn version khớp SDK 57) +
@@ -419,10 +428,14 @@ lên Supabase dev (không mock DB).
   `useAppToast` cho việc này vì cần hiện liên tục khi còn ảnh lỗi chưa xử lý, dùng banner cố định thay
   vì toast tự ẩn). *Chưa có nút "Xem chi tiết" mở ảnh lỗi riêng — hiện chỉ hiện thông báo mới nhất +
   tổng số ảnh lỗi.*
-- [ ] Bảng review OCR editable — đọc trực tiếp response `capture` để render, đồng bộ query key `draft
-  list` qua `queryClient.setQueryData`/invalidate (ADR-0012/§2.5); PATCH từng dòng gọi thẳng
-  `PATCH /production-records/{id}` (không gom batch). Highlight `lowConfidenceFields`, xử lý
-  `unmatchedLines` (điều hướng sang Nhập tay nhanh).
+- [x] Bảng review OCR editable (2026-08-10) — `OcrReviewScreen.tsx`, route riêng full-screen
+  `app/ocr-review/[logId].tsx` (ADR-0019 mục 1). Đọc trực tiếp response `capture` qua `reviewStore.ts`
+  (Zustand — route param chỉ mang được `ocrCallLogId`, không mang được object đầy đủ). Sửa xong bấm
+  "Lưu tất cả" → PATCH aggregate (`production-records/{id}` hoặc `latex-sales/{id}`, không gom batch) +
+  POST confirm từng dòng. Highlight `lowConfidenceFields` (parse JSON), banner `unmatchedLines` hướng
+  Admin sang tab Nhập tay nhanh. Nút "Xem lại" ở hàng đợi Chụp ảnh khi item `done`.
+  `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch. **Chưa test với data OCR thật**
+  (cần `ANTHROPIC_API_KEY` + thiết bị thật, xem ghi chú ở mục Chụp ảnh trên).
 
 **Tuần 5 — Tra cứu & lịch sử** *(chưa bắt đầu)*
 

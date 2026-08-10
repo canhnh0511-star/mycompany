@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/api/client';
 import { queryClient, queryKeys } from '@/lib/query/queryClient';
 import type { OcrCaptureResponse, OcrTargetType, UploadContentType } from '@/types/api';
 import { ocrApi, uploadPhotoToSupabase } from './api';
+import { useOcrReviewStore } from './reviewStore';
 
 export type QueueItemStatus = 'uploading' | 'processing' | 'done' | 'error';
 
@@ -50,6 +51,7 @@ function guessContentType(uri: string): UploadContentType {
 export function useOcrQueue() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const semaphoreRef = useRef(createSemaphore(MAX_CONCURRENT));
+  const addReview = useOcrReviewStore((s) => s.addResponse);
 
   const updateItem = useCallback((id: string, patch: Partial<QueueItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -80,6 +82,7 @@ export function useOcrQueue() {
             });
           } else {
             updateItem(id, { status: 'done', response });
+            addReview(response); // truyền response sang màn Review qua store (route param không mang được object)
             queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.drafts() });
             queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.drafts() });
           }
@@ -93,7 +96,7 @@ export function useOcrQueue() {
 
       return id;
     },
-    [updateItem],
+    [updateItem, addReview],
   );
 
   return { items, enqueue };
