@@ -28,13 +28,13 @@ export const queryKeys = {
   productionRecords: {
     all: ['production-records'] as const,
     list: (filters: Record<string, unknown>) => ['production-records', 'list', filters] as const,
-    drafts: () => ['production-records', 'list', { status: 'draft' }] as const,
+    drafts: () => ['production-records', 'list', { status: 'DRAFT' }] as const,
     detail: (id: string) => ['production-records', 'detail', id] as const,
   },
   latexSales: {
     all: ['latex-sales'] as const,
     list: (filters: Record<string, unknown>) => ['latex-sales', 'list', filters] as const,
-    drafts: () => ['latex-sales', 'list', { status: 'draft' }] as const,
+    drafts: () => ['latex-sales', 'list', { status: 'DRAFT' }] as const,
     detail: (id: string) => ['latex-sales', 'detail', id] as const,
   },
   attendanceRecords: {

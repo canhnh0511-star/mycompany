@@ -16,11 +16,11 @@ import { useCreateEmployeeMutation, useEmployeesQuery, useUpdateEmployeeMutation
 
 type FormState = null | 'create' | EmployeeResponse;
 
-const EMPTY_FIELDS = { fullName: '', teamId: '', status: 'active' as EmployeeStatus };
+const EMPTY_FIELDS = { fullName: '', teamId: '', status: 'ACTIVE' as EmployeeStatus };
 
 const STATUS_OPTIONS = [
-  { label: 'Active', value: 'active' as EmployeeStatus },
-  { label: 'Inactive', value: 'inactive' as EmployeeStatus },
+  { label: 'Active', value: 'ACTIVE' as EmployeeStatus },
+  { label: 'Inactive', value: 'INACTIVE' as EmployeeStatus },
 ];
 
 /** CRUD Nhân viên — cùng pattern list + form inline như `TeamsScreen` (không Modal, ADR-0015). */
@@ -146,7 +146,7 @@ export function EmployeesScreen() {
                     <AppText size="sm" className="text-muted-foreground">
                       {employee.teamName}
                     </AppText>
-                    <Box className={`rounded-full px-2 py-0.5 ${employee.status === 'active' ? 'bg-accent' : 'bg-muted'}`}>
+                    <Box className={`rounded-full px-2 py-0.5 ${employee.status === 'ACTIVE' ? 'bg-accent' : 'bg-muted'}`}>
                       <AppText size="xs">{employee.status}</AppText>
                     </Box>
                   </HStack>

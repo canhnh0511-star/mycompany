@@ -51,7 +51,7 @@ const ATTENDANCE_TYPE_OPTIONS: { label: string; value: AttendanceType }[] = [
  * useFieldArray cho rows, validate rẻ ở client.
  */
 export function AttendanceQuickEntryForm() {
-  const { data: employees } = useEmployeesLookupQuery({ status: 'active' });
+  const { data: employees } = useEmployeesLookupQuery({ status: 'ACTIVE' });
   const batchMutation = useAttendanceRecordsBatchMutation();
   const { showToast } = useAppToast();
 
