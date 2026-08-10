@@ -57,7 +57,7 @@ function todayIso() {
  * `index`, map ngược lại đúng dòng để hiển thị (không alert chung).
  */
 export function ProductionQuickEntryForm() {
-  const { data: employees } = useEmployeesLookupQuery({ status: 'active' });
+  const { data: employees } = useEmployeesLookupQuery({ status: 'ACTIVE' });
   const { data: latexTypes } = useLatexTypesLookupQuery();
   const batchMutation = useProductionRecordsBatchMutation();
   const { showToast } = useAppToast();

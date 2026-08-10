@@ -53,7 +53,8 @@ export interface TeamRequest {
   description: string | null;
 }
 
-export type EmployeeStatus = 'active' | 'inactive';
+/** Khớp services/api entity/EmployeeStatus.java — Jackson serialize enum bằng .name(), UPPERCASE. */
+export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
 
 /** Khớp services/api dto/EmployeeResponse.java */
 export interface EmployeeResponse {
@@ -90,7 +91,8 @@ export interface LatexItemResponse {
   drcPercent: number | null;
 }
 
-export type RecordStatus = 'draft' | 'confirmed' | 'cancelled';
+/** Khớp services/api entity/RecordStatus.java — Jackson serialize enum bằng .name(), UPPERCASE. */
+export type RecordStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 
 /** Khớp services/api dto/CreateProductionRecordRequest.java (nhập tay batch, ADR-0007) */
 export interface CreateProductionRecordRequest {
