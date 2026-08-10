@@ -9,6 +9,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { useAppToast } from '@/components/useAppToast';
+import { diffSnapshots } from '@/features/edit-history/diff';
 import { useEditHistoryQuery } from '@/features/edit-history/useEditHistory';
 import { useCancelLatexSaleMutation, useLatexSaleQuery } from '@/features/latex-sales/useLatexSalesList';
 import { ApiError } from '@/lib/api/client';
@@ -131,14 +132,30 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
             Lịch sử chỉnh sửa
           </AppText>
           {history && history.length > 0 ? (
-            <VStack space="sm">
-              {history.map((h) => (
-                <Box key={h.id}>
-                  <AppText size="xs" className="text-muted-foreground">
-                    {`${new Date(h.editedAt).toLocaleString('vi-VN')} · ${h.editedByName}`}
-                  </AppText>
-                </Box>
-              ))}
+            <VStack space="md">
+              {history.map((h) => {
+                const lines = diffSnapshots(h.oldData, h.newData);
+                return (
+                  <Box key={h.id}>
+                    <AppText size="xs" className="text-muted-foreground">
+                      {`${new Date(h.editedAt).toLocaleString('vi-VN')} · ${h.editedByName}`}
+                    </AppText>
+                    {lines.length > 0 ? (
+                      <VStack space="xs" className="mt-1">
+                        {lines.map((line, i) => (
+                          <AppText key={i} size="sm">
+                            {`${line.label}: ${line.before} → ${line.after}`}
+                          </AppText>
+                        ))}
+                      </VStack>
+                    ) : (
+                      <AppText size="sm" className="text-muted-foreground mt-1">
+                        Không có thay đổi field nào đọc được (snapshot giống nhau).
+                      </AppText>
+                    )}
+                  </Box>
+                );
+              })}
             </VStack>
           ) : (
             <AppText size="sm" className="text-muted-foreground">

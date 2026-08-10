@@ -11,5 +11,7 @@ danh sách theo ngày (KHÔNG gộp attendance-records — wireframe chỉ có 2
   gốc (nếu có), bảng khối lượng theo loại mủ + tổng, ghi chú, Hủy bản ghi (2 bước xác nhận, không hard
   delete — CLAUDE.md §4), lịch sử chỉnh sửa (`edit_history`, `EditHistoryTableName` khớp
   `EditHistoryService.VALID_TABLE_NAMES` ở backend).
-- [ ] Xem chi tiết `oldData`/`newData` JSON của từng lần sửa — hiện chỉ hiện thời điểm + người sửa, chưa
-  hiện nội dung thay đổi cụ thể (cần confirm UI: hiện diff hay raw JSON — để review).
+- [x] Xem chi tiết `oldData`/`newData` của từng lần sửa (2026-08-10) — chốt hiện dạng **diff**
+  (`features/edit-history/diff.ts`: `diffSnapshots()` so sánh field-by-field + `items[]` theo
+  `latexTypeCode`, chỉ hiện field thực sự đổi, dạng "Nhãn: trước → sau"). Bỏ field không có ý nghĩa với
+  người xem (id/createdBy/createdAt/ocrCallLogId/photoUrl/status).
