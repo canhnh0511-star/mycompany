@@ -51,7 +51,7 @@ export const queryKeys = {
   allowanceConfigs: { all: ['allowance-configs'] as const },
   ocrCallLogs: {
     list: (filters: Record<string, unknown>) => ['ocr-call-logs', 'list', filters] as const,
-    stats: () => ['ocr-call-logs', 'stats'] as const,
+    stats: (filters: Record<string, unknown> = {}) => ['ocr-call-logs', 'stats', filters] as const,
   },
   editHistory: (tableName: string, recordId: string) => ['edit-history', tableName, recordId] as const,
   reports: {

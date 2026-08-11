@@ -473,14 +473,46 @@ lên Supabase dev (không mock DB).
   đổi dạng "Nhãn: trước → sau").
   `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch.
 
-**Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
+**Tuần 6 — Báo cáo, OCR stats & export ✅ xong (2026-08-11)**
 
-- [ ] `features/reports` — bảng report JSON (2 loại), CHỈ bảng số liệu ở v1, không biểu đồ (ADR-0019 mục
-  5) + nút export; web dùng `<a download>`/blob, native dùng `expo-file-system` (`downloadAsync`) +
-  `expo-sharing` (`shareAsync`) best-effort (ADR-0014/§2.7).
-- [ ] Màn Theo dõi OCR (`ocr_call_logs` list + `/stats`) — làm ở v1 theo wireframe (ADR-0019 mục 4),
-  backend đã sẵn API (Phase 4). Route web, chỉ Admin xem.
-- [ ] Test với dữ liệu thật, sửa lỗi UI.
+- [x] `features/reports` — 2 báo cáo (`ProductionReportScreen`/`LatexSaleReportScreen`), CHỈ bảng số
+  liệu ở v1, không biểu đồ (ADR-0019 mục 5). Filter `fromDate`/`toDate` bắt buộc (khớp `@RequestParam
+  LocalDate` backend, query `enabled: !!fromDate && !!toDate` — không tự bắn request tới khi đủ khoảng
+  ngày) + `teamId`/`employeeId` (production) hoặc `teamId` (latex-sale) tùy chọn. Bảng cột động theo
+  `latexTypeCodes` (danh mục MỞ, không hardcode — ADR-0002), report sản lượng chèn dòng subtotal ngay
+  sau nhân viên cuối cùng của mỗi Tổ (`rows` backend đã sort teamName rồi employeeName, không tự group
+  lại ở client) + dòng Tổng cộng cho cả 2 report.
+  - [x] Nút Xuất Excel/PDF — `lib/api/download.ts` (mới, dùng chung) vì `apiClient` chỉ hiểu JSON,
+    export cần tự fetch với Authorization header. Tách theo platform đúng ADR-0014: web tạo blob URL +
+    `<a download>` click; native dùng `expo-file-system/legacy` (`downloadAsync` với `headers`, SDK 54
+    trở lên tách namespace `/legacy` khỏi API File/Directory mới) tải về `cacheDirectory` rồi
+    `expo-sharing` (`shareAsync`) mở share sheet best-effort. Đã `npx expo install expo-file-system
+    expo-sharing` (gotcha: script auto-add-config-plugin của `expo-cli` lỗi module thiếu khi chạy trên
+    máy này, nhưng cài package vào `package.json`/`node_modules` vẫn thành công — không cần config
+    plugin cho 2 package này nên bỏ qua an toàn).
+- [x] `features/ocr-monitoring` (mới) — `OcrMonitoringScreen`: filter `targetType`/`success`/khoảng
+  ngày (chuyển sang `Instant` đầu/cuối ngày UTC trước khi gọi API, khác `LocalDate` của report — backend
+  `OcrCallLogController` nhận `from`/`to: Instant`), panel thống kê (`/stats`: tổng lần gọi, tỷ lệ thành
+  công, tỷ lệ `type_mismatch`, tổng chi phí, thời gian phản hồi TB) + bảng list. Route web
+  `(web)/reports/ocr-monitoring.tsx`, GỘP CHUNG rail nav với `features/reports` (đổi tên rail thành
+  "Báo cáo & theo dõi OCR", 3 mục: Sản lượng cá nhân/Bán mủ theo Tổ/Theo dõi OCR) — hợp lý hơn tách
+  riêng vì Admin hay đối chiếu chi phí OCR cùng lúc xem báo cáo sản lượng, dùng lại đúng pattern rail
+  con `(web)/admin-catalog/_layout.tsx` (ADR-0019 mục 3).
+  - [x] **Gotcha phát hiện + sửa**: `queryKeys.ocrCallLogs.stats()` (đã scaffold sẵn từ Tuần 1-5,
+    `lib/query/queryClient.ts`) trước đó KHÔNG nhận filters vào query key — đổi filter ngày mà key
+    không đổi thì TanStack Query không refetch (key không đổi = không gọi lại `queryFn`, khác cơ chế
+    React re-render). Đã sửa `stats: (filters = {}) => [...]` nhận filters vào key, áp dụng luôn cho
+    lần dùng đầu tiên (`useOcrCallLogStatsQuery`).
+- [x] **Gotcha phát hiện + sửa (điều hướng)**: trước Tuần 6, `(web)/admin-catalog` VÀ `(web)/reports`
+  không có lối vào nào trong app (chỉ gõ thẳng URL) — `(web)/_layout.tsx` chỉ là `<Stack>` trống không
+  có nav. Đổi sang top nav bar cố định (`<Slot>` thay `<Stack>`, 2 mục "Quản lý danh mục"/"Báo cáo & Theo
+  dõi OCR") để 2 nhóm route này thực sự dùng được từ trong app, không chỉ đúng khi biết trước URL.
+- [x] `npx tsc --noEmit` sạch (đối chiếu baseline trước khi sửa: 3 lỗi kiểu route động có sẵn từ trước
+  ở `LookupScreen`/`CaptureScreen` — do route mới `ocr-monitoring.tsx` chưa được Expo Router generate
+  vào `router.d.ts`, hết lỗi ngay sau khi chạy `npx expo export --platform web` lần đầu để trigger
+  regenerate) + `npx expo export --platform web` chạy sạch.
+- [ ] Test với dữ liệu thật (Excel/PDF export mở file thật, share sheet native), sửa lỗi UI — **chưa làm**
+  (cần thiết bị thật cho nhánh native của `expo-sharing`, xem gotcha OCR capture Tuần 3-4 — cùng giới hạn).
 
 **Testing frontend** (ADR-0017/§2.10, không theo tuần cố định — làm song song khi logic ổn định): unit
 test cho mapping lỗi `BatchResult` → field form, interceptor 401, hiển thị `unmatchedLines`. Chưa có

@@ -299,3 +299,83 @@ export interface EditHistoryResponse {
   oldData: string;
   newData: string;
 }
+
+/** Khớp services/api dto/ProductionReportRow.java — 1 dòng/nhân viên có phát sinh trong kỳ.
+ * kgByLatexType key = latex_type code. */
+export interface ProductionReportRow {
+  teamId: string;
+  teamName: string;
+  employeeId: string;
+  employeeName: string;
+  kgByLatexType: Record<string, number>;
+  totalKg: number;
+}
+
+/** Khớp services/api dto/ProductionReportTeamSubtotal.java */
+export interface ProductionReportTeamSubtotal {
+  teamId: string;
+  teamName: string;
+  kgByLatexType: Record<string, number>;
+  totalKg: number;
+}
+
+/** Khớp services/api dto/ProductionReportResponse.java — CHỈ tính bản ghi CONFIRMED. latexTypeCodes
+ * lấy từ toàn bộ danh mục LatexType (ổn định kể cả loại mủ không phát sinh trong kỳ, ADR-0002). */
+export interface ProductionReportResponse {
+  fromDate: string;
+  toDate: string;
+  latexTypeCodes: string[];
+  latexTypeLabels: Record<string, string>;
+  rows: ProductionReportRow[];
+  teamSubtotals: ProductionReportTeamSubtotal[];
+  grandTotalByLatexType: Record<string, number>;
+  grandTotalKg: number;
+}
+
+/** Khớp services/api dto/LatexSaleReportRow.java — 1 dòng/Tổ (đã là mức Tổ). */
+export interface LatexSaleReportRow {
+  teamId: string;
+  teamName: string;
+  kgByLatexType: Record<string, number>;
+  totalKg: number;
+}
+
+/** Khớp services/api dto/LatexSaleReportResponse.java — CHỈ tính bản ghi CONFIRMED. */
+export interface LatexSaleReportResponse {
+  fromDate: string;
+  toDate: string;
+  latexTypeCodes: string[];
+  latexTypeLabels: Record<string, string>;
+  rows: LatexSaleReportRow[];
+  grandTotalByLatexType: Record<string, number>;
+  grandTotalKg: number;
+}
+
+/** Khớp services/api dto/OcrCallLogResponse.java — 1 dòng/lần gọi Claude API, bất kể thành công/lỗi. */
+export interface OcrCallLogResponse {
+  id: string;
+  calledBy: string;
+  calledByName: string;
+  calledAt: string;
+  targetType: OcrTargetType;
+  photoUrl: string;
+  model: string;
+  durationMs: number;
+  success: boolean;
+  errorMessage: string | null;
+  typeMismatch: boolean;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedCostUsd: number | null;
+}
+
+/** Khớp services/api dto/OcrCallLogStatsResponse.java */
+export interface OcrCallLogStatsResponse {
+  totalCalls: number;
+  successCount: number;
+  successRate: number;
+  typeMismatchCount: number;
+  typeMismatchRate: number;
+  totalEstimatedCostUsd: number;
+  avgDurationMs: number | null;
+}
