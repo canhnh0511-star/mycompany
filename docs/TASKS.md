@@ -551,6 +551,22 @@ người dùng (email khó nhớ, muốn đăng nhập nhanh hơn):
 - [ ] **Chưa test trên thiết bị thật** (Face ID/vân tay thật, prompt hệ điều hành, share sheet) — cùng
   giới hạn môi trường code này như OCR capture Tuần 3-4 và export Tuần 6.
 
+**Build thiết bị thật — chuyển sang EAS dev client (2026-08-11)** — điều kiện để test 3 mục "chưa test
+trên thiết bị thật" ở trên (OCR capture Tuần 3-4, export Tuần 6, Face ID vừa xong). Expo Go trên App
+Store chưa hỗ trợ SDK 57 hiện tại của app — xem `docs/adr/0018-frontend-build-target-expo-go-eas.md`
+mục "Cập nhật 2026-08-11" (đã cân nhắc hạ lại SDK 54 nhưng bỏ, đi đúng nhánh EAS Build đã chốt sẵn từ
+đầu thay vì lặp lại quyết định từng bị revert không rõ lý do).
+
+- [x] Cài `expo-dev-client`, tạo `apps/mobile/eas.json` (profile `development`, `distribution:
+  internal`, build cho thiết bị thật không phải Simulator).
+- [x] `apps/mobile/scripts/eas-dev-client-setup.sh` (wizard, mới) — dẫn qua các bước chỉ user tự làm
+  được: đăng nhập Expo, kiểm tra Apple Developer Program (bắt buộc trả phí 99 USD/năm để cài ad-hoc lên
+  iPhone thật — KHÔNG có cách nào né được, Apple yêu cầu), đăng ký UDID iPhone, kích hoạt build EAS
+  (~10-20 phút trên cloud), cài lên máy, chạy `npx expo start --dev-client` để kết nối.
+- [ ] **User tự chạy wizard** (`bash apps/mobile/scripts/eas-dev-client-setup.sh`) — cần đăng nhập tài
+  khoản Expo/Apple thật, ngoài khả năng tự động hóa được.
+- [ ] Sau khi có dev client cài trên máy: chạy lại 3 mục test thiết bị thật đang treo ở trên.
+
 ## Deferred / ngoài phạm vi Module 1
 
 - Team-lead tự đăng nhập + tự nhập liệu (release sau — `docs/adr/0001-admin-only-v1-scope.md`)
