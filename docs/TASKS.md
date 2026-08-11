@@ -468,8 +468,9 @@ lên Supabase dev (không mock DB).
   theo wireframe (ADR-0019 mục 2), không phải bảng compact.
 - [x] `record-detail` — 2 route full-screen (`app/record-detail/production/[id].tsx`,
   `.../latex-sale/[id].tsx`): ảnh gốc, bảng khối lượng + tổng, Hủy bản ghi (2 bước xác nhận, không hard
-  delete), `edit_history` (thời điểm + người sửa — **chưa hiện chi tiết `oldData`/`newData`, cần
-  confirm UI dạng diff hay raw JSON, xem `features/lookup/README.md`**).
+  delete), `edit_history` hiện dạng **diff** (2026-08-10, `features/edit-history/diff.ts` —
+  `diffSnapshots()` so sánh field-by-field + `items[]` theo `latexTypeCode`, chỉ hiện field thực sự
+  đổi dạng "Nhãn: trước → sau").
   `npx tsc --noEmit` + `npx expo export --platform web` chạy sạch.
 
 **Tuần 6 — Báo cáo, OCR stats & export** *(chưa bắt đầu)*
