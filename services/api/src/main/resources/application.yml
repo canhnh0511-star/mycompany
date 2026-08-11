@@ -66,3 +66,8 @@ app:
     # 5MB — đúng giới hạn ảnh base64 của Claude Vision API (docs/TASKS.md Open Question, resolved 2026-08-06)
     max-upload-bytes: ${SUPABASE_MAX_UPLOAD_BYTES:5242880}
     allowed-content-types: ${SUPABASE_ALLOWED_CONTENT_TYPES:image/jpeg,image/png}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
