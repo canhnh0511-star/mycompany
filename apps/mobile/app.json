@@ -47,6 +47,12 @@
         {
           "photosPermission": "Cho phép chọn ảnh phiếu giấy có sẵn (vd Tổ trưởng gửi qua Zalo) để đọc bằng AI."
         }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Cho phép dùng Face ID để đăng nhập nhanh, thay vì gõ lại email/mật khẩu."
+        }
       ]
     ],
     "experiments": {

@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
 import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
@@ -6,6 +7,7 @@ import { AppButton } from '@/components/AppButton';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/features/auth/useAuth';
 import { useMeQuery } from '@/features/auth/api';
+import { credentialStorage } from '@/lib/auth/credentialStorage';
 
 /**
  * Duy nhất trong 4 tab đã nối API thật (GET /users/me) ngay từ scaffold — dùng để xác nhận cả chuỗi
@@ -15,6 +17,11 @@ import { useMeQuery } from '@/features/auth/api';
 export default function ProfileScreen() {
   const { isAuthenticated, logout } = useAuth();
   const { data, isLoading, isError } = useMeQuery(isAuthenticated);
+  const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
+
+  useEffect(() => {
+    credentialStorage.hasSavedCredentials().then(setHasSavedCredentials);
+  }, []);
 
   return (
     <View className="flex-1 items-center justify-center bg-background p-6">
@@ -33,6 +40,21 @@ export default function ProfileScreen() {
               {data.role}
             </AppText>
           </VStack>
+        ) : null}
+
+        {/* Face ID chỉ có ý nghĩa native (features/auth/store.ts loginWithBiometrics) — ẩn hẳn ở web
+            thay vì hiện nút vô nghĩa. */}
+        {Platform.OS !== 'web' && hasSavedCredentials ? (
+          <AppButton
+            variant="outline"
+            size="sm"
+            onPress={async () => {
+              await credentialStorage.clearCredentials();
+              setHasSavedCredentials(false);
+            }}
+          >
+            Tắt đăng nhập bằng Face ID / vân tay
+          </AppButton>
         ) : null}
 
         <AppButton variant="outline" onPress={() => logout()}>

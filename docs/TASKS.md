@@ -518,6 +518,39 @@ lên Supabase dev (không mock DB).
 test cho mapping lỗi `BatchResult` → field form, interceptor 401, hiển thị `unmatchedLines`. Chưa có
 component/e2e test (Detox/Maestro) ở v1.
 
+**Đăng nhập nhanh + Face ID/vân tay ✅ xong (2026-08-11)** — ngoài 6 tuần gốc, theo phản hồi trực tiếp
+người dùng (email khó nhớ, muốn đăng nhập nhanh hơn):
+
+- [x] `lib/auth/credentialStorage.ts` (mới) — 2 mức lưu, tách theo độ nhạy cảm: `lastEmail` (chỉ email,
+  mọi platform kể cả web, tự điền lại field Email) và `credentials` (email+mật khẩu đầy đủ, CHỈ native,
+  `expo-secure-store` — cùng nơi lưu JWT). Ghi credentials tự động sau MỌI lần đăng nhập thành công
+  (`features/auth/store.ts` `login()`, best-effort không chặn luồng chính nếu ghi lỗi).
+- [x] `lib/auth/biometrics.ts` (mới) — bọc `expo-local-authentication` (`hasHardwareAsync` +
+  `isEnrolledAsync` + `authenticateAsync`), không hỗ trợ web (không có sensor tương đương ở v1). Đã
+  `npx expo install expo-local-authentication` + thêm plugin `app.json` (`faceIDPermission` —
+  `NSFaceIDUsageDescription` bắt buộc trên iOS).
+- [x] `features/auth/store.ts` — `loginWithBiometrics()`: đọc `credentials` đã lưu → xác thực Face
+  ID/vân tay → gọi lại `login()` với credentials đó. 401 (mật khẩu đã lưu sai — đổi mật khẩu ở nơi khác)
+  → tự xóa `credentials` đã lưu, không mời lại Face ID với mật khẩu biết chắc sai. `logout()` CHỦ Ý
+  KHÔNG xóa `credentials` — vẫn cần cho lần đăng nhập nhanh tiếp theo, đúng mục đích tính năng.
+- [x] `(auth)/login.tsx` — tự điền lại email đã lưu lúc mở màn; hiện nút "Đăng nhập bằng Face ID/vân
+  tay" phía trên form KHI VÀ CHỈ KHI thiết bị có sensor sẵn sàng VÀ đã từng đăng nhập ít nhất 1 lần
+  (`canUseBiometric`, check async lúc mount) — không hiện nút vô nghĩa khi chưa có gì để mở khóa.
+- [x] `(tabs)/profile/index.tsx` — nút "Tắt đăng nhập bằng Face ID/vân tay" (native only, ẩn khi chưa
+  có credentials đã lưu) để chủ động xóa mật khẩu đã lưu trên thiết bị khi cần (rời máy dùng chung, đổi
+  điện thoại...) — không có tính năng này thì không có cách nào tắt lại sau khi đã bật.
+- [x] Đã cân nhắc 2 hướng khác trước khi chọn hướng này (hỏi lại người dùng): (1) chỉ nhớ email không
+  lưu mật khẩu — không thật sự "đăng nhập nhanh" như yêu cầu; (2) Face ID cấp lại JWT qua endpoint
+  backend mới — đổi kiến trúc auth hiện tại (ADR-0004: chỉ access token, không refresh token), ngoài
+  phạm vi. Chọn (1) lưu mật khẩu trong SecureStore (mã hóa phần cứng, Keychain/Keystore) gate bằng sinh
+  trắc học lúc đọc lại — hợp lý vì v1 chỉ có 1 tài khoản Admin dùng app trên chính điện thoại của mình
+  (CLAUDE.md §2).
+- [x] `npx tsc --noEmit` + `npx expo export --platform web` sạch (web tự động ẩn hết UI Face ID qua
+  `Platform.OS !== 'web'`/`canUseBiometric` luôn false, không kéo `expo-local-authentication` chạy thật
+  trên web).
+- [ ] **Chưa test trên thiết bị thật** (Face ID/vân tay thật, prompt hệ điều hành, share sheet) — cùng
+  giới hạn môi trường code này như OCR capture Tuần 3-4 và export Tuần 6.
+
 ## Deferred / ngoài phạm vi Module 1
 
 - Team-lead tự đăng nhập + tự nhập liệu (release sau — `docs/adr/0001-admin-only-v1-scope.md`)

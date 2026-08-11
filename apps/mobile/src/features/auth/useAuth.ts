@@ -11,6 +11,7 @@ export function useAuth() {
   const fullName = useAuthStore((s) => s.fullName);
   const userId = useAuthStore((s) => s.userId);
   const login = useAuthStore((s) => s.login);
+  const loginWithBiometrics = useAuthStore((s) => s.loginWithBiometrics);
   const logout = useAuthStore((s) => s.logout);
 
   return {
@@ -20,6 +21,7 @@ export function useAuth() {
     fullName,
     userId,
     login,
+    loginWithBiometrics,
     logout,
   };
 }

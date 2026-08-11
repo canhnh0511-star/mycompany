@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { apiClient } from '@/lib/api/client';
+import { ApiError, apiClient } from '@/lib/api/client';
+import { biometrics } from '@/lib/auth/biometrics';
+import { credentialStorage } from '@/lib/auth/credentialStorage';
 import { tokenStorage } from '@/lib/auth/tokenStorage';
 import type { LoginRequest, LoginResponse, Role } from '@/types/api';
 
@@ -12,6 +14,9 @@ interface AuthState {
   /** Đọc token đã lưu (nếu có) lúc app khởi động — gọi 1 lần từ root layout. */
   hydrate: () => Promise<void>;
   login: (credentials: LoginRequest) => Promise<void>;
+  /** Đăng nhập nhanh — Face ID/vân tay (native) mở khóa email+mật khẩu đã lưu, tự gọi lại `login()`
+   * bên dưới. Ném lỗi rõ ràng nếu chưa từng lưu hoặc xác thực sinh trắc học không thành công. */
+  loginWithBiometrics: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -20,7 +25,7 @@ interface AuthState {
  * ẩn/hiện màn hình ở v1 (release 1 chỉ Admin login — ADR-0016); giữ sẵn ở đây để mở role khác sau này
  * không phải sửa lại chỗ lưu state.
  */
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'idle',
   accessToken: null,
   userId: null,
@@ -48,6 +53,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         { skipAuth: true },
       );
       await tokenStorage.set(res.accessToken);
+      // Best-effort — lỗi ghi credentialStorage KHÔNG được làm hỏng luồng đăng nhập chính (vd
+      // SecureStore lỗi lạ trên 1 thiết bị cụ thể). Ghi cả 2: lastEmail (mọi platform, chỉ để tự điền
+      // field) và credentials đầy đủ (native, gate bằng Face ID/vân tay lúc ĐỌC LẠI — xem
+      // loginWithBiometrics bên dưới, không phải lúc ghi).
+      credentialStorage.saveLastEmail(email).catch(() => {});
+      credentialStorage.saveCredentials(email, password).catch(() => {});
       set({
         accessToken: res.accessToken,
         userId: res.userId,
@@ -61,8 +72,31 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  loginWithBiometrics: async () => {
+    const saved = await credentialStorage.getCredentials();
+    if (!saved) {
+      throw new Error('Chưa có thông tin đăng nhập đã lưu — hãy đăng nhập bằng email/mật khẩu trước.');
+    }
+    const authenticated = await biometrics.authenticate();
+    if (!authenticated) {
+      throw new Error('Xác thực Face ID/vân tay không thành công.');
+    }
+    try {
+      await get().login(saved);
+    } catch (err) {
+      // 401 nghĩa là mật khẩu đã lưu không còn đúng (đổi mật khẩu ở nơi khác) — xóa luôn, tránh Face
+      // ID cứ mời đăng nhập lại bằng mật khẩu cũ đã biết chắc sai.
+      if (err instanceof ApiError && err.status === 401) {
+        await credentialStorage.clearCredentials();
+      }
+      throw err;
+    }
+  },
+
   logout: async () => {
     await tokenStorage.clear();
+    // KHÔNG xóa credentialStorage lúc logout — vẫn cần cho lần đăng nhập nhanh (Face ID) tiếp theo,
+    // đúng mục đích tính năng. Chỉ xóa khi mật khẩu đã lưu sai (nhánh 401 ở loginWithBiometrics trên).
     set({ accessToken: null, userId: null, fullName: null, role: null, status: 'unauthenticated' });
   },
 }));
