@@ -1,0 +1,34 @@
+# Build context = gốc repo (xem Dockerfile) — loại hết phần không cần cho image BE để build
+# nhanh hơn và không lỡ COPY nhầm secrets/artifact cũ vào image.
+
+.git/
+.github/
+.agents/
+images/
+
+# Frontend hoàn toàn không cần cho image BE
+apps/
+
+# Docs không cần trong image (chỉ cần source để build)
+docs/
+*.md
+
+# Gradle build output cũ (nếu build local trước đó) — luôn build lại trong container
+services/api/build/
+services/api/.gradle/
+services/api/out/
+services/api/bin/
+
+# Secrets — không bao giờ được vào image
+.env
+.env.*
+!.env.example
+application-secrets.yml
+application-secrets.yaml
+*.pem
+*.key
+
+.idea/
+.vscode/
+*.iml
+.DS_Store
