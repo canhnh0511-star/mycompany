@@ -298,7 +298,7 @@ Phase 2, validate `tableName` sai → 400, thiếu `recordId` → 400 đúng nh�
   dưới). **RESOLVED Open Question về profile prod**: mặc định BẬT (dev/local/staging chưa đặt
   profile), tạo `application-prod.yml` set `springdoc.api-docs.enabled=false` +
   `springdoc.swagger-ui.enabled=false` — kích hoạt bằng `SPRING_PROFILES_ACTIVE=prod` lúc deploy thật
-  (chưa chốt nền tảng host nên chưa set ở đâu cả, cần nhớ set biến này khi deploy). Đã verify thật:
+  (đã chốt nền tảng Railway và set biến này, xem mục "Deploy Backend (Railway)" bên dưới). Đã verify thật:
   `bootRun` không profile → `GET /v3/api-docs` 200 (JSON spec đủ toàn bộ path), `/swagger-ui.html`
   redirect 302 → `/swagger-ui/index.html` 200; `SPRING_PROFILES_ACTIVE=prod` → cả 2 endpoint biến mất
   hoàn toàn (route không còn tồn tại).
@@ -371,6 +371,27 @@ lên Supabase dev (không mock DB).
 > mang springdoc-openapi + `docs/api.md` + fix `NoResourceFoundException` 404→500 — 2 mục unit/integration
 > test bên trên từng tồn tại ở working copy local nhưng chưa commit/lên PR. Đã commit + merge vào `main`
 > trong lần merge này (21 test, 0 fail, xem chi tiết ở 2 mục trên).
+
+## Deploy Backend (Railway) ✅ (xong 2026-08-11)
+
+Nền tảng host + lý do chọn: `docs/adr/0020-deployment-platform-railway.md`.
+
+- [x] `Dockerfile` (gốc repo, multi-stage: build JAR bằng Gradle wrapper → runtime chỉ JRE + JAR) +
+  `.dockerignore` + `railway.json` (`builder: DOCKERFILE`, `healthcheckPath: /actuator/health`) —
+  commit `66c46b8`. Build context = gốc repo (không phải `services/api`) vì image cần copy cả
+  `db/migrations` để giữ đúng `spring.flyway.locations: filesystem:../../db/migrations`.
+- [x] Bật `management.endpoints.web.exposure.include: health` trong `application.yml` (commit `30de5b9`)
+  — trước đó `/actuator/health` permitAll ở `SecurityConfig` nhưng actuator chưa expose endpoint qua
+  web nên vẫn không gọi được dù dependency đã có từ Phase 5.
+- [x] Biến môi trường set trên Railway dashboard theo `services/api/.env.example` + `SPRING_PROFILES_ACTIVE=prod`
+  (tắt Swagger UI ở prod, xem Phase 5) + `CORS_ALLOWED_ORIGINS`.
+- [x] Verify thật (2026-08-11): `curl -i https://mycompany-production-60d5.up.railway.app/actuator/health`
+  → `200 OK`, `{"status":"UP"}`. **Domain production đúng là `mycompany-production-60d5.up.railway.app`**
+  (không phải `mycompany.up.railway.app` — domain đó không gắn với service này, gọi vào sẽ ra
+  `404 Application not found` từ Railway edge, không phải lỗi từ app).
+- [x] Cập nhật `EXPO_PUBLIC_API_BASE_URL` cho build EAS preview/production (`apps/mobile/eas.json`) trỏ
+  domain trên (2026-08-11) — thêm block `env` cho 2 profile `preview`/`production`; `development` giữ
+  nguyên (dùng dev client, đọc `.env.local` trỏ backend local/LAN, không hardcode vào `eas.json`).
 
 ## Frontend (`apps/mobile`) — kế hoạch & tiến độ
 

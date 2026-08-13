@@ -29,4 +29,19 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
     List<ProductionAggregateRow> aggregateForReport(
             @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate,
             @Param("teamId") UUID teamId, @Param("employeeId") UUID employeeId);
+
+    // Tổng kg / ngày trong 1 khoảng ngày (docs/module-1-1-frontend-redesign-progress.md — Home "Sản
+    // lượng 7 ngày" + trend "so với TB 7 ngày"). CHỈ CONFIRMED, cùng quy ước aggregateForReport. Chỉ trả
+    // về NGÀY CÓ dữ liệu — ReportService tự điền 0 cho ngày trống khi ghép thành dải liên tục.
+    @Query("""
+            SELECT new com.mycompany.api.repository.DailyTotalRow(pr.recordDate, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.status = com.mycompany.api.entity.RecordStatus.CONFIRMED
+              AND pr.recordDate BETWEEN :fromDate AND :toDate
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+            GROUP BY pr.recordDate
+            """)
+    List<DailyTotalRow> aggregateDailyTotals(
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
 }

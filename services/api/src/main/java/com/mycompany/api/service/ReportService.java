@@ -1,12 +1,15 @@
 package com.mycompany.api.service;
 
+import com.mycompany.api.dto.DailyTotalPoint;
 import com.mycompany.api.dto.LatexSaleReportResponse;
 import com.mycompany.api.dto.LatexSaleReportRow;
+import com.mycompany.api.dto.ProductionDailyTrendResponse;
 import com.mycompany.api.dto.ProductionReportResponse;
 import com.mycompany.api.dto.ProductionReportRow;
 import com.mycompany.api.dto.ProductionReportTeamSubtotal;
 import com.mycompany.api.entity.LatexType;
 import com.mycompany.api.exception.InvalidRequestException;
+import com.mycompany.api.repository.DailyTotalRow;
 import com.mycompany.api.repository.LatexSaleAggregateRow;
 import com.mycompany.api.repository.LatexSaleItemRepository;
 import com.mycompany.api.repository.LatexTypeRepository;
@@ -88,6 +91,19 @@ public class ReportService {
 
         return new ProductionReportResponse(fromDate, toDate, codesOf(latexTypes), labelsOf(latexTypes),
                 rows, teamSubtotals, grandTotalByType, grandTotalKg);
+    }
+
+    public ProductionDailyTrendResponse productionDailyTrend(LocalDate fromDate, LocalDate toDate, UUID teamId) {
+        validateDateRange(fromDate, toDate);
+        List<DailyTotalRow> raw = productionRecordItemRepository.aggregateDailyTotals(fromDate, toDate, teamId);
+        Map<LocalDate, BigDecimal> totalByDate =
+                raw.stream().collect(Collectors.toMap(DailyTotalRow::recordDate, DailyTotalRow::totalKg));
+
+        List<DailyTotalPoint> days = new ArrayList<>();
+        for (LocalDate d = fromDate; !d.isAfter(toDate); d = d.plusDays(1)) {
+            days.add(new DailyTotalPoint(d, totalByDate.getOrDefault(d, BigDecimal.ZERO)));
+        }
+        return new ProductionDailyTrendResponse(fromDate, toDate, days);
     }
 
     public LatexSaleReportResponse latexSaleReport(LocalDate fromDate, LocalDate toDate, UUID teamId) {

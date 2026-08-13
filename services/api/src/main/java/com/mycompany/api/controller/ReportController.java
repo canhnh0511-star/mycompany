@@ -1,6 +1,7 @@
 package com.mycompany.api.controller;
 
 import com.mycompany.api.dto.LatexSaleReportResponse;
+import com.mycompany.api.dto.ProductionDailyTrendResponse;
 import com.mycompany.api.dto.ProductionReportResponse;
 import com.mycompany.api.service.ExcelReportExportService;
 import com.mycompany.api.service.PdfReportExportService;
@@ -38,6 +39,17 @@ public class ReportController {
             @RequestParam LocalDate fromDate, @RequestParam LocalDate toDate,
             @RequestParam(required = false) UUID teamId, @RequestParam(required = false) UUID employeeId) {
         return reportService.productionReport(fromDate, toDate, teamId, employeeId);
+    }
+
+    // Sản lượng theo từng ngày (docs/module-1-1-frontend-redesign-progress.md — Home "Sản lượng 7
+    // ngày" + trend). Tách endpoint riêng thay vì mở rộng /production-records vì shape khác hẳn (pivot
+    // theo NGÀY, không phải theo nhân viên/loại mủ) — ExcelReportExportService/PdfReportExportService
+    // không cần biết tới endpoint này.
+    @GetMapping("/production-records/daily-trend")
+    public ProductionDailyTrendResponse productionDailyTrend(
+            @RequestParam LocalDate fromDate, @RequestParam LocalDate toDate,
+            @RequestParam(required = false) UUID teamId) {
+        return reportService.productionDailyTrend(fromDate, toDate, teamId);
     }
 
     @GetMapping("/latex-sales")
