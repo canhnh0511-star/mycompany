@@ -10,6 +10,9 @@ export type QueueItemStatus = 'uploading' | 'processing' | 'done' | 'error';
 export interface QueueItem {
   id: string;
   fileName: string;
+  /** URI cục bộ (file://...) — dùng để hiện thumbnail ảnh thật trong hàng đợi (khớp Claude Design 03/04),
+   * KHÔNG phải photoPath trên Supabase Storage. */
+  uri: string;
   status: QueueItemStatus;
   error?: string;
   response?: OcrCaptureResponse;
@@ -60,7 +63,7 @@ export function useOcrQueue() {
   const enqueue = useCallback(
     (uri: string, fileName: string, targetType: OcrTargetType, teamId: string | null) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setItems((prev) => [{ id, fileName, status: 'uploading' as const }, ...prev]);
+      setItems((prev) => [{ id, fileName, uri, status: 'uploading' as const }, ...prev]);
 
       (async () => {
         await semaphoreRef.current.acquire();

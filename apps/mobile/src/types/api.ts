@@ -332,6 +332,20 @@ export interface ProductionReportResponse {
   grandTotalKg: number;
 }
 
+/** Khớp services/api dto/DailyTotalPoint.java — 1 ngày, có thể totalKg = 0. */
+export interface DailyTotalPoint {
+  recordDate: string;
+  totalKg: number;
+}
+
+/** Khớp services/api dto/ProductionDailyTrendResponse.java — `days` LUÔN đủ 1 điểm/ngày liên tục từ
+ * fromDate tới toDate (kể cả ngày trống), dùng cho biểu đồ "Sản lượng 7 ngày" + trend Home. */
+export interface ProductionDailyTrendResponse {
+  fromDate: string;
+  toDate: string;
+  days: DailyTotalPoint[];
+}
+
 /** Khớp services/api dto/LatexSaleReportRow.java — 1 dòng/Tổ (đã là mức Tổ). */
 export interface LatexSaleReportRow {
   teamId: string;

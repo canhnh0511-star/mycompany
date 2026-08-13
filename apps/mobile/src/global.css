@@ -7,10 +7,17 @@
    1. :root              — light defaults (all platforms)
    2. @media dark :root  — dark defaults; nativewind maps this to
                            Appearance.getColorScheme() on native.
-   3. :root.dark / :root.light — higher specificity for web class toggle. */
+   3. :root.dark / :root.light — higher specificity for web class toggle.
+
+   Bảng màu (2026-08-13, Phase 1 module-1-1_upgrade_UI_UX.md): primary đổi từ đen trung tính sang
+   "deep teal-green" (#1E6B57) theo Claude Design (project 55a7676b, "Nông trường cao su - Mobile.dc.html")
+   — khớp UI_UX_GUIDE_RUBBER_FARM.md §12/§26 ("trầm, chuyên nghiệp, không neon"). Thêm 3 token semantic
+   còn thiếu (--success/--warning/--info, dùng cho StatusBadge/OCR confidence state — CLAUDE.md §5,
+   UI_UX_GUIDE §19/§21/§22): dùng NGUYÊN VẸN như solid color, áp opacity qua Tailwind (`text-warning`,
+   `bg-warning/10`, `border-warning/40`...) — cùng cách --destructive đã dùng ở AppInput/AppSelect. */
 @layer theme {
   :root {
-    --primary: 23 23 23;
+    --primary: 30 107 87;
     --primary-foreground: 250 250 250;
     --card: 255 255 255;
     --secondary: 245 245 245;
@@ -21,18 +28,24 @@
     --muted: 245 245 245;
     --muted-foreground: 115 115 115;
     --destructive: 231 0 11;
+    --success: 47 122 87;
+    --success-foreground: 250 250 250;
+    --warning: 138 90 18;
+    --warning-foreground: 250 250 250;
+    --info: 29 111 190;
+    --info-foreground: 250 250 250;
     --foreground: 10 10 10;
     --border: 229 229 229;
     --input: 229 229 229;
-    --ring: 212 212 212;
+    --ring: 30 107 87;
     --accent: 247 247 247;
     --accent-foreground: 52 52 52;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --primary: 255 245 245;
-      --primary-foreground: 23 23 23;
+      --primary: 62 156 130;
+      --primary-foreground: 16 24 22;
       --card: 23 23 23;
       --secondary: 38 38 38;
       --secondary-foreground: 250 250 250;
@@ -42,18 +55,24 @@
       --muted: 38 38 38;
       --muted-foreground: 161 161 161;
       --destructive: 255 100 103;
+      --success: 108 199 158;
+      --success-foreground: 16 24 22;
+      --warning: 224 169 71;
+      --warning-foreground: 23 23 23;
+      --info: 122 176 230;
+      --info-foreground: 16 21 26;
       --foreground: 250 250 250;
       --border: 46 46 46;
       --input: 46 46 46;
       --accent: 38 38 38;
       --accent-foreground: 250 250 250;
-      --ring: 115 115 115;
+      --ring: 62 156 130;
     }
   }
 
   :root.dark {
-    --primary: 255 245 245;
-    --primary-foreground: 23 23 23;
+    --primary: 62 156 130;
+    --primary-foreground: 16 24 22;
     --card: 23 23 23;
     --secondary: 38 38 38;
     --secondary-foreground: 250 250 250;
@@ -63,16 +82,22 @@
     --muted: 38 38 38;
     --muted-foreground: 161 161 161;
     --destructive: 255 100 103;
+    --success: 108 199 158;
+    --success-foreground: 16 24 22;
+    --warning: 224 169 71;
+    --warning-foreground: 23 23 23;
+    --info: 122 176 230;
+    --info-foreground: 16 21 26;
     --foreground: 250 250 250;
     --border: 46 46 46;
     --input: 46 46 46;
     --accent: 38 38 38;
     --accent-foreground: 250 250 250;
-    --ring: 115 115 115;
+    --ring: 62 156 130;
   }
 
   :root.light {
-    --primary: 23 23 23;
+    --primary: 30 107 87;
     --primary-foreground: 250 250 250;
     --card: 255 255 255;
     --secondary: 245 245 245;
@@ -83,16 +108,33 @@
     --muted: 245 245 245;
     --muted-foreground: 115 115 115;
     --destructive: 231 0 11;
+    --success: 47 122 87;
+    --success-foreground: 250 250 250;
+    --warning: 138 90 18;
+    --warning-foreground: 250 250 250;
+    --info: 29 111 190;
+    --info-foreground: 250 250 250;
     --foreground: 10 10 10;
     --border: 229 229 229;
     --input: 229 229 229;
-    --ring: 212 212 212;
+    --ring: 30 107 87;
     --accent: 247 247 247;
     --accent-foreground: 52 52 52;
   }
 }
 
 @theme inline {
+  /* Inter (400/500/600) — nạp qua @expo-google-fonts/inter ở app/_layout.tsx (useFonts), tên family
+     phải khớp CHÍNH XÁC key truyền vào useFonts. `font-heading`/`font-body` là 2 token
+     components/ui/heading|text/styles.tsx đã tham chiếu sẵn (base class) nhưng trước đó KHÔNG được định
+     nghĩa ở đâu cả nên rơi về font hệ thống — đây là nguyên nhân "sai font chữ" so với Claude Design
+     (2026-08-13). `--font-sans` là fallback chung (Tailwind base/preflight dùng cho mọi phần tử không
+     khai font riêng). Không có token cho 700/Bold — Claude Design không dùng weight đó, xem
+     `headingStyle` (components/ui/heading/styles.tsx) đã bỏ `font-bold` mặc định cho khớp. */
+  --font-sans: 'Inter_400Regular';
+  --font-heading: 'Inter_600SemiBold';
+  --font-body: 'Inter_400Regular';
+
   --color-primary: rgb(var(--primary));
   --color-primary-foreground: rgb(var(--primary-foreground));
   --color-card: rgb(var(--card));
@@ -104,6 +146,12 @@
   --color-muted: rgb(var(--muted));
   --color-muted-foreground: rgb(var(--muted-foreground));
   --color-destructive: rgb(var(--destructive));
+  --color-success: rgb(var(--success));
+  --color-success-foreground: rgb(var(--success-foreground));
+  --color-warning: rgb(var(--warning));
+  --color-warning-foreground: rgb(var(--warning-foreground));
+  --color-info: rgb(var(--info));
+  --color-info-foreground: rgb(var(--info-foreground));
   --color-foreground: rgb(var(--foreground));
   --color-border: rgb(var(--border));
   --color-input: rgb(var(--input));

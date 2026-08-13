@@ -182,10 +182,16 @@ Xem `docs/adr/0006-ocr-writes-draft-immediately.md`.
 Admin dùng app chủ yếu bằng **điện thoại**, đi thực địa tới từng Tổ (xem Rủi ro §9 về mất mạng). Web/tablet
 dành cho nhập liệu hàng loạt kiểu bảng tính, quản lý danh mục, báo cáo — không tối ưu cho mobile.
 
-**4 tab chính:**
-- **Chụp ảnh** (mặc định khi mở app) — luồng OCR ở trên
-- **Nhập tay nhanh** — sửa/thêm 1 dòng ngay trên điện thoại, không cần mở web (dành cho việc gấp)
-- **Tra cứu** — xem lại record theo Tổ/ngày, kể cả `draft` chưa `confirm`
+**4 tab chính** (đổi 2026-08-13 theo quyết định Product Owner khi làm redesign UI/UX — xem
+`docs/module-1-1-frontend-redesign-progress.md` Phase 3 cho bảng mapping đầy đủ; bản gốc dưới đây đã
+lỗi thời, giữ lại icon ý nghĩa nghiệp vụ không đổi):
+- **Hôm nay** (mặc định khi mở app) — Home/Daily Dashboard mới: tình hình sản lượng/phiếu/tổ hôm nay,
+  CTA "Chụp phiếu" nổi bật, mục "Cần chú ý"
+- **Phiếu** — hub 2 lối vào: "Chụp phiếu" (luồng OCR, xem mục 5) và "Nhập tay nhanh" (sửa/thêm 1 dòng
+  ngay trên điện thoại, không cần mở web — dành cho việc gấp). 2 route gốc (`capture`/`quick-entry`)
+  vẫn còn nguyên vẹn, chỉ ẩn khỏi thanh tab
+- **Sản lượng** (đổi tên từ "Tra cứu", route/logic không đổi) — xem lại record theo Tổ/ngày, kể cả
+  `draft` chưa `confirm`
 - **Hồ sơ** — thông tin cá nhân, đăng xuất
 
 **UX riêng cho màn Chụp ảnh:**

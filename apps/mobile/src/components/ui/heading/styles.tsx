@@ -5,7 +5,10 @@ const baseStyle = isWeb
   : '';
 
 export const headingStyle = tva({
-  base: `text-foreground font-bold font-heading tracking-sm my-0 ${baseStyle}`,
+  /* Bỏ `font-bold` mặc định (2026-08-13) — Claude Design chỉ dùng tối đa 600/SemiBold cho heading,
+     không có 700/Bold ở bất kỳ đâu (xem global.css --font-heading). `variants.bold` bên dưới vẫn còn
+     nếu 1 chỗ nào đó thật sự cần nhấn thêm — chỉ không phải mặc định. */
+  base: `text-foreground font-heading tracking-sm my-0 ${baseStyle}`,
   variants: {
     isTruncated: {
       true: 'truncate',

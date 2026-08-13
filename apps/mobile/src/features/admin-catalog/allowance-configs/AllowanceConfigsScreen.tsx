@@ -4,10 +4,14 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState, getErrorMessage } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { AllowanceConfigResponse, CalcType } from '@/types/api';
@@ -109,7 +113,7 @@ export function AllowanceConfigsScreen() {
         </HStack>
 
         {formState !== null ? (
-          <Box className="border border-border rounded-md p-4">
+          <AppCard>
             <VStack space="sm">
               <AppText className="font-semibold">{formState === 'create' ? 'Phụ cấp mới' : `Sửa: ${formState.name}`}</AppText>
               {formState === 'create' ? (
@@ -184,19 +188,16 @@ export function AllowanceConfigsScreen() {
                 </AppButton>
               </HStack>
             </VStack>
-          </Box>
+          </AppCard>
         ) : null}
 
-        {isLoading ? <AppText className="text-muted-foreground">Đang tải...</AppText> : null}
-        {isError ? (
-          <AppText className="text-destructive">
-            Không tải được danh sách: {error instanceof ApiError ? error.message : 'Lỗi không xác định'}
-          </AppText>
-        ) : null}
+        {isLoading ? <LoadingState /> : null}
+        {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
+        {!isLoading && allowanceConfigs?.length === 0 ? <EmptyState message="Chưa có phụ cấp nào." /> : null}
 
         <VStack space="xs">
           {allowanceConfigs?.map((config) => (
-            <Box key={config.id} className="border border-border rounded-md p-3">
+            <AppCard key={config.id}>
               <HStack className="items-center justify-between">
                 <VStack className="flex-1">
                   <AppText className="font-semibold">{config.name}</AppText>
@@ -211,7 +212,7 @@ export function AllowanceConfigsScreen() {
                   Sửa
                 </AppButton>
               </HStack>
-            </Box>
+            </AppCard>
           ))}
         </VStack>
       </VStack>

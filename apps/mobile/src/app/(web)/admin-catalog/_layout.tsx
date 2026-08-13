@@ -30,8 +30,10 @@ export default function AdminCatalogLayout() {
           return (
             <Link key={item.href} href={item.href} asChild>
               <Pressable>
-                <Box className={`rounded-md px-3 py-2 ${active ? 'bg-accent' : ''}`}>
-                  <AppText size="sm">{item.label}</AppText>
+                <Box className={`rounded-md px-3 py-2 ${active ? 'bg-primary/10' : ''}`}>
+                  <AppText size="sm" className={active ? 'text-primary font-medium' : undefined}>
+                    {item.label}
+                  </AppText>
                 </Box>
               </Pressable>
             </Link>

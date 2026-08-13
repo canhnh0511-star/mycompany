@@ -5,9 +5,11 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
+import { StatusBadge } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { useEmployeesLookupQuery, useLatexTypesLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { ApiError } from '@/lib/api/client';
@@ -145,19 +147,13 @@ export function ProductionQuickEntryForm() {
         {fields.map((field, rowIndex) => {
           const row = watch(`rows.${rowIndex}`);
           return (
-            <Box key={field.id} className="border border-border rounded-md p-3">
+            <AppCard key={field.id}>
               <VStack space="sm">
                 <HStack className="items-center justify-between">
                   {row?.submitStatus === 'saved' ? (
-                    <Box className="rounded-full bg-accent px-2 py-0.5">
-                      <AppText size="xs">✓ Đã lưu</AppText>
-                    </Box>
+                    <StatusBadge label="✓ Đã lưu" tone="success" />
                   ) : row?.submitStatus === 'error' ? (
-                    <Box className="rounded-full bg-destructive px-2 py-0.5">
-                      <AppText size="xs" className="text-white">
-                        Lỗi dòng #{rowIndex + 1}
-                      </AppText>
-                    </Box>
+                    <StatusBadge label={`Lỗi dòng #${rowIndex + 1}`} tone="error" />
                   ) : (
                     <AppText size="xs" className="text-muted-foreground">
                       Dòng #{rowIndex + 1}
@@ -206,7 +202,7 @@ export function ProductionQuickEntryForm() {
                   </AppText>
                 ) : null}
               </VStack>
-            </Box>
+            </AppCard>
           );
         })}
 
@@ -216,7 +212,7 @@ export function ProductionQuickEntryForm() {
       </VStack>
 
       <Box className="mt-4">
-        <AppButton onPress={handleSubmit(onSubmit)} isLoading={batchMutation.isPending} isDisabled={fields.length === 0}>
+        <AppButton size="lg" onPress={handleSubmit(onSubmit)} isLoading={batchMutation.isPending} isDisabled={fields.length === 0}>
           {`Lưu tất cả (${fields.length} dòng)`}
         </AppButton>
       </Box>

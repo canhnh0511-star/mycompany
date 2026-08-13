@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { Pressable } from '@/components/ui/pressable';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppText } from '@/components/AppText';
+import { Input, InputField } from '@/components/ui/input';
+import { StatusBadge, type StatusTone } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { useLatexTypesLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { productionRecordsApi } from '@/features/production-records/api';
@@ -17,6 +21,34 @@ import type { LatexItemResponse, LatexTypeResponse, OcrCaptureResponse } from '@
 import { useOcrReviewStore } from './reviewStore';
 
 type RowStatus = 'draft' | 'saving' | 'confirmed' | 'error';
+
+/** Nhãn/tone cho từng dòng đang review (khác `RecordStatus` DB — đây là trạng thái tại chỗ của thao
+ * tác Lưu, chưa PATCH/confirm xong thì vẫn coi là "Chưa xác nhận" dù bản ghi gốc đã là DRAFT trên DB). */
+function rowStatusLabel(status: RowStatus): string {
+  switch (status) {
+    case 'confirmed':
+      return 'Đã xác nhận';
+    case 'error':
+      return 'Lỗi';
+    case 'saving':
+      return 'Đang lưu…';
+    case 'draft':
+      return 'Chưa xác nhận';
+  }
+}
+
+function rowStatusTone(status: RowStatus): StatusTone {
+  switch (status) {
+    case 'confirmed':
+      return 'success';
+    case 'error':
+      return 'error';
+    case 'saving':
+      return 'info';
+    case 'draft':
+      return 'neutral';
+  }
+}
 
 interface ItemFieldValue {
   kg: string;
@@ -40,15 +72,29 @@ function parseLowConfidenceFields(raw: string | null): string[] {
   }
 }
 
+/** So khớp tên field OCR trả về (chuỗi tự do) với tên cột — CHỈ khớp khi trùng nhãn (không phân biệt
+ * hoa/thường, hoặc chứa nhãn làm chuỗi con). `lowConfidenceFields` là mảng tên field tự do từ AI, KHÔNG
+ * đảm bảo khớp 1-1 với `latexType.label` — đây là suy đoán tốt nhất (best-effort), không phải nguồn sự
+ * thật tuyệt đối (xem ghi chú Phase 6 cũ). Field nào không khớp được cột nào vẫn hiện trong banner
+ * "cần đối chiếu" ở dưới dòng — KHÔNG bị mất thông tin, chỉ là không tô được đúng vị trí ô. */
+function matchesColumn(lowConfidence: string[], columnLabel: string): boolean {
+  const needle = columnLabel.trim().toLowerCase();
+  return lowConfidence.some((f) => f.trim().toLowerCase().includes(needle) || needle.includes(f.trim().toLowerCase()));
+}
+
 /**
  * Bảng review OCR — đọc TRỰC TIẾP từ response `POST /ocr/capture` (ADR-0012), KHÔNG phải state tạm
  * client: response được lưu vào `reviewStore` ngay khi capture xong (ADR-0006 — draft đã ghi DB thật
- * trước khi màn này mở). Route riêng full-screen (ADR-0019 mục 1) — không phải modal/sheet vì cần sửa
- * nhiều field (gõ tay, chọn dropdown).
+ * trước khi màn này mở). Route riêng full-screen (ADR-0019 mục 1).
+ *
+ * Layout theo Claude Design màn "06 · Kiểm tra kết quả đọc": 1 bảng compact (không phải card/dòng riêng
+ * từng nhân viên như bản trước) — ảnh gốc ghim trên cùng, filter "Cần kiểm tra"/"Tất cả", ô KHỚP được
+ * field OCR không chắc mới cho sửa (amber), ô còn lại chỉ đọc. Field nào OCR gắn cờ nhưng không khớp
+ * được tên cột nào (xem `matchesColumn`) vẫn hiện banner mức-dòng như bản cũ — không bỏ sót.
  *
  * Sửa (PATCH) gọi thẳng theo `id` — không gom batch, vì đây là sửa aggregate ĐÃ TỒN TẠI (khác tạo mới
- * hàng loạt ở Phase 2, ADR-0007). "Lưu tất cả" ở dưới: PATCH (nếu có sửa) rồi POST confirm cho từng
- * dòng — KHÔNG tự confirm nếu Admin chưa bấm nút này (ADR-0006).
+ * hàng loạt ở Phase 2, ADR-0007). "Xác nhận ảnh này" ở dưới: PATCH (nếu có sửa) rồi POST confirm cho
+ * từng dòng — KHÔNG tự confirm nếu Admin chưa bấm nút này (ADR-0006).
  */
 export function OcrReviewScreen({ logId }: { logId: string }) {
   const router = useRouter();
@@ -80,16 +126,31 @@ export function OcrReviewScreen({ logId }: { logId: string }) {
   );
 }
 
-function ReviewHeader({ title, response }: { title: string; response: OcrCaptureResponse }) {
+function ReviewHeader({
+  title,
+  photoUrl,
+  response,
+}: {
+  title: string;
+  photoUrl: string | null | undefined;
+  response: OcrCaptureResponse;
+}) {
   const router = useRouter();
   return (
-    <VStack space="xs">
+    <VStack space="sm">
       <Pressable onPress={() => router.back()}>
         <AppText size="sm" className="text-primary">
           ‹ Chụp ảnh
         </AppText>
       </Pressable>
       <AppHeading size="lg">{title}</AppHeading>
+
+      {photoUrl ? (
+        <Box className="rounded-xl overflow-hidden border border-border" style={{ height: 160 }}>
+          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+        </Box>
+      ) : null}
+
       {response.unmatchedLines && response.unmatchedLines.length > 0 ? (
         <Box className="border border-destructive rounded-md p-3 bg-destructive/10">
           <AppText size="sm">
@@ -98,6 +159,83 @@ function ReviewHeader({ title, response }: { title: string; response: OcrCapture
         </Box>
       ) : null}
     </VStack>
+  );
+}
+
+function FilterChips({
+  needsReviewCount,
+  totalCount,
+  showOnlyNeedsReview,
+  onChange,
+}: {
+  needsReviewCount: number;
+  totalCount: number;
+  showOnlyNeedsReview: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <HStack space="xs">
+      <Pressable onPress={() => onChange(true)}>
+        <Box className={`rounded-full px-3.5 py-2 ${showOnlyNeedsReview ? 'bg-primary' : 'border border-border'}`}>
+          <AppText size="sm" className={showOnlyNeedsReview ? 'text-primary-foreground font-medium' : undefined}>
+            {`Cần kiểm tra · ${needsReviewCount}`}
+          </AppText>
+        </Box>
+      </Pressable>
+      <Pressable onPress={() => onChange(false)}>
+        <Box className={`rounded-full px-3.5 py-2 ${!showOnlyNeedsReview ? 'bg-primary' : 'border border-border'}`}>
+          <AppText size="sm" className={!showOnlyNeedsReview ? 'text-primary-foreground font-medium' : undefined}>
+            {`Tất cả · ${totalCount}`}
+          </AppText>
+        </Box>
+      </Pressable>
+    </HStack>
+  );
+}
+
+/** 1 cột giá trị trong bảng — kg của 1 loại mủ, hoặc DRC (chỉ loại water). */
+interface ValueColumn {
+  key: string;
+  label: string;
+  typeIndex: number;
+  field: 'kg' | 'drcPercent';
+}
+
+function buildColumns(latexTypes: LatexTypeResponse[]): ValueColumn[] {
+  const columns: ValueColumn[] = [];
+  latexTypes.forEach((type, i) => {
+    columns.push({ key: `${type.id}-kg`, label: type.label, typeIndex: i, field: 'kg' });
+    if (type.code === 'water') {
+      columns.push({ key: `${type.id}-drc`, label: 'DRC', typeIndex: i, field: 'drcPercent' });
+    }
+  });
+  return columns;
+}
+
+const NAME_COL_WIDTH = 128;
+const VALUE_COL_WIDTH = 76;
+
+/** 1 ô giá trị trong bảng — chỉ đọc (text) trừ khi `flagged` (OCR không chắc, khớp được tên cột qua
+ * `matchesColumn`) thì cho sửa, viền/nền amber. Dùng thẳng `Input`/`InputField` (không qua `AppInput`)
+ * để kiểm soát kích thước compact vừa ô bảng — `AppInput` có border/padding mặc định cho form thường,
+ * bọc thêm sẽ bị viền đôi. */
+function TableCell({ value, flagged, onChangeText }: { value: string; flagged: boolean; onChangeText: (v: string) => void }) {
+  if (!flagged) {
+    return (
+      <AppText size="sm" className="font-mono">
+        {value || '—'}
+      </AppText>
+    );
+  }
+  return (
+    <Input className="border-[1.5px] border-warning bg-warning/10 min-h-8 px-2">
+      <InputField
+        keyboardType="decimal-pad"
+        value={value}
+        onChangeText={onChangeText}
+        className="text-right text-sm"
+      />
+    </Input>
   );
 }
 
@@ -112,6 +250,7 @@ function ProductionReview({
 }) {
   const { showToast } = useAppToast();
   const rows = (response.productionRecords ?? []).filter((r) => r.success && r.data);
+  const columns = useMemo(() => buildColumns(latexTypes), [latexTypes]);
 
   const [itemsByIndex, setItemsByIndex] = useState<Record<number, ItemFieldValue[]>>(() =>
     Object.fromEntries(rows.map((r) => [r.index, itemsToFieldValues(r.data!.items, latexTypes)])),
@@ -123,8 +262,28 @@ function ProductionReview({
     Object.fromEntries(rows.map((r) => [r.index, 'draft' as RowStatus])),
   );
   const [saving, setSaving] = useState(false);
+  const [showOnlyNeedsReview, setShowOnlyNeedsReview] = useState(true);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  const rowsWithLowConfidence = useMemo(
+    () => rows.map((r) => ({ row: r, lowConfidence: parseLowConfidenceFields(r.data!.lowConfidenceFields) })),
+    [rows],
+  );
+  const needsReviewCount = rowsWithLowConfidence.filter((r) => r.lowConfidence.length > 0).length;
+  const visibleRows = showOnlyNeedsReview
+    ? rowsWithLowConfidence.filter((r) => r.lowConfidence.length > 0)
+    : rowsWithLowConfidence;
 
   const allConfirmed = rows.every((r) => statusByIndex[r.index] === 'confirmed');
+  const photoUrl = rows[0]?.data?.photoUrl;
+
+  function setItemField(rowIndex: number, colIndex: number, field: 'kg' | 'drcPercent', value: string) {
+    setItemsByIndex((s) => {
+      const next = [...s[rowIndex]];
+      next[colIndex] = { ...next[colIndex], [field]: value };
+      return { ...s, [rowIndex]: next };
+    });
+  }
 
   async function handleSaveAll() {
     setSaving(true);
@@ -172,74 +331,89 @@ function ProductionReview({
     <VStack className="flex-1 bg-background">
       <ScrollView className="flex-1" contentContainerClassName="p-4">
         <VStack space="md">
-          <ReviewHeader title="Xem lại — Sổ ghi mủ" response={response} />
+          <ReviewHeader title="Xem lại — Sổ ghi mủ" photoUrl={photoUrl} response={response} />
 
-          {rows.map((row) => {
-            const data = row.data!;
-            const status = statusByIndex[row.index];
-            const lowConfidence = parseLowConfidenceFields(data.lowConfidenceFields);
-            return (
-              <Box key={row.index} className="border border-border rounded-md p-3">
-                <VStack space="sm">
-                  <HStack className="items-center justify-between">
-                    <AppText className="font-semibold">{data.employeeName}</AppText>
-                    <Box
-                      className={`rounded-full px-2 py-0.5 ${
-                        status === 'confirmed' ? 'bg-accent' : status === 'error' ? 'bg-destructive' : 'bg-muted'
-                      }`}
-                    >
-                      <AppText size="xs" className={status === 'error' ? 'text-white' : undefined}>
-                        {status === 'confirmed' ? 'Đã xác nhận' : status === 'error' ? 'Lỗi' : 'Chưa xác nhận'}
+          {rows.length > 0 ? (
+            <FilterChips
+              needsReviewCount={needsReviewCount}
+              totalCount={rows.length}
+              showOnlyNeedsReview={showOnlyNeedsReview}
+              onChange={setShowOnlyNeedsReview}
+            />
+          ) : null}
+
+          <AppCard className="p-0 overflow-hidden">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <VStack>
+                <HStack className="bg-muted border-b border-border">
+                  <Box style={{ width: NAME_COL_WIDTH }} className="px-3.5 py-3">
+                    <AppText size="xs" className="text-muted-foreground font-medium">
+                      Công nhân
+                    </AppText>
+                  </Box>
+                  {columns.map((col) => (
+                    <Box key={col.key} style={{ width: VALUE_COL_WIDTH }} className="px-2 py-3 items-end">
+                      <AppText size="xs" className="text-muted-foreground font-medium">
+                        {col.label}
                       </AppText>
                     </Box>
-                  </HStack>
-                  {lowConfidence.length > 0 ? (
-                    <AppText size="xs" className="text-destructive">
-                      {`⚠ AI không chắc: ${lowConfidence.join(', ')}`}
-                    </AppText>
-                  ) : null}
+                  ))}
+                </HStack>
 
-                  <HStack space="sm" className="flex-wrap">
-                    {latexTypes.map((type, i) => (
-                      <VStack key={type.id} space="xs" className="flex-1" style={{ minWidth: 110 }}>
-                        <AppInput
-                          label={`${type.label} (${type.unit})`}
-                          keyboardType="decimal-pad"
-                          value={itemsByIndex[row.index]?.[i]?.kg ?? ''}
-                          onChangeText={(kg) =>
-                            setItemsByIndex((s) => {
-                              const next = [...s[row.index]];
-                              next[i] = { ...next[i], kg };
-                              return { ...s, [row.index]: next };
-                            })
-                          }
-                        />
-                        {type.code === 'water' ? (
+                {visibleRows.map(({ row, lowConfidence }, i) => {
+                  const data = row.data!;
+                  const status = statusByIndex[row.index];
+                  const isExpanded = expandedIndex === row.index;
+                  return (
+                    <VStack key={row.index}>
+                      <Pressable onPress={() => setExpandedIndex(isExpanded ? null : row.index)}>
+                        <HStack className={`items-center ${i > 0 ? 'border-t border-border' : ''}`} style={{ minHeight: 56 }}>
+                          <Box style={{ width: NAME_COL_WIDTH }} className="px-3.5 py-2">
+                            <AppText size="sm" numberOfLines={1}>
+                              {data.employeeName}
+                            </AppText>
+                            {status !== 'draft' ? (
+                              <StatusBadge label={rowStatusLabel(status)} tone={rowStatusTone(status)} className="mt-0.5" />
+                            ) : null}
+                          </Box>
+                          {columns.map((col) => {
+                            const flagged = matchesColumn(lowConfidence, col.label);
+                            const value = itemsByIndex[row.index]?.[col.typeIndex]?.[col.field] ?? '';
+                            return (
+                              <Box key={col.key} style={{ width: VALUE_COL_WIDTH }} className="px-1.5 py-2 items-end">
+                                <TableCell
+                                  value={value}
+                                  flagged={flagged}
+                                  onChangeText={(v) => setItemField(row.index, col.typeIndex, col.field, v)}
+                                />
+                              </Box>
+                            );
+                          })}
+                        </HStack>
+                      </Pressable>
+
+                      {isExpanded ? (
+                        <Box className="px-3.5 pb-3 bg-muted/40" style={{ minWidth: NAME_COL_WIDTH + columns.length * VALUE_COL_WIDTH }}>
                           <AppInput
-                            label="DRC (%)"
-                            keyboardType="decimal-pad"
-                            value={itemsByIndex[row.index]?.[i]?.drcPercent ?? ''}
-                            onChangeText={(drcPercent) =>
-                              setItemsByIndex((s) => {
-                                const next = [...s[row.index]];
-                                next[i] = { ...next[i], drcPercent };
-                                return { ...s, [row.index]: next };
-                              })
-                            }
+                            label="Ghi chú"
+                            value={notesByIndex[row.index] ?? ''}
+                            onChangeText={(notes) => setNotesByIndex((s) => ({ ...s, [row.index]: notes }))}
                           />
-                        ) : null}
-                      </VStack>
-                    ))}
-                  </HStack>
-                  <AppInput
-                    label="Ghi chú"
-                    value={notesByIndex[row.index] ?? ''}
-                    onChangeText={(notes) => setNotesByIndex((s) => ({ ...s, [row.index]: notes }))}
-                  />
-                </VStack>
-              </Box>
-            );
-          })}
+                          {status === 'error' ? (
+                            <AppText size="xs" className="text-destructive mt-1">
+                              Lưu dòng này thất bại — bấm "Xác nhận ảnh này" để thử lại.
+                            </AppText>
+                          ) : null}
+                        </Box>
+                      ) : null}
+                    </VStack>
+                  );
+                })}
+              </VStack>
+            </ScrollView>
+          </AppCard>
+
+          {rows.length === 0 ? <AppText className="text-muted-foreground">Không có dòng nào đọc được.</AppText> : null}
 
           {(response.productionRecords ?? [])
             .filter((r) => !r.success)
@@ -254,8 +428,8 @@ function ProductionReview({
       </ScrollView>
 
       <Box className="p-4 border-t border-border bg-background">
-        <AppButton onPress={handleSaveAll} isLoading={saving} isDisabled={rows.length === 0 || allConfirmed}>
-          {allConfirmed ? 'Đã lưu tất cả' : `Lưu tất cả (${rows.length} dòng)`}
+        <AppButton size="lg" onPress={handleSaveAll} isLoading={saving} isDisabled={rows.length === 0 || allConfirmed}>
+          {allConfirmed ? 'Đã lưu tất cả' : `Xác nhận ảnh này (${rows.length} dòng)`}
         </AppButton>
       </Box>
     </VStack>
@@ -273,6 +447,7 @@ function LatexSaleReview({
 }) {
   const { showToast } = useAppToast();
   const rows = (response.latexSales ?? []).filter((r) => r.success && r.data);
+  const columns = useMemo(() => buildColumns(latexTypes), [latexTypes]);
 
   const [itemsByIndex, setItemsByIndex] = useState<Record<number, ItemFieldValue[]>>(() =>
     Object.fromEntries(rows.map((r) => [r.index, itemsToFieldValues(r.data!.items, latexTypes)])),
@@ -281,8 +456,27 @@ function LatexSaleReview({
     Object.fromEntries(rows.map((r) => [r.index, 'draft' as RowStatus])),
   );
   const [saving, setSaving] = useState(false);
+  const [showOnlyNeedsReview, setShowOnlyNeedsReview] = useState(true);
+
+  const rowsWithLowConfidence = useMemo(
+    () => rows.map((r) => ({ row: r, lowConfidence: parseLowConfidenceFields(r.data!.lowConfidenceFields) })),
+    [rows],
+  );
+  const needsReviewCount = rowsWithLowConfidence.filter((r) => r.lowConfidence.length > 0).length;
+  const visibleRows = showOnlyNeedsReview
+    ? rowsWithLowConfidence.filter((r) => r.lowConfidence.length > 0)
+    : rowsWithLowConfidence;
 
   const allConfirmed = rows.every((r) => statusByIndex[r.index] === 'confirmed');
+  const photoUrl = rows[0]?.data?.photoUrl;
+
+  function setItemField(rowIndex: number, colIndex: number, field: 'kg' | 'drcPercent', value: string) {
+    setItemsByIndex((s) => {
+      const next = [...s[rowIndex]];
+      next[colIndex] = { ...next[colIndex], [field]: value };
+      return { ...s, [rowIndex]: next };
+    });
+  }
 
   async function handleSaveAll() {
     setSaving(true);
@@ -332,69 +526,69 @@ function LatexSaleReview({
     <VStack className="flex-1 bg-background">
       <ScrollView className="flex-1" contentContainerClassName="p-4">
         <VStack space="md">
-          <ReviewHeader title="Xem lại — Sổ bán mủ" response={response} />
+          <ReviewHeader title="Xem lại — Sổ bán mủ" photoUrl={photoUrl} response={response} />
 
-          {rows.map((row) => {
-            const data = row.data!;
-            const status = statusByIndex[row.index];
-            const lowConfidence = parseLowConfidenceFields(data.lowConfidenceFields);
-            return (
-              <Box key={row.index} className="border border-border rounded-md p-3">
-                <VStack space="sm">
-                  <HStack className="items-center justify-between">
-                    <AppText className="font-semibold">{data.teamName}</AppText>
-                    <Box
-                      className={`rounded-full px-2 py-0.5 ${
-                        status === 'confirmed' ? 'bg-accent' : status === 'error' ? 'bg-destructive' : 'bg-muted'
-                      }`}
-                    >
-                      <AppText size="xs" className={status === 'error' ? 'text-white' : undefined}>
-                        {status === 'confirmed' ? 'Đã xác nhận' : status === 'error' ? 'Lỗi' : 'Chưa xác nhận'}
+          {rows.length > 0 ? (
+            <FilterChips
+              needsReviewCount={needsReviewCount}
+              totalCount={rows.length}
+              showOnlyNeedsReview={showOnlyNeedsReview}
+              onChange={setShowOnlyNeedsReview}
+            />
+          ) : null}
+
+          <AppCard className="p-0 overflow-hidden">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <VStack>
+                <HStack className="bg-muted border-b border-border">
+                  <Box style={{ width: NAME_COL_WIDTH }} className="px-3.5 py-3">
+                    <AppText size="xs" className="text-muted-foreground font-medium">
+                      Tổ
+                    </AppText>
+                  </Box>
+                  {columns.map((col) => (
+                    <Box key={col.key} style={{ width: VALUE_COL_WIDTH }} className="px-2 py-3 items-end">
+                      <AppText size="xs" className="text-muted-foreground font-medium">
+                        {col.label}
                       </AppText>
                     </Box>
-                  </HStack>
-                  {lowConfidence.length > 0 ? (
-                    <AppText size="xs" className="text-destructive">
-                      {`⚠ AI không chắc: ${lowConfidence.join(', ')}`}
-                    </AppText>
-                  ) : null}
+                  ))}
+                </HStack>
 
-                  <HStack space="sm" className="flex-wrap">
-                    {latexTypes.map((type, i) => (
-                      <VStack key={type.id} space="xs" className="flex-1" style={{ minWidth: 110 }}>
-                        <AppInput
-                          label={`${type.label} (${type.unit})`}
-                          keyboardType="decimal-pad"
-                          value={itemsByIndex[row.index]?.[i]?.kg ?? ''}
-                          onChangeText={(kg) =>
-                            setItemsByIndex((s) => {
-                              const next = [...s[row.index]];
-                              next[i] = { ...next[i], kg };
-                              return { ...s, [row.index]: next };
-                            })
-                          }
-                        />
-                        {type.code === 'water' ? (
-                          <AppInput
-                            label="DRC (%)"
-                            keyboardType="decimal-pad"
-                            value={itemsByIndex[row.index]?.[i]?.drcPercent ?? ''}
-                            onChangeText={(drcPercent) =>
-                              setItemsByIndex((s) => {
-                                const next = [...s[row.index]];
-                                next[i] = { ...next[i], drcPercent };
-                                return { ...s, [row.index]: next };
-                              })
-                            }
-                          />
+                {visibleRows.map(({ row, lowConfidence }, i) => {
+                  const data = row.data!;
+                  const status = statusByIndex[row.index];
+                  return (
+                    <HStack key={row.index} className={`items-center ${i > 0 ? 'border-t border-border' : ''}`} style={{ minHeight: 56 }}>
+                      <Box style={{ width: NAME_COL_WIDTH }} className="px-3.5 py-2">
+                        <AppText size="sm" numberOfLines={1}>
+                          {data.teamName}
+                        </AppText>
+                        {status !== 'draft' ? (
+                          <StatusBadge label={rowStatusLabel(status)} tone={rowStatusTone(status)} className="mt-0.5" />
                         ) : null}
-                      </VStack>
-                    ))}
-                  </HStack>
-                </VStack>
-              </Box>
-            );
-          })}
+                      </Box>
+                      {columns.map((col) => {
+                        const flagged = matchesColumn(lowConfidence, col.label);
+                        const value = itemsByIndex[row.index]?.[col.typeIndex]?.[col.field] ?? '';
+                        return (
+                          <Box key={col.key} style={{ width: VALUE_COL_WIDTH }} className="px-1.5 py-2 items-end">
+                            <TableCell
+                              value={value}
+                              flagged={flagged}
+                              onChangeText={(v) => setItemField(row.index, col.typeIndex, col.field, v)}
+                            />
+                          </Box>
+                        );
+                      })}
+                    </HStack>
+                  );
+                })}
+              </VStack>
+            </ScrollView>
+          </AppCard>
+
+          {rows.length === 0 ? <AppText className="text-muted-foreground">Không có dòng nào đọc được.</AppText> : null}
 
           {(response.latexSales ?? [])
             .filter((r) => !r.success)
@@ -409,8 +603,8 @@ function LatexSaleReview({
       </ScrollView>
 
       <Box className="p-4 border-t border-border bg-background">
-        <AppButton onPress={handleSaveAll} isLoading={saving} isDisabled={rows.length === 0 || allConfirmed}>
-          {allConfirmed ? 'Đã lưu tất cả' : `Lưu tất cả (${rows.length} dòng)`}
+        <AppButton size="lg" onPress={handleSaveAll} isLoading={saving} isDisabled={rows.length === 0 || allConfirmed}>
+          {allConfirmed ? 'Đã lưu tất cả' : `Xác nhận ảnh này (${rows.length} dòng)`}
         </AppButton>
       </Box>
     </VStack>

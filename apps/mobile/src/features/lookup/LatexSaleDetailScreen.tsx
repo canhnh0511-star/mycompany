@@ -6,19 +6,17 @@ import { HStack } from '@/components/ui/hstack';
 import { Pressable } from '@/components/ui/pressable';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
+import { LoadingState } from '@/components/LoadingState';
+import { StatusBadge } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { diffSnapshots } from '@/features/edit-history/diff';
 import { useEditHistoryQuery } from '@/features/edit-history/useEditHistory';
 import { useCancelLatexSaleMutation, useLatexSaleQuery } from '@/features/latex-sales/useLatexSalesList';
 import { ApiError } from '@/lib/api/client';
-
-function statusLabel(status: string) {
-  if (status === 'DRAFT') return 'Nháp';
-  if (status === 'CANCELLED') return 'Đã hủy';
-  return 'Đã xác nhận';
-}
+import { recordStatusLabel, recordStatusTone } from '@/lib/status';
 
 /** Chi tiết Bán mủ theo Tổ — không có employee_id, chỉ tên người mua/người ký text (CLAUDE.md §4).
  * Cùng layout ProductionRecordDetailScreen, khác field hiển thị. */
@@ -49,7 +47,7 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
   if (isLoading || !record) {
     return (
       <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
-        <AppText className="text-muted-foreground">Đang tải...</AppText>
+        <LoadingState />
       </ScrollView>
     );
   }
@@ -77,9 +75,7 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
               </AppText>
             ) : null}
           </VStack>
-          <Box className="rounded-full px-2 py-0.5 bg-accent">
-            <AppText size="xs">{statusLabel(record.status)}</AppText>
-          </Box>
+          <StatusBadge label={recordStatusLabel(record.status)} tone={recordStatusTone(record.status)} />
         </HStack>
 
         {record.photoUrl ? (
@@ -88,7 +84,7 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
           </AppButton>
         ) : null}
 
-        <Box className="border border-border rounded-md overflow-hidden">
+        <AppCard className="p-0 overflow-hidden">
           {record.items.map((item, i) => (
             <HStack
               key={item.latexTypeId}
@@ -102,7 +98,7 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
             <AppText className="font-semibold">Tổng</AppText>
             <AppText className="font-mono font-semibold">{`${total.toFixed(1)} kg`}</AppText>
           </HStack>
-        </Box>
+        </AppCard>
 
         {record.notes ? (
           <AppText size="sm" className="text-muted-foreground">

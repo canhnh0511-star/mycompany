@@ -4,10 +4,15 @@ import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { AppButton } from '@/components/AppButton';
-import { Spinner } from '@/components/ui/spinner';
+import { ErrorState } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/features/auth/useAuth';
 import { useMeQuery } from '@/features/auth/api';
 import { credentialStorage } from '@/lib/auth/credentialStorage';
+import type { Role } from '@/types/api';
+
+/** Không hiển thị enum backend trực tiếp (CLAUDE.md §19) — chỉ dùng ở đây, chưa cần tách file riêng. */
+const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', team_lead: 'Tổ trưởng' };
 
 /**
  * Duy nhất trong 4 tab đã nối API thật (GET /users/me) ngay từ scaffold — dùng để xác nhận cả chuỗi
@@ -28,16 +33,14 @@ export default function ProfileScreen() {
       <VStack space="md" className="w-full max-w-sm items-center">
         <AppHeading size="xl">Hồ sơ</AppHeading>
 
-        {isLoading ? <Spinner /> : null}
-        {isError ? (
-          <AppText className="text-destructive">Không tải được thông tin tài khoản.</AppText>
-        ) : null}
+        {isLoading ? <LoadingState label="Đang tải thông tin tài khoản..." /> : null}
+        {isError ? <ErrorState message="Không tải được thông tin tài khoản." /> : null}
         {data ? (
           <VStack space="xs" className="items-center">
             <AppText size="lg">{data.fullName}</AppText>
             <AppText className="text-muted-foreground">{data.email}</AppText>
             <AppText size="sm" className="text-muted-foreground">
-              {data.role}
+              {ROLE_LABEL[data.role]}
             </AppText>
           </VStack>
         ) : null}

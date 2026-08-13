@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
-import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppText } from '@/components/AppText';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState, getErrorMessage } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { TeamResponse } from '@/types/api';
@@ -76,7 +79,7 @@ export function TeamsScreen() {
         </HStack>
 
         {formState !== null ? (
-          <Box className="border border-border rounded-md p-4">
+          <AppCard>
             <VStack space="sm">
               <AppText className="font-semibold">
                 {formState === 'create' ? 'Tổ mới' : `Sửa: ${formState.name}`}
@@ -102,22 +105,16 @@ export function TeamsScreen() {
                 </AppButton>
               </HStack>
             </VStack>
-          </Box>
+          </AppCard>
         ) : null}
 
-        {isLoading ? <AppText className="text-muted-foreground">Đang tải...</AppText> : null}
-        {isError ? (
-          <AppText className="text-destructive">
-            Không tải được danh sách Tổ: {error instanceof ApiError ? error.message : 'Lỗi không xác định'}
-          </AppText>
-        ) : null}
-        {!isLoading && teams?.length === 0 ? (
-          <AppText className="text-muted-foreground">Chưa có Tổ nào.</AppText>
-        ) : null}
+        {isLoading ? <LoadingState /> : null}
+        {isError ? <ErrorState message="Không tải được danh sách Tổ." detail={getErrorMessage(error)} /> : null}
+        {!isLoading && teams?.length === 0 ? <EmptyState message="Chưa có Tổ nào." /> : null}
 
         <VStack space="xs">
           {teams?.map((team) => (
-            <Box key={team.id} className="border border-border rounded-md p-3">
+            <AppCard key={team.id}>
               <HStack className="items-center justify-between">
                 <VStack className="flex-1">
                   <AppText className="font-semibold">{team.name}</AppText>
@@ -131,7 +128,7 @@ export function TeamsScreen() {
                   Sửa
                 </AppButton>
               </HStack>
-            </Box>
+            </AppCard>
           ))}
         </VStack>
       </VStack>

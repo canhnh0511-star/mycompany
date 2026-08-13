@@ -6,8 +6,12 @@ import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
+import { AppCard } from '@/components/AppCard';
 import { AppText } from '@/components/AppText';
-import { ApiError } from '@/lib/api/client';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState, getErrorMessage } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
+import { StatusBadge } from '@/components/StatusBadge';
 import type { OcrTargetType } from '@/types/api';
 import { useOcrCallLogsQuery, useOcrCallLogStatsQuery } from './useOcrCallLogs';
 
@@ -68,14 +72,12 @@ export function OcrMonitoringScreen() {
           stats={statsQuery.data}
         />
 
-        {listQuery.isLoading ? <AppText className="text-muted-foreground">Đang tải...</AppText> : null}
+        {listQuery.isLoading ? <LoadingState /> : null}
         {listQuery.isError ? (
-          <AppText className="text-destructive">
-            Không tải được danh sách: {listQuery.error instanceof ApiError ? listQuery.error.message : 'Lỗi không xác định'}
-          </AppText>
+          <ErrorState message="Không tải được danh sách." detail={getErrorMessage(listQuery.error)} />
         ) : null}
         {listQuery.data && listQuery.data.content.length === 0 ? (
-          <AppText className="text-muted-foreground">Không có lần gọi OCR nào khớp bộ lọc.</AppText>
+          <EmptyState message="Không có lần gọi OCR nào khớp bộ lọc." />
         ) : null}
 
         {listQuery.data && listQuery.data.content.length > 0 ? (
@@ -98,14 +100,22 @@ export function OcrMonitoringScreen() {
                     <AppText size="sm">{log.targetType === 'PRODUCTION_RECORD' ? 'Sổ ghi mủ' : 'Sổ bán mủ'}</AppText>
                   </Box>
                   <Box className="w-24 px-2">
-                    <AppText size="sm" className={log.success ? undefined : 'text-destructive'}>
-                      {log.success ? 'Thành công' : 'Lỗi'}
-                    </AppText>
+                    {log.success ? (
+                      <StatusBadge label="Thành công" tone="success" />
+                    ) : (
+                      <StatusBadge label="Lỗi" tone="error" />
+                    )}
                   </Box>
                   <Box className="w-28 px-2">
-                    <AppText size="sm" className={log.typeMismatch ? 'text-destructive' : undefined}>
-                      {log.success ? (log.typeMismatch ? 'Không khớp' : 'Khớp') : '—'}
-                    </AppText>
+                    {log.success ? (
+                      log.typeMismatch ? (
+                        <StatusBadge label="Không khớp" tone="warning" />
+                      ) : (
+                        <AppText size="sm">Khớp</AppText>
+                      )
+                    ) : (
+                      <AppText size="sm" className="text-muted-foreground">—</AppText>
+                    )}
                   </Box>
                   <Box className="w-28 px-2"><AppText size="sm">{log.model}</AppText></Box>
                   <Box className="w-24 px-2 items-end"><AppText size="sm" className="font-mono">{log.durationMs}</AppText></Box>
@@ -136,13 +146,9 @@ function StatsPanel({
   error: unknown;
   stats: ReturnType<typeof useOcrCallLogStatsQuery>['data'];
 }) {
-  if (isLoading) return <AppText className="text-muted-foreground">Đang tải thống kê...</AppText>;
+  if (isLoading) return <LoadingState label="Đang tải thống kê..." />;
   if (isError) {
-    return (
-      <AppText className="text-destructive">
-        Không tải được thống kê: {error instanceof ApiError ? error.message : 'Lỗi không xác định'}
-      </AppText>
-    );
+    return <ErrorState message="Không tải được thống kê." detail={getErrorMessage(error)} />;
   }
   if (!stats) return null;
 
@@ -159,9 +165,9 @@ function StatsPanel({
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Box className="border border-border rounded-md p-3 min-w-36">
+    <AppCard className="min-w-36">
       <AppText size="xs" className="text-muted-foreground">{label}</AppText>
       <AppText size="lg" className="font-semibold">{value}</AppText>
-    </Box>
+    </AppCard>
   );
 }

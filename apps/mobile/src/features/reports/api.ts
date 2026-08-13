@@ -1,12 +1,18 @@
 import { apiClient } from '@/lib/api/client';
 import { downloadFile } from '@/lib/api/download';
-import type { LatexSaleReportResponse, ProductionReportResponse } from '@/types/api';
+import type { LatexSaleReportResponse, ProductionDailyTrendResponse, ProductionReportResponse } from '@/types/api';
 
 export interface ProductionReportFilters {
   fromDate: string;
   toDate: string;
   teamId?: string;
   employeeId?: string;
+}
+
+export interface ProductionDailyTrendFilters {
+  fromDate: string;
+  toDate: string;
+  teamId?: string;
 }
 
 export interface LatexSaleReportFilters {
@@ -23,8 +29,10 @@ function buildQuery(filters: Record<string, string | undefined>) {
   return params.toString();
 }
 
-/** Spread narrows để khớp `Record<string, string | undefined>` — 2 filter type trên đều toàn field string. */
-function toParams(filters: ProductionReportFilters | LatexSaleReportFilters): Record<string, string | undefined> {
+/** Spread narrows để khớp `Record<string, string | undefined>` — các filter type trên đều toàn field string. */
+function toParams(
+  filters: ProductionReportFilters | LatexSaleReportFilters | ProductionDailyTrendFilters,
+): Record<string, string | undefined> {
   return { ...filters };
 }
 
@@ -33,6 +41,10 @@ function toParams(filters: ProductionReportFilters | LatexSaleReportFilters): Re
 export const reportsApi = {
   productionReport: (filters: ProductionReportFilters) =>
     apiClient.get<ProductionReportResponse>(`/api/v1/reports/production-records?${buildQuery(toParams(filters))}`),
+  productionDailyTrend: (filters: ProductionDailyTrendFilters) =>
+    apiClient.get<ProductionDailyTrendResponse>(
+      `/api/v1/reports/production-records/daily-trend?${buildQuery(toParams(filters))}`,
+    ),
   latexSaleReport: (filters: LatexSaleReportFilters) =>
     apiClient.get<LatexSaleReportResponse>(`/api/v1/reports/latex-sales?${buildQuery(toParams(filters))}`),
   exportProductionXlsx: (filters: ProductionReportFilters) =>

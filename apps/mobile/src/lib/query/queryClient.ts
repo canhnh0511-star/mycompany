@@ -57,6 +57,8 @@ export const queryKeys = {
   reports: {
     productionRecords: (filters: Record<string, unknown>) =>
       ['reports', 'production-records', filters] as const,
+    productionDailyTrend: (filters: Record<string, unknown>) =>
+      ['reports', 'production-records', 'daily-trend', filters] as const,
     latexSales: (filters: Record<string, unknown>) => ['reports', 'latex-sales', filters] as const,
   },
   me: ['me'] as const,

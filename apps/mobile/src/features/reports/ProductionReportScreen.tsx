@@ -8,6 +8,9 @@ import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState, getErrorMessage } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import { useEmployeesLookupQuery, useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
@@ -122,12 +125,8 @@ export function ProductionReportScreen() {
           </AppButton>
         </HStack>
 
-        {isLoading ? <AppText className="text-muted-foreground">Đang tải...</AppText> : null}
-        {isError ? (
-          <AppText className="text-destructive">
-            Không tải được báo cáo: {error instanceof ApiError ? error.message : 'Lỗi không xác định'}
-          </AppText>
-        ) : null}
+        {isLoading ? <LoadingState /> : null}
+        {isError ? <ErrorState message="Không tải được báo cáo." detail={getErrorMessage(error)} /> : null}
         {report ? <ProductionReportTable report={report} /> : null}
       </VStack>
     </ScrollView>
@@ -136,7 +135,7 @@ export function ProductionReportScreen() {
 
 function ProductionReportTable({ report }: { report: ProductionReportResponse }) {
   if (report.rows.length === 0) {
-    return <AppText className="text-muted-foreground">Không có bản ghi CONFIRMED nào trong khoảng đã chọn.</AppText>;
+    return <EmptyState message="Không có bản ghi đã xác nhận nào trong khoảng đã chọn." />;
   }
 
   // Chèn dòng subtotal ngay sau dòng nhân viên cuối cùng của mỗi Tổ (rows backend đã sort theo

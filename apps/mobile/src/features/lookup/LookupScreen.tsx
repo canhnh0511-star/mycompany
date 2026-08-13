@@ -5,13 +5,18 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { Pressable } from '@/components/ui/pressable';
 import { VStack } from '@/components/ui/vstack';
+import { AppCard } from '@/components/AppCard';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState, getErrorMessage } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
+import { StatusBadge } from '@/components/StatusBadge';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { useProductionRecordsListQuery } from '@/features/production-records/useProductionRecordsList';
 import { useLatexSalesListQuery } from '@/features/latex-sales/useLatexSalesList';
-import { ApiError } from '@/lib/api/client';
+import { recordStatusLabel, recordStatusTone } from '@/lib/status';
 import type { LatexItemResponse, LatexSaleResponse, ProductionRecordResponse, RecordStatus } from '@/types/api';
 
 type PhieuFilter = 'all' | 'production' | 'latex-sale';
@@ -25,18 +30,6 @@ const STATUS_CHIPS: { label: string; value: RecordStatus | 'all' }[] = [
 
 function sumKg(items: LatexItemResponse[]) {
   return items.reduce((sum, i) => sum + i.kg, 0);
-}
-
-function statusLabel(status: RecordStatus) {
-  if (status === 'DRAFT') return 'Nháp';
-  if (status === 'CANCELLED') return 'Đã hủy';
-  return 'Đã xác nhận';
-}
-
-function statusBadgeClass(status: RecordStatus) {
-  if (status === 'DRAFT') return 'bg-muted';
-  if (status === 'CANCELLED') return 'bg-destructive';
-  return 'bg-accent';
 }
 
 /**
@@ -122,19 +115,15 @@ export function LookupScreen() {
           </Box>
         </HStack>
 
-        {isLoading ? <AppText className="text-muted-foreground">Đang tải...</AppText> : null}
+        {isLoading ? <LoadingState /> : null}
         {isError ? (
-          <AppText className="text-destructive">
-            Không tải được danh sách:{' '}
-            {productionQuery.error instanceof ApiError
-              ? productionQuery.error.message
-              : latexSaleQuery.error instanceof ApiError
-                ? latexSaleQuery.error.message
-                : 'Lỗi không xác định'}
-          </AppText>
+          <ErrorState
+            message="Không tải được danh sách."
+            detail={getErrorMessage(productionQuery.error ?? latexSaleQuery.error)}
+          />
         ) : null}
-        {!isLoading && rows.length === 0 ? (
-          <AppText className="text-muted-foreground">Không có bản ghi nào khớp bộ lọc.</AppText>
+        {!isLoading && !isError && rows.length === 0 ? (
+          <EmptyState message="Không có bản ghi nào khớp bộ lọc." />
         ) : null}
 
         <VStack space="sm">
@@ -162,8 +151,12 @@ export function LookupScreen() {
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
-      <Box className={`rounded-full px-3 py-1.5 border ${active ? 'bg-accent border-accent' : 'border-border'}`}>
-        <AppText size="sm">{label}</AppText>
+      <Box
+        className={`rounded-full px-3 py-1.5 border ${active ? 'bg-primary/10 border-primary' : 'border-border'}`}
+      >
+        <AppText size="sm" className={active ? 'text-primary font-medium' : undefined}>
+          {label}
+        </AppText>
       </Box>
     </Pressable>
   );
@@ -172,14 +165,10 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 function ProductionCard({ record, onPress }: { record: ProductionRecordResponse; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
-      <Box className="border border-border rounded-md p-3">
+      <AppCard>
         <HStack className="items-center justify-between">
           <AppText className="font-semibold">{record.employeeName}</AppText>
-          <Box className={`rounded-full px-2 py-0.5 ${statusBadgeClass(record.status)}`}>
-            <AppText size="xs" className={record.status === 'CANCELLED' ? 'text-white' : undefined}>
-              {statusLabel(record.status)}
-            </AppText>
-          </Box>
+          <StatusBadge label={recordStatusLabel(record.status)} tone={recordStatusTone(record.status)} />
         </HStack>
         <HStack className="items-center justify-between mt-1">
           <AppText size="sm" className="text-muted-foreground">
@@ -189,7 +178,7 @@ function ProductionCard({ record, onPress }: { record: ProductionRecordResponse;
             {`${sumKg(record.items).toFixed(1)} kg`}
           </AppText>
         </HStack>
-      </Box>
+      </AppCard>
     </Pressable>
   );
 }
@@ -197,14 +186,10 @@ function ProductionCard({ record, onPress }: { record: ProductionRecordResponse;
 function LatexSaleCard({ record, onPress }: { record: LatexSaleResponse; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
-      <Box className="border border-border rounded-md p-3">
+      <AppCard>
         <HStack className="items-center justify-between">
           <AppText className="font-semibold">{`Bán mủ — ${record.teamName}`}</AppText>
-          <Box className={`rounded-full px-2 py-0.5 ${statusBadgeClass(record.status)}`}>
-            <AppText size="xs" className={record.status === 'CANCELLED' ? 'text-white' : undefined}>
-              {statusLabel(record.status)}
-            </AppText>
-          </Box>
+          <StatusBadge label={recordStatusLabel(record.status)} tone={recordStatusTone(record.status)} />
         </HStack>
         <HStack className="items-center justify-between mt-1">
           <AppText size="sm" className="text-muted-foreground">
@@ -214,7 +199,7 @@ function LatexSaleCard({ record, onPress }: { record: LatexSaleResponse; onPress
             {`${sumKg(record.items).toFixed(1)} kg`}
           </AppText>
         </HStack>
-      </Box>
+      </AppCard>
     </Pressable>
   );
 }

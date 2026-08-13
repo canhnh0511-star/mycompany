@@ -38,9 +38,11 @@ const buttonStyle = tva({
       link: 'text-primary underline-offset-4 data-[hover=true]:underline data-[active=true]:underline',
     },
     size: {
-      default: 'px-4 py-2',
+      default: 'min-h-11 px-4 py-2',
       sm: 'min-h-8 rounded-md px-3 text-xs',
-      lg: 'min-h-10 rounded-md px-8',
+      /* min-h-[52px] khớp chiều cao nút chính (CTA/primary) trong Claude Design — trước đây min-h-10
+       * (40px) thấp hơn hẳn design (phát hiện khi user tự test build thật, 2026-08-13). */
+      lg: 'min-h-[52px] rounded-md px-8',
       icon: 'min-h-9 min-w-9',
     },
   },

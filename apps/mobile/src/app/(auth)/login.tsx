@@ -92,7 +92,7 @@ export default function LoginScreen() {
 
           {canUseBiometric ? (
             <VStack space="sm">
-              <AppButton onPress={handleBiometricLogin} isLoading={biometricLoading}>
+              <AppButton size="lg" onPress={handleBiometricLogin} isLoading={biometricLoading}>
                 Đăng nhập bằng Face ID / vân tay
               </AppButton>
               <AppText size="xs" className="text-muted-foreground text-center">
@@ -139,6 +139,7 @@ export default function LoginScreen() {
           ) : null}
 
           <AppButton
+            size="lg"
             onPress={handleSubmit(onSubmit)}
             isLoading={isSubmitting}
             variant={canUseBiometric ? 'outline' : 'default'}

@@ -78,10 +78,12 @@ export function AppSelect<T extends string>({
             >
               <Box
                 className={`px-3 py-2.5 ${i > 0 ? 'border-t border-border' : ''} ${
-                  option.value === value ? 'bg-accent' : ''
+                  option.value === value ? 'bg-primary/10' : ''
                 }`}
               >
-                <AppText>{option.label}</AppText>
+                <AppText className={option.value === value ? 'text-primary font-medium' : undefined}>
+                  {option.label}
+                </AppText>
               </Box>
             </Pressable>
           ))}
