@@ -60,8 +60,7 @@
         {
           "faceIDPermission": "Cho phép dùng Face ID để đăng nhập nhanh, thay vì gõ lại email/mật khẩu."
         }
-      ],
-      "expo-sharing"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
