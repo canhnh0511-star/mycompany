@@ -255,3 +255,4 @@ kèm ID này**. Khi debug lỗi production, chỉ cần ID này để lọc ra t
 | GET | `/api/v1/edit-history?tableName=&recordId=` | 2 param bắt buộc |
 | GET | `/api/v1/reports/production-records`, `/latex-sales` | `fromDate`/`toDate` bắt buộc, chỉ tính CONFIRMED |
 | GET | `.../export/xlsx`, `.../export/pdf` | cùng query param với report JSON |
+| GET | `/api/v1/reports/production-records/daily-trend` | `fromDate`/`toDate`/`teamId?` — tổng kg CONFIRMED theo TỪNG NGÀY (khác report gộp 1 số), ngày trống tự điền 0kg, dùng cho biểu đồ 7 ngày ở Home |
