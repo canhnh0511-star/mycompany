@@ -53,6 +53,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   }, [logout, router]);
 
   useEffect(() => {
+    console.log('[DEBUG] AuthGate: status=', status, 'segments=', segments);
     if (status === 'idle' || status === 'loading') return;
     const inAuthGroup = segments[0] === '(auth)';
     if (status === 'unauthenticated' && !inAuthGroup) {

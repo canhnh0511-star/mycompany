@@ -10,6 +10,7 @@ import { tokenStorage } from '@/lib/auth/tokenStorage';
  * `server.port` của services/api (application.yml).
  */
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+console.log('[DEBUG] apiClient: API_BASE_URL =', API_BASE_URL);
 
 export class ApiError extends Error {
   constructor(
@@ -56,11 +57,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
+  console.log('[DEBUG] apiClient: fetch', `${API_BASE_URL}${path}`);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers: finalHeaders,
     body: finalBody,
   });
+  console.log('[DEBUG] apiClient: response', response.status, path);
 
   if (response.status === 401 && !skipAuth) {
     await tokenStorage.clear();
