@@ -34,8 +34,24 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
   skipAuth?: boolean; // dùng cho POST /auth/login — chưa có token để gắn
 };
 
+// Log request/response ra console — CHỈ dev build (`__DEV__`, biến global do Metro/RN tự inject, luôn
+// `false` trong production bundle nên tự loại bỏ khỏi build thật, không cần tắt tay). Không log
+// header/body (có thể chứa Authorization/mật khẩu) — chỉ method/path/status/thời gian, đủ để debug
+// network mà không vi phạm tinh thần "không log dữ liệu nhạy cảm" (CLAUDE.md §7, áp cho cả frontend).
+function logRequest(method: string, path: string) {
+  if (__DEV__) console.log(`[api] → ${method} ${path}`);
+}
+function logResponse(method: string, path: string, status: number, startedAt: number) {
+  if (__DEV__) console.log(`[api] ← ${method} ${path} ${status} (${Date.now() - startedAt}ms)`);
+}
+function logError(method: string, path: string, error: unknown, startedAt: number) {
+  if (__DEV__) console.log(`[api] ✗ ${method} ${path} lỗi (${Date.now() - startedAt}ms):`, error);
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, skipAuth, headers, ...rest } = options;
+  const method = rest.method ?? 'GET';
+  const startedAt = Date.now();
 
   const finalHeaders = new Headers(headers);
   let finalBody: BodyInit | undefined;
@@ -56,11 +72,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-    body: finalBody,
-  });
+  logRequest(method, path);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: finalHeaders,
+      body: finalBody,
+    });
+  } catch (err) {
+    // Lỗi network trần (mất mạng, DNS, CORS...) — fetch không tự có status, log riêng để phân biệt với
+    // lỗi HTTP có status ở nhánh dưới (CLAUDE.md §9 rủi ro mất mạng thực địa).
+    logError(method, path, err, startedAt);
+    throw err;
+  }
+  logResponse(method, path, response.status, startedAt);
 
   if (response.status === 401 && !skipAuth) {
     await tokenStorage.clear();
