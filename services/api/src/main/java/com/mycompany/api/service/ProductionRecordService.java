@@ -55,6 +55,11 @@ public class ProductionRecordService {
     private final BatchRowValidator batchRowValidator;
     private final RequiresNewTransactionRunner transactionRunner;
     private final ObjectMapper objectMapper;
+    private final SupabaseStorageService storageService;
+
+    // Ảnh phiếu ký URL đọc hết hạn sau 1 giờ — đủ cho 1 phiên xem/review, không cần bền lâu
+    // (`toResponse()` luôn ký lại URL mới mỗi lần gọi, không phụ thuộc URL cũ còn hạn hay không).
+    private static final int PHOTO_READ_URL_TTL_SECONDS = 3600;
 
     private static final String TABLE_NAME = "production_records";
 
@@ -285,7 +290,7 @@ public class ProductionRecordService {
                 record.getTeam().getName(),
                 record.getNotes(),
                 record.getSource().name(),
-                record.getPhotoUrl(),
+                storageService.createSignedReadUrl(record.getPhotoUrl(), PHOTO_READ_URL_TTL_SECONDS),
                 record.getOcrCallLog() == null ? null : record.getOcrCallLog().getId(),
                 record.getLowConfidenceFields(),
                 record.getCreatedBy().getId(),

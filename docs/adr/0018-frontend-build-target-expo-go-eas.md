@@ -83,3 +83,39 @@ nhau:
    OK, test lại thật trên iPhone qua Expo Go — vào thẳng Home, không còn kẹt spinner.
    **Cần cherry-pick fix này (chỉ đoạn sửa logic, KHÔNG kèm phần hạ SDK 54) sang `main`** — đây là bug
    thật ảnh hưởng mọi SDK, không phải đặc thù của branch thử nghiệm này.
+
+### Tiếp tục test thật — 2 bug thêm phát hiện qua màn Review OCR (2026-08-16, cùng ngày)
+
+Sau khi qua được Home, test tiếp luồng Chụp phiếu → OCR review với ảnh phiếu thật (Tổ Phong Phú, 23 nhân
+viên vừa import — xem mục employees import cùng ngày). 2 bug thêm, **CẢ 2 đều là bug thật ảnh hưởng
+`main`**, không liên quan SDK 54:
+
+3. **Ảnh gốc không hiện ở màn Review** (`ReviewHeader` trong `OcrReviewScreen.tsx`) — `photoUrl` trả về
+   từ API thực chất là **object path tương đối** (vd `ocr/2026-08-16/uuid.jpg`), không phải URL tải được,
+   vì bucket Supabase Storage `receipt-photos` là **private** (CLAUDE.md §3) — `record.getPhotoUrl()`
+   lưu path đó thẳng vào DB rồi trả nguyên văn qua DTO (`ProductionRecordService`/`LatexSaleService`
+   `.toResponse()`), FE cố load path này như 1 URI ảnh nên luôn trống. **FIXED (backend)**: thêm
+   `SupabaseStorageService.createSignedReadUrl(objectPath, expiresInSeconds)` (endpoint xác nhận
+   `POST {url}/storage/v1/object/sign/{bucket}/{path}`, khác `createSignedUploadUrl` dùng để GHI) — ký
+   URL đọc mới (hết hạn sau 1h) MỖI LẦN `toResponse()` build response, không cache lại DB (URL ký sẽ hết
+   hạn, cache sẽ trả URL chết). Áp dụng ở CẢ `ProductionRecordService` lẫn `LatexSaleService` (không chỉ
+   OCR review — cùng field `photoUrl` cũng dùng ở record-detail, sửa 1 chỗ `toResponse()` fix cả 2 nơi).
+   Lỗi ký URL (ảnh cũ đã xóa khỏi Storage...) trả `null` + log WARN thay vì ném lỗi chặn cả response
+   (CLAUDE.md §7 — tự phục hồi được, chỉ thiếu ảnh không thiếu số liệu). Test thêm: `ProductionRecordServiceTest`
+   cần thêm mock `SupabaseStorageService` vào constructor (không stub gì thêm — mock trả `null` mặc định
+   là đủ, không có assertion nào phụ thuộc `photoUrl` trong test này).
+4. **Toast "Đã xác nhận 14/23 dòng" kẹt vĩnh viễn trên màn hình, không cách nào tắt** (`OcrReviewScreen
+   .handleSaveAll()`) — toast gọi `variant: successCount === rows.length ? 'success' : 'error'`, mà
+   `useAppToast.showToast()` mặc định `duration: null` (KHÔNG tự đóng) khi `variant='error'` — thiết kế
+   ban đầu cho banner lỗi mạng ở màn Chụp ảnh (cần Admin chủ động bấm "Xem chi tiết"/tự đóng, xem comment
+   gốc trong `useAppToast.tsx`). Nhưng `Toast` UI component của gluestack **không có nút đóng nào** — khi
+   `OcrReviewScreen` tái dùng đúng variant này cho 1 toast tóm tắt kết quả lưu (không phải banner lỗi mạng
+   cần giữ), nó kẹt vĩnh viễn không cách nào tắt tay ngoài reload app. **FIXED**: truyền `duration: 6000`
+   tường minh ở cả 2 chỗ gọi `showToast` trong `OcrReviewScreen` (`ProductionReview`/`LatexSaleReview`) —
+   vẫn tự đóng dù có dòng lỗi, vì dòng lỗi đã hiện sẵn `StatusBadge` "Lỗi" trong bảng, không cần toast neo
+   mãi để nhắc lại. KHÔNG sửa `useAppToast` mặc định (hành vi `duration: null` cho error vẫn đúng ý nghĩa
+   ở màn Chụp ảnh) — chỉ sửa nơi dùng sai ngữ cảnh.
+
+Verify cả 2: `tsc --noEmit` sạch, `./gradlew compileJava compileTestJava` + unit test package `service`
+xanh, `expo export --platform web` build OK. **Cần cherry-pick cả 2 fix này sang `main`** cùng đợt với
+bug AuthGate ở mục trên — cả 3 đều là bug thật, không đặc thù SDK 54.

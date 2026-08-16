@@ -54,8 +54,11 @@ public class LatexSaleService {
     private final BatchRowValidator batchRowValidator;
     private final RequiresNewTransactionRunner transactionRunner;
     private final ObjectMapper objectMapper;
+    private final SupabaseStorageService storageService;
 
     private static final String TABLE_NAME = "latex_sales";
+    // Ảnh phiếu ký URL đọc hết hạn sau 1 giờ — xem ghi chú tương ứng ở ProductionRecordService.
+    private static final int PHOTO_READ_URL_TTL_SECONDS = 3600;
 
     // Không @Transactional ở mức method này — xem ghi chú tương ứng trong ProductionRecordService.
     public BatchResult<LatexSaleResponse> createBatch(List<CreateLatexSaleRequest> requests, User currentUser) {
@@ -253,7 +256,7 @@ public class LatexSaleService {
                 sale.getBuyerName(),
                 sale.getSellerSignedBy(),
                 sale.getNotes(),
-                sale.getPhotoUrl(),
+                storageService.createSignedReadUrl(sale.getPhotoUrl(), PHOTO_READ_URL_TTL_SECONDS),
                 sale.getOcrCallLog() == null ? null : sale.getOcrCallLog().getId(),
                 sale.getLowConfidenceFields(),
                 sale.getCreatedBy().getId(),

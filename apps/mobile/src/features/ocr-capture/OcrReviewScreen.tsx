@@ -323,6 +323,11 @@ function ProductionReview({
     showToast({
       title: `Đã xác nhận ${successCount}/${rows.length} dòng`,
       variant: successCount === rows.length ? 'success' : 'error',
+      // duration tường minh — mặc định của variant='error' ở useAppToast là KHÔNG tự đóng (dành cho
+      // banner lỗi mạng ở màn Chụp ảnh, cần Admin chủ động xử lý), nhưng Toast UI component không có
+      // nút đóng → nếu để mặc định, toast tóm tắt kết quả lưu ở màn này sẽ kẹt vĩnh viễn khi có dòng
+      // lỗi. Dòng lỗi đã hiện sẵn badge "Lỗi" trong bảng, toast không cần neo mãi để nhắc lại.
+      duration: 6000,
     });
     if (successCount === rows.length) onDone();
   }
@@ -518,6 +523,11 @@ function LatexSaleReview({
     showToast({
       title: `Đã xác nhận ${successCount}/${rows.length} dòng`,
       variant: successCount === rows.length ? 'success' : 'error',
+      // duration tường minh — mặc định của variant='error' ở useAppToast là KHÔNG tự đóng (dành cho
+      // banner lỗi mạng ở màn Chụp ảnh, cần Admin chủ động xử lý), nhưng Toast UI component không có
+      // nút đóng → nếu để mặc định, toast tóm tắt kết quả lưu ở màn này sẽ kẹt vĩnh viễn khi có dòng
+      // lỗi. Dòng lỗi đã hiện sẵn badge "Lỗi" trong bảng, toast không cần neo mãi để nhắc lại.
+      duration: 6000,
     });
     if (successCount === rows.length) onDone();
   }
