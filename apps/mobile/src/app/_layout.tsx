@@ -32,16 +32,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('[DEBUG] AuthGate: bắt đầu hydrate()');
-    hydrate()
-      .then(() => console.log('[DEBUG] AuthGate: hydrate() xong'))
-      .catch((e) => console.log('[DEBUG] AuthGate: hydrate() lỗi', e))
-      .finally(() => {
-        console.log('[DEBUG] AuthGate: gọi SplashScreen.hideAsync()');
-        SplashScreen.hideAsync()
-          .then(() => console.log('[DEBUG] AuthGate: hideAsync() xong'))
-          .catch((e) => console.log('[DEBUG] AuthGate: hideAsync() lỗi', e));
-      });
+    hydrate().finally(() => SplashScreen.hideAsync());
   }, [hydrate]);
 
   useEffect(() => {
@@ -53,12 +44,20 @@ function AuthGate({ children }: { children: ReactNode }) {
   }, [logout, router]);
 
   useEffect(() => {
-    console.log('[DEBUG] AuthGate: status=', status, 'segments=', segments);
     if (status === 'idle' || status === 'loading') return;
     const inAuthGroup = segments[0] === '(auth)';
+    // segments.length === 0 = đang đứng ở route trung chuyển "/" (app/index.tsx, chỉ có Spinner) —
+    // PHẢI coi như "chưa vào group nào" giống inAuthGroup, không chỉ xử lý riêng (auth). Thiếu nhánh
+    // này khiến user đã authenticated nhưng router chưa kịp resolve route ban đầu bị kẹt mãi ở màn
+    // Spinner trung chuyển, không bao giờ redirect sang (tabs) — phát hiện khi test thật trên iPhone
+    // qua Expo Go (2026-08-16), full app bug có sẵn từ trước, không liên quan SDK 54.
+    // `useSegments()` gõ kiểu tuple cố định theo route đã khai báo (typedRoutes) nên TS tưởng
+    // `segments.length` không bao giờ là 0 — nhưng thực tế runtime CÓ trường hợp này (route trung
+    // chuyển "/"), ép kiểu về mảng string trần để so sánh đúng thực tế.
+    const atRoot = (segments as readonly string[]).length === 0;
     if (status === 'unauthenticated' && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (status === 'authenticated' && inAuthGroup) {
+    } else if (status === 'authenticated' && (inAuthGroup || atRoot)) {
       router.replace('/(tabs)');
     }
   }, [status, segments, router]);
@@ -85,13 +84,11 @@ function AuthGate({ children }: { children: ReactNode }) {
  * `RootLayout` return `null` bên dưới — `AuthGate` (nơi gọi `hideAsync`) chưa kịp mount.
  */
 export default function RootLayout() {
-  console.log('[DEBUG] RootLayout: render');
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
   });
-  console.log('[DEBUG] RootLayout: fontsLoaded=', fontsLoaded, 'fontError=', fontError);
 
   if (!fontsLoaded && !fontError) {
     return null;

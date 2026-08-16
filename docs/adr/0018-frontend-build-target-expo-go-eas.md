@@ -55,3 +55,31 @@ nhánh EAS dev client ở trên) — lần này làm **trên branch riêng `test
   **Chưa merge vào `main`** — branch này chỉ để user tự `npx expo start` (không `--dev-client`) và quét QR
   bằng app Expo Go trên iPhone thật để test. Nếu test ổn và muốn giữ SDK 54 lâu dài, cần bàn lại có nên
   merge (đánh đổi ngược lại EAS dev client đã chọn) hay chỉ dùng branch này cho việc test nhanh rồi bỏ.
+
+### Test thật trên iPhone qua Expo Go — 2 bug phát hiện (2026-08-16)
+
+Chạy `npx expo start` + Expo Go trên iPhone thật, app "build xong" nhưng đứng yên ở màn spinner trắng.
+Debug bằng cách thêm log tạm (`console.log`) vào `app/_layout.tsx`/`lib/api/client.ts` rồi đọc log trực
+tiếp qua terminal Metro (mọi `console.*` từ thiết bị tự gửi ngược về đây) — tìm ra 2 nguyên nhân khác
+nhau:
+
+1. **Bug do SDK 54 (đặc thù branch này)**: `app.json` có `experiments.reactCompiler: true` — log cho
+   thấy `RootLayout`/`AuthGate` render/hydrate lặp lại liên tục không dừng (crash-loop, dòng log còn bị
+   cắt giữa chừng do app tự khởi động lại). Nghi React Compiler (babel-preset-expo, tính năng thực
+   nghiệm) auto-memo sai trên tổ hợp SDK 54/React Native mới hạ, gây `useEffect` re-fire vô hạn. **Tắt
+   `reactCompiler: false`** → vòng lặp hết ngay, app khởi động ổn định 1 lần duy nhất. Chưa report lên
+   Expo/điều tra sâu nguyên nhân gốc — chỉ tắt để test được, KHÔNG bật lại `reactCompiler: true` trên
+   branch này cho tới khi biết chắc SDK nào ổn định với nó.
+2. **Bug thật của app, CÓ TRÊN CẢ `main`, không liên quan SDK 54** (`app/_layout.tsx`, `AuthGate`):
+   sau khi tắt reactCompiler, app hết crash-loop nhưng vẫn đứng yên ở màn spinner trung chuyển
+   (`app/index.tsx`). Log cho thấy `status` chuyển đúng thành `authenticated` nhưng `segments=[]` (đang ở
+   route gốc `"/"`, chưa vào group `(tabs)`/`(auth)` nào) — logic điều hướng cũ chỉ xử lý 2 case
+   (`unauthenticated` + không ở `(auth)` → về login; `authenticated` + đang ở `(auth)` → vào `(tabs)`),
+   **thiếu case `authenticated` + đang ở route trung chuyển gốc `segments=[]`** → không bao giờ
+   `router.replace('/(tabs)')`, kẹt vĩnh viễn ở spinner. Có lẽ trước đây không lộ ra vì test trên Android
+   emulator (2026-08-13, `docs/module-1-1-frontend-redesign-progress.md`) tình cờ có timing khác khiến
+   route resolve nhanh hơn native splash ẩn. **FIXED**: thêm nhánh `atRoot = segments.length === 0` vào
+   điều kiện redirect `authenticated`. Verify: `tsc --noEmit` sạch, `expo export --platform web` build
+   OK, test lại thật trên iPhone qua Expo Go — vào thẳng Home, không còn kẹt spinner.
+   **Cần cherry-pick fix này (chỉ đoạn sửa logic, KHÔNG kèm phần hạ SDK 54) sang `main`** — đây là bug
+   thật ảnh hưởng mọi SDK, không phải đặc thù của branch thử nghiệm này.
