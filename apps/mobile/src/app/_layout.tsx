@@ -32,7 +32,16 @@ function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    hydrate().finally(() => SplashScreen.hideAsync());
+    console.log('[DEBUG] AuthGate: bắt đầu hydrate()');
+    hydrate()
+      .then(() => console.log('[DEBUG] AuthGate: hydrate() xong'))
+      .catch((e) => console.log('[DEBUG] AuthGate: hydrate() lỗi', e))
+      .finally(() => {
+        console.log('[DEBUG] AuthGate: gọi SplashScreen.hideAsync()');
+        SplashScreen.hideAsync()
+          .then(() => console.log('[DEBUG] AuthGate: hideAsync() xong'))
+          .catch((e) => console.log('[DEBUG] AuthGate: hideAsync() lỗi', e));
+      });
   }, [hydrate]);
 
   useEffect(() => {
@@ -75,11 +84,13 @@ function AuthGate({ children }: { children: ReactNode }) {
  * `RootLayout` return `null` bên dưới — `AuthGate` (nơi gọi `hideAsync`) chưa kịp mount.
  */
 export default function RootLayout() {
+  console.log('[DEBUG] RootLayout: render');
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
   });
+  console.log('[DEBUG] RootLayout: fontsLoaded=', fontsLoaded, 'fontError=', fontError);
 
   if (!fontsLoaded && !fontError) {
     return null;
