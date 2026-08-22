@@ -17,6 +17,12 @@ public final class LatexSaleSpecifications {
 
     public static Specification<LatexSale> withFilters(
             UUID teamId, LocalDate fromDate, LocalDate toDate, RecordStatus status) {
+        return withFilters(teamId, fromDate, toDate, status, null);
+    }
+
+    // scanBatchId — 0021-scan-batch-model, xem ghi chú tương ứng ở ProductionRecordSpecifications.
+    public static Specification<LatexSale> withFilters(
+            UUID teamId, LocalDate fromDate, LocalDate toDate, RecordStatus status, UUID scanBatchId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (teamId != null) {
@@ -30,6 +36,9 @@ public final class LatexSaleSpecifications {
             }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (scanBatchId != null) {
+                predicates.add(cb.equal(root.get("scanBatch").get("id"), scanBatchId));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };

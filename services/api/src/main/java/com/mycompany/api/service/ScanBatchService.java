@@ -715,7 +715,7 @@ public class ScanBatchService {
 
     private ScanImageResponse toImageResponse(ScanImage image) {
         return new ScanImageResponse(
-                image.getId(), image.getStoragePath(), image.getStatus().name(),
+                image.getId(), image.getClientImageId(), image.getStoragePath(), image.getStatus().name(),
                 image.getDateVerificationStatus() != null ? image.getDateVerificationStatus().name() : null,
                 image.getDateResolution() != null ? image.getDateResolution().name() : null,
                 image.getOcrDetectedDate(), image.getEffectiveWorkDate(),

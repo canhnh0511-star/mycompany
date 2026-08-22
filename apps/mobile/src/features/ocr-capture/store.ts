@@ -6,10 +6,18 @@ interface OcrSessionState {
   activeTeamId: string | null;
   activeTeamName: string | null;
   setActiveTeam: (id: string | null, name: string | null) => void;
+  /** sessionWorkDate — RULE 1 (0021-scan-batch-model, Spec 1 mục 1): nguồn ngày làm việc CHÍNH cho cả
+   * phiên chụp, Admin chọn TRƯỚC khi chụp, KHÔNG suy từ OCR. Cùng vòng đời với activeTeamId (in-memory,
+   * reset khi app bị kill) — không phải state của riêng CaptureScreen vì cần giữ khi điều hướng qua
+   * màn Batch Review rồi quay lại chụp tiếp trong cùng phiên. */
+  sessionWorkDate: string | null;
+  setSessionWorkDate: (date: string | null) => void;
 }
 
 export const useOcrSessionStore = create<OcrSessionState>((set) => ({
   activeTeamId: null,
   activeTeamName: null,
   setActiveTeam: (id, name) => set({ activeTeamId: id, activeTeamName: name }),
+  sessionWorkDate: null,
+  setSessionWorkDate: (date) => set({ sessionWorkDate: date }),
 }));

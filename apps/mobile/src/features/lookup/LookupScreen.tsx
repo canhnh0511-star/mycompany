@@ -24,7 +24,7 @@ type PhieuFilter = 'all' | 'production' | 'latex-sale';
 const STATUS_CHIPS: { label: string; value: RecordStatus | 'all' }[] = [
   { label: 'Tất cả', value: 'all' },
   { label: 'Nháp', value: 'DRAFT' },
-  { label: 'Đã xác nhận', value: 'CONFIRMED' },
+  { label: 'Đã xác nhận', value: 'APPROVED' },
   { label: 'Đã hủy', value: 'CANCELLED' },
 ];
 

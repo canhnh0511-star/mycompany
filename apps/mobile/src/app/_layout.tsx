@@ -61,7 +61,7 @@ function AuthGate({ children }: { children: ReactNode }) {
  * PHẢI tự chừa inset trên cho toàn bộ route (không riêng gì 1 màn) — phát hiện khi user tự test build
  * thật trên thiết bị (2026-08-13), tất cả header đều bị đồng hồ/status bar đè lên. Chừa 1 lần ở gốc
  * thay vì sửa từng `ScrollView`/màn hình riêng lẻ (~20 file). KHÔNG chừa `bottom` ở đây — tab bar tự lo
- * `insets.bottom` riêng (`(tabs)/_layout.tsx`), các Stack route full-screen khác (login, ocr-review...)
+ * `insets.bottom` riêng (`(tabs)/_layout.tsx`), các Stack route full-screen khác (login, scan-batch-review...)
  * đã đứng trên nền sáng chạm đáy màn hình bình thường, không bị report lỗi.
  */
 /**

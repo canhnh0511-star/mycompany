@@ -8,7 +8,7 @@ Sản lượng CÁ NHÂN theo ngày (CLAUDE.md §4).
   bắt buộc, ≥1 loại mủ > 0/dòng); lỗi từ `BatchResult` map ngược theo `index` vào đúng dòng
   (`submitStatus`/`submitError`), không alert chung. Route: `app/(tabs)/quick-entry/index.tsx` (tab
   "Sản lượng").
-- [x] Bảng review OCR (ADR-0012, 2026-08-10) — build ở `features/ocr-capture/OcrReviewScreen.tsx`
+- [x] Batch Review (0021-scan-batch-model, 2026-08-22) — build ở `features/ocr-capture/BatchReviewScreen.tsx`
   (dùng chung với latex-sales), `api.ts` thêm `update()`/`confirm()`.
 - [x] Tra cứu/chi tiết record (2026-08-10) — `api.ts` thêm `list()`/`get()`/`cancel()`,
   `useProductionRecordsList.ts`. UI ở `features/lookup/` (dùng chung với latex-sales).

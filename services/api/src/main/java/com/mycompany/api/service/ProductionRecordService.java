@@ -83,11 +83,12 @@ public class ProductionRecordService {
     }
 
     // GET list + filter (docs/TASKS.md Phase 4, tab "Tra cứu" — CLAUDE.md §5) — bao gồm cả draft chưa
-    // confirm khi không lọc status.
+    // approve khi không lọc status. scanBatchId (0021-scan-batch-model) — màn review 1 phiên quét cụ
+    // thể lọc theo batch, không phải teamId/date range thông thường.
     public Page<ProductionRecordResponse> list(UUID teamId, UUID employeeId, LocalDate fromDate,
-            LocalDate toDate, RecordStatus status, Pageable pageable) {
+            LocalDate toDate, RecordStatus status, UUID scanBatchId, Pageable pageable) {
         Specification<ProductionRecord> spec =
-                ProductionRecordSpecifications.withFilters(teamId, employeeId, fromDate, toDate, status);
+                ProductionRecordSpecifications.withFilters(teamId, employeeId, fromDate, toDate, status, scanBatchId);
         return productionRecordRepository.findAll(spec, pageable).map(this::toResponse);
     }
 

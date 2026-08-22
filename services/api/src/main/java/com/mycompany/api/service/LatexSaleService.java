@@ -80,9 +80,11 @@ public class LatexSaleService {
     }
 
     // GET list + filter (docs/TASKS.md Phase 4) — bao gồm cả draft chưa confirm khi không lọc status.
+    // scanBatchId (0021-scan-batch-model) — màn review 1 phiên quét cụ thể (ScanBatchController).
     public Page<LatexSaleResponse> list(UUID teamId, LocalDate fromDate, LocalDate toDate,
-            RecordStatus status, Pageable pageable) {
-        Specification<LatexSale> spec = LatexSaleSpecifications.withFilters(teamId, fromDate, toDate, status);
+            RecordStatus status, UUID scanBatchId, Pageable pageable) {
+        Specification<LatexSale> spec =
+                LatexSaleSpecifications.withFilters(teamId, fromDate, toDate, status, scanBatchId);
         return latexSaleRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
