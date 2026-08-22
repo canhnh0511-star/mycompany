@@ -8,11 +8,13 @@ import com.mycompany.api.entity.EmployeeStatus;
 import com.mycompany.api.entity.Team;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
+import com.mycompany.api.exception.InvalidRequestException;
 import com.mycompany.api.repository.EmployeeRepository;
 import com.mycompany.api.repository.TeamRepository;
 import com.mycompany.api.repository.UserRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -76,7 +78,42 @@ public class EmployeeService {
         employee.setTeam(team);
         employee.setStatus(request.status());
         employee.setUser(user);
+        updateSpouse(employee, request.spouseEmployeeId());
         return toResponse(employeeRepository.save(employee));
+    }
+
+    // Quan hệ vợ/chồng đối xứng (CLAUDE.md §5) — set/gỡ luôn đồng bộ cả 2 chiều trong cùng
+    // transaction, để ScanBatchService chỉ cần đọc employees.spouse_employee_id của 1 bên là đủ suy
+    // ra bên kia, không cần join/suy luận thêm.
+    private void updateSpouse(Employee employee, UUID newSpouseId) {
+        Employee currentSpouse = employee.getSpouseEmployee();
+        UUID currentSpouseId = currentSpouse == null ? null : currentSpouse.getId();
+        if (Objects.equals(currentSpouseId, newSpouseId)) {
+            return; // không đổi
+        }
+        if (newSpouseId != null && newSpouseId.equals(employee.getId())) {
+            throw new InvalidRequestException("Không thể khai báo vợ/chồng là chính nhân viên này");
+        }
+
+        // Gỡ liên kết cũ (nếu có) ở cả 2 chiều trước khi gán liên kết mới.
+        if (currentSpouse != null) {
+            currentSpouse.setSpouseEmployee(null);
+            employeeRepository.save(currentSpouse);
+        }
+
+        if (newSpouseId == null) {
+            employee.setSpouseEmployee(null);
+            return;
+        }
+
+        Employee newSpouse = findOrThrow(newSpouseId);
+        if (newSpouse.getSpouseEmployee() != null && !newSpouse.getSpouseEmployee().getId().equals(employee.getId())) {
+            throw new ConflictException("Nhân viên id=" + newSpouseId
+                    + " đã được khai báo vợ/chồng với người khác — gỡ quan hệ cũ trước khi gán mới");
+        }
+        employee.setSpouseEmployee(newSpouse);
+        newSpouse.setSpouseEmployee(employee);
+        employeeRepository.save(newSpouse);
     }
 
     private User resolveUser(UUID userId) {
@@ -99,6 +136,7 @@ public class EmployeeService {
 
     private EmployeeResponse toResponse(Employee employee) {
         User user = employee.getUser();
+        Employee spouse = employee.getSpouseEmployee();
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getFullName(),
@@ -106,6 +144,8 @@ public class EmployeeService {
                 employee.getTeam().getName(),
                 user == null ? null : user.getId(),
                 employee.getStatus().name(),
+                spouse == null ? null : spouse.getId(),
+                spouse == null ? null : spouse.getFullName(),
                 employee.getCreatedAt());
     }
 }

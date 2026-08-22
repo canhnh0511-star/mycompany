@@ -45,6 +45,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -65,7 +66,10 @@ import org.springframework.transaction.annotation.Transactional;
  * Orchestration Scan Session/Batch (0021-scan-batch-model, Spec 1) — thay thế OcrCaptureService.
  * Thuật toán create/merge/reuse (mục 2-3), date verification (mục 4), resolve mismatch + PENDING_MOVE
  * (mục 5), recompute batch status (mục 5.2, ủy quyền BatchStatusRecomputeService), conflict detection
- * (mục 6), approve/cancel/retry (mục 1).
+ * (mục 6), approve/cancel/retry (mục 1). Riêng production_records: nếu nhân viên khớp có khai báo
+ * sẵn vợ/chồng (employees.spouse_employee_id), 1 dòng OCR tự tách thành 2 draft chia đôi kg (xem
+ * splitBetweenSpouses, port từ OcrCaptureService cũ khi verify Phase 1/2 trên DB thật — ADR-0021
+ * addendum) — Claude KHÔNG biết khái niệm này, việc tách xử lý hoàn toàn ở tầng service.
  *
  * <p>KHÔNG @Transactional ở method orchestration cấp cao (captureImage/processOcr/...) — cùng lý do
  * đã ghi ở OcrCaptureService gốc: nếu bọc cả method, exception ở 1 bước con (vd tạo draft record thất
@@ -376,6 +380,16 @@ public class ScanBatchService {
             String notes = row.path("notes").asText(null);
             List<String> lowConfidence = itemParser.parseStringArray(row.path("low_confidence_fields"));
 
+            if (items.isEmpty()) {
+                // Dòng tên có trên phiếu nhưng KHÔNG ghi số liệu — thường là vợ/chồng của người ở
+                // dòng ngay trên (CLAUDE.md §5, sản lượng gộp chung vào dòng đó rồi, xem
+                // splitBetweenSpouses bên dưới) hoặc đơn giản người này nghỉ hôm đó. Bỏ qua hoàn
+                // toàn: không tạo production_record rỗng vô nghĩa (port từ OcrCaptureService cũ —
+                // ADR-0021 addendum). Ghi audit hệ thống để Admin còn dấu vết đối chiếu khi cần.
+                auditLogService.log(batch, image, "ROW_SKIPPED_EMPTY_ITEMS", null, true, null, rawName, null, null);
+                continue;
+            }
+
             Optional<Employee> matched = fuzzyMatcher.match(rawName, candidates);
             if (matched.isEmpty()) {
                 // CLAUDE.md §9 — không tự đoán, lưu nguyên dữ liệu để Admin chọn thủ công qua
@@ -388,16 +402,79 @@ public class ScanBatchService {
                 conflictService.open(batch, image, null, null, ConflictType.INVALID_BUSINESS_VALUE, true,
                         Map.of("employeeName", matched.get().getFullName(), "reason", "kg/DRC ngoài khoảng hợp lệ"));
             }
-            try {
-                productionRecordService.createDraftFromOcr(effectiveDate, matched.get().getId(), notes, items,
-                        image.getOcrCallLog(), lowConfidence, image, currentUser);
-            } catch (DataIntegrityViolationException ex) {
-                // RULE 12 — không tự xóa/bỏ dòng, chỉ flag để user review (giữ cả 2 hoặc bỏ dòng mới).
-                conflictService.open(batch, image, null, null, ConflictType.POTENTIAL_DUPLICATE_OCR_ROW, true,
-                        Map.of("employeeName", matched.get().getFullName(),
-                                "reason", "đã có bản ghi sản lượng active khác cho nhân viên/ngày này"));
+
+            Employee employee = matched.get();
+            Employee spouse = resolveActiveSpouse(employee);
+            if (spouse == null) {
+                createProductionDraft(batch, image, effectiveDate, employee, items, notes, lowConfidence, currentUser);
+            } else {
+                splitBetweenSpouses(batch, image, effectiveDate, employee, spouse, items, notes, rawName, lowConfidence, currentUser);
             }
         }
+    }
+
+    // Vợ/chồng cùng làm cạo mủ (CLAUDE.md §5, port từ OcrCaptureService cũ — xem ADR-0021 addendum) —
+    // spouse phải đang active mới tách đôi; nếu đã nghỉ việc thì coi như không có, giữ nguyên hành vi
+    // cũ (1 dòng → 1 draft).
+    private Employee resolveActiveSpouse(Employee employee) {
+        Employee spouse = employee.getSpouseEmployee();
+        return spouse != null && spouse.getStatus() == EmployeeStatus.ACTIVE ? spouse : null;
+    }
+
+    // Phiếu giấy đôi khi chỉ ghi 1 dòng cho 1 người nhưng thực ra sản lượng đó là CHUNG của 2 vợ
+    // chồng — chia đôi kg từng loại mủ, tạo 2 draft riêng (cùng trỏ về ocr_call_log/scan_image gốc).
+    // DRC giữ nguyên cho cả 2 bên (đo trên mẻ, không cộng dồn theo khối lượng — CLAUDE.md §4). Đánh
+    // dấu cột kg vào low_confidence_fields để Admin để ý, ghi chú rõ nguồn gốc để đối chiếu khi cần.
+    private void splitBetweenSpouses(ScanBatch batch, ScanImage image, LocalDate effectiveDate, Employee employee,
+            Employee spouse, List<LatexItemRequest> items, String notes, String rawName, List<String> lowConfidence,
+            User currentUser) {
+        List<String> splitLowConfidence = withKgFlagged(lowConfidence);
+        String splitNote = appendSplitNote(notes, rawName);
+
+        createProductionDraft(batch, image, effectiveDate, employee, halveItems(items, false), splitNote,
+                splitLowConfidence, currentUser);
+        createProductionDraft(batch, image, effectiveDate, spouse, halveItems(items, true), splitNote,
+                splitLowConfidence, currentUser);
+    }
+
+    private void createProductionDraft(ScanBatch batch, ScanImage image, LocalDate effectiveDate, Employee employee,
+            List<LatexItemRequest> items, String notes, List<String> lowConfidence, User currentUser) {
+        try {
+            productionRecordService.createDraftFromOcr(effectiveDate, employee.getId(), notes, items,
+                    image.getOcrCallLog(), lowConfidence, image, currentUser);
+        } catch (DataIntegrityViolationException ex) {
+            // RULE 12 — không tự xóa/bỏ dòng, chỉ flag để user review (giữ cả 2 hoặc bỏ dòng mới).
+            conflictService.open(batch, image, null, null, ConflictType.POTENTIAL_DUPLICATE_OCR_ROW, true,
+                    Map.of("employeeName", employee.getFullName(),
+                            "reason", "đã có bản ghi sản lượng active khác cho nhân viên/ngày này"));
+        }
+    }
+
+    private static List<String> withKgFlagged(List<String> lowConfidence) {
+        List<String> flagged = new ArrayList<>(lowConfidence != null ? lowConfidence : List.of());
+        if (!flagged.contains("kg")) {
+            flagged.add("kg");
+        }
+        return flagged;
+    }
+
+    private static String appendSplitNote(String notes, String rawName) {
+        String note = "Tự động chia đôi từ dòng \"" + rawName + "\" (vợ/chồng) — kiểm tra lại số liệu";
+        return notes == null || notes.isBlank() ? note : notes + " | " + note;
+    }
+
+    // Chia đôi kg từng item, giữ nguyên drcPercent (không chia — CLAUDE.md §4). roundUp=false lấy
+    // floor(kg/2, scale 2), roundUp=true lấy phần còn lại (kg - floor) — cộng lại đúng bằng số gốc,
+    // không làm tròn mất mát dù tổng có lẻ (khớp thực tế quan sát ở bảng lương nội bộ, vd 557kg →
+    // 278/279kg).
+    private static List<LatexItemRequest> halveItems(List<LatexItemRequest> items, boolean roundUp) {
+        return items.stream()
+                .map(item -> {
+                    BigDecimal half = item.kg().divide(BigDecimal.valueOf(2), 2, RoundingMode.DOWN);
+                    BigDecimal kg = roundUp ? item.kg().subtract(half) : half;
+                    return new LatexItemRequest(item.latexTypeId(), kg, item.drcPercent());
+                })
+                .toList();
     }
 
     private void captureLatexSaleRow(JsonNode input, LocalDate effectiveDate, ScanBatch batch, ScanImage image, User currentUser) {
