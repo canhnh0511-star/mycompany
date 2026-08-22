@@ -37,7 +37,6 @@ import com.mycompany.api.repository.OcrCallLogRepository;
 import com.mycompany.api.repository.ScanBatchAuditLogRepository;
 import com.mycompany.api.repository.ScanBatchRepository;
 import com.mycompany.api.repository.ScanImageRepository;
-import com.mycompany.api.repository.TeamRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.security.MessageDigest;
@@ -58,18 +57,18 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestration Scan Session/Batch (0021-scan-batch-model, Spec 1) — thay thế OcrCaptureService.
- * Thuật toán create/merge/reuse (mục 2-3), date verification (mục 4), resolve mismatch + PENDING_MOVE
- * (mục 5), recompute batch status (mục 5.2, ủy quyền BatchStatusRecomputeService), conflict detection
- * (mục 6), approve/cancel/retry (mục 1). Riêng production_records: nếu nhân viên khớp có khai báo
- * sẵn vợ/chồng (employees.spouse_employee_id), 1 dòng OCR tự tách thành 2 draft chia đôi kg (xem
- * splitBetweenSpouses, port từ OcrCaptureService cũ khi verify Phase 1/2 trên DB thật — ADR-0021
- * addendum) — Claude KHÔNG biết khái niệm này, việc tách xử lý hoàn toàn ở tầng service.
+ * Thuật toán create/merge/reuse (mục 2-3, ủy quyền {@link ScanBatchCreationService} — xem javadoc
+ * class đó về LÝ DO tách riêng, không chỉ tổ chức code), date verification (mục 4), resolve mismatch
+ * + PENDING_MOVE (mục 5), recompute batch status (mục 5.2, ủy quyền BatchStatusRecomputeService),
+ * conflict detection (mục 6), approve/cancel/retry (mục 1). Riêng production_records: nếu nhân viên
+ * khớp có khai báo sẵn vợ/chồng (employees.spouse_employee_id), 1 dòng OCR tự tách thành 2 draft
+ * chia đôi kg (xem splitBetweenSpouses, port từ OcrCaptureService cũ khi verify Phase 1/2 trên DB
+ * thật — ADR-0021 addendum) — Claude KHÔNG biết khái niệm này, việc tách xử lý hoàn toàn ở tầng
+ * service.
  *
  * <p>KHÔNG @Transactional ở method orchestration cấp cao (captureImage/processOcr/...) — cùng lý do
  * đã ghi ở OcrCaptureService gốc: nếu bọc cả method, exception ở 1 bước con (vd tạo draft record thất
@@ -87,14 +86,10 @@ public class ScanBatchService {
             "claude-sonnet-5", new double[] {3.00, 15.00},
             "claude-haiku-4-5", new double[] {1.00, 5.00});
 
-    // Spec 1 mục 3.2 — status còn được coi là "Supplement đang active" (loại APPROVED/CANCELLED).
-    private static final List<BatchStatus> ACTIVE_SUPPLEMENT_STATUSES = List.of(
-            BatchStatus.DRAFT, BatchStatus.UPLOADING, BatchStatus.PROCESSING, BatchStatus.NEED_REVIEW,
-            BatchStatus.READY_TO_APPROVE, BatchStatus.PARTIAL_FAILED, BatchStatus.FAILED);
-
     private final ScanBatchRepository scanBatchRepository;
     private final ScanImageRepository scanImageRepository;
     private final ScanBatchAuditLogRepository auditLogRepository;
+    private final ScanBatchCreationService creationService;
     private final ScanBatchConflictService conflictService;
     private final ScanBatchAuditLogService auditLogService;
     private final BatchStatusRecomputeService recomputeService;
@@ -105,95 +100,22 @@ public class ScanBatchService {
     private final AnthropicProperties anthropicProperties;
     private final OcrCallLogRepository ocrCallLogRepository;
     private final EmployeeRepository employeeRepository;
-    private final TeamRepository teamRepository;
     private final EmployeeFuzzyMatcher fuzzyMatcher;
     private final ProductionRecordService productionRecordService;
     private final LatexSaleService latexSaleService;
     private final ObjectMapper objectMapper;
-    private final JdbcTemplate jdbcTemplate;
     private final LatexTypeItemParser itemParser;
 
     // ============================================================= mục 1 — lookup trước khi chụp
 
     public ScanBatchLookupResponse lookup(OcrTargetType documentType, UUID teamId, LocalDate workDate) {
-        Optional<ScanBatch> existing = findLatestPrimary(documentType, workDate, teamId);
+        Optional<ScanBatch> existing = creationService.findLatestPrimary(documentType, workDate, teamId);
         if (existing.isEmpty()) {
             return new ScanBatchLookupResponse(null, null, false);
         }
         ScanBatch batch = existing.get();
         boolean blocked = batch.getStatus() == BatchStatus.FAILED || batch.getStatus() == BatchStatus.APPROVED;
         return new ScanBatchLookupResponse(batch.getId(), batch.getStatus().name(), blocked);
-    }
-
-    // ============================================================= mục 2-3 — create/merge/reuse
-
-    // Advisory lock transaction-scoped (tự release lúc commit/rollback) — chặn 2 request đồng thời
-    // cùng đọc "chưa có batch" rồi cùng tạo mới (Case 19). Unique index uq_scan_batches_primary_key
-    // (migration 007) là belt-and-suspenders nếu lock bị miss ở 1 code path khác sau này.
-    @Transactional
-    public ScanBatch resolveOrCreateBatchForImage(OcrTargetType documentType, LocalDate workDate, UUID teamId, User currentUser) {
-        acquireAdvisoryLock("primary", documentType.name(), workDate.toString(), teamId.toString());
-        Optional<ScanBatch> existing = findLatestPrimary(documentType, workDate, teamId);
-        if (existing.isEmpty()) {
-            Team team = teamRepository.findById(teamId)
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy Tổ với id=" + teamId));
-            try {
-                return scanBatchRepository.save(ScanBatch.builder()
-                        .documentType(documentType).workDate(workDate).team(team).batchType(BatchType.PRIMARY)
-                        .status(BatchStatus.DRAFT).createdBy(currentUser).build());
-            } catch (DataIntegrityViolationException ex) {
-                throw new ConflictException("Đã có phiên quét khác được tạo cho Tổ/ngày/loại phiếu này — thử lại");
-            }
-        }
-        ScanBatch batch = existing.get();
-        if (batch.getStatus().isMergeable()) {
-            return batch;
-        }
-        if (batch.getStatus() == BatchStatus.FAILED) {
-            throw new ConflictException("batch_id=" + batch.getId()
-                    + " đang FAILED — cần \"Thử lại\" hoặc \"Hủy phiên này\" trước khi chụp tiếp");
-        }
-        if (batch.getStatus() == BatchStatus.APPROVED) {
-            throw new ConflictException("batch_id=" + batch.getId()
-                    + " đã APPROVED — dùng flow \"Bổ sung phiếu\" (Supplement), không tạo phiên mới");
-        }
-        throw new IllegalStateException("Unreachable — status=" + batch.getStatus());
-    }
-
-    @Transactional
-    public ScanBatch resolveOrCreateSupplement(UUID originalBatchId, User currentUser) {
-        acquireAdvisoryLock("supplement", originalBatchId.toString());
-        Optional<ScanBatch> active = scanBatchRepository.findByOriginalBatchIdAndBatchTypeAndStatusIn(
-                originalBatchId, BatchType.SUPPLEMENT, ACTIVE_SUPPLEMENT_STATUSES);
-        if (active.isPresent()) {
-            ScanBatch supplement = active.get();
-            auditLogService.logByUser(supplement, null, "SUPPLEMENT_REUSED", currentUser);
-            return supplement;
-        }
-        ScanBatch original = scanBatchRepository.findById(originalBatchId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_batch (PRIMARY) với id=" + originalBatchId));
-        ScanBatch supplement;
-        try {
-            supplement = scanBatchRepository.save(ScanBatch.builder()
-                    .documentType(original.getDocumentType()).workDate(original.getWorkDate()).team(original.getTeam())
-                    .batchType(BatchType.SUPPLEMENT).originalBatch(original)
-                    .status(BatchStatus.DRAFT).createdBy(currentUser).build());
-        } catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("Đã có Supplement khác đang active cho PRIMARY này — thử lại");
-        }
-        auditLogService.logByUser(supplement, null, "SUPPLEMENT_CREATED", currentUser);
-        return supplement;
-    }
-
-    private Optional<ScanBatch> findLatestPrimary(OcrTargetType documentType, LocalDate workDate, UUID teamId) {
-        return scanBatchRepository.findTopByDocumentTypeAndWorkDateAndTeamIdAndBatchTypeAndStatusNotOrderByCreatedAtDesc(
-                documentType, workDate, teamId, BatchType.PRIMARY, BatchStatus.CANCELLED);
-    }
-
-    private void acquireAdvisoryLock(String... keyParts) {
-        int key1 = keyParts.length > 0 ? keyParts[0].hashCode() : 0;
-        int key2 = String.join("|", keyParts).hashCode();
-        jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(?, ?)", (rs, rowNum) -> null, key1, key2);
     }
 
     // ============================================================= capture ảnh (thay OcrCaptureService)
@@ -206,7 +128,7 @@ public class ScanBatchService {
             return buildResponse(existingImage.get().getScanBatch().getId());
         }
 
-        ScanBatch batch = resolveOrCreateBatchForImage(request.documentType(), request.workDate(), request.teamId(), currentUser);
+        ScanBatch batch = creationService.resolveOrCreateBatchForImage(request.documentType(), request.workDate(), request.teamId(), currentUser);
 
         ScanImage image = scanImageRepository.save(ScanImage.builder()
                 .scanBatch(batch)
@@ -533,11 +455,11 @@ public class ScanBatchService {
 
         // CHANGE_DATE (RULE 8/9)
         LocalDate targetDate = image.getOcrDetectedDate();
-        Optional<ScanBatch> targetOpt = findLatestPrimary(sourceBatch.getDocumentType(), targetDate, sourceBatch.getTeam().getId());
+        Optional<ScanBatch> targetOpt = creationService.findLatestPrimary(sourceBatch.getDocumentType(), targetDate, sourceBatch.getTeam().getId());
 
         if (targetOpt.isEmpty() || targetOpt.get().getStatus().isMergeable()) {
             // RULE 8 — merge thẳng (tạo mới nếu chưa có, hoặc merge vào batch đích đang sống).
-            ScanBatch target = resolveOrCreateBatchForImage(sourceBatch.getDocumentType(), targetDate, sourceBatch.getTeam().getId(), currentUser);
+            ScanBatch target = creationService.resolveOrCreateBatchForImage(sourceBatch.getDocumentType(), targetDate, sourceBatch.getTeam().getId(), currentUser);
             reparentImageAndRecords(image, target, targetDate);
             image.setDateResolution(DateResolution.CHANGE_DATE);
             scanImageRepository.save(image);
@@ -555,7 +477,7 @@ public class ScanBatchService {
         }
 
         // target APPROVED — RULE 9, PENDING_MOVE.
-        ScanBatch supplement = resolveOrCreateSupplement(target.getId(), currentUser);
+        ScanBatch supplement = creationService.resolveOrCreateSupplement(target.getId(), currentUser);
         ScanImage targetImage = scanImageRepository.save(ScanImage.builder()
                 .scanBatch(supplement)
                 .storagePath(image.getStoragePath())
@@ -662,11 +584,15 @@ public class ScanBatchService {
         if (batch.getStatus() == BatchStatus.APPROVED) {
             throw new ConflictException("Batch id=" + batchId + " đã APPROVED trước đó");
         }
-        if (batch.getStatus().isTerminal()) {
-            throw new ConflictException("Không thể approve batch đang " + batch.getStatus());
-        }
-        if (!conflictService.canApprove(batchId)) {
-            throw new ConflictException("Còn conflict blocking chưa resolve — không thể xác nhận dữ liệu (RULE 6/15)");
+        // RULE 16 — CHỈ approve được khi đã recompute về đúng READY_TO_APPROVE. Trước đây chỉ check
+        // "không terminal + không blocking conflict", để lọt batch đang UPLOADING/PROCESSING (ảnh mới
+        // thêm chưa xử lý xong, CHƯA kịp phát sinh conflict row nào) vẫn approve được — phát hiện khi
+        // viết integration test Case 24 (Spec 1 mục 9). conflictService.canApprove giữ lại làm
+        // defense-in-depth (đề phòng batch.status lệch khỏi recompute do 1 code path nào đó quên gọi
+        // recompute sau khi mở conflict).
+        if (batch.getStatus() != BatchStatus.READY_TO_APPROVE || !conflictService.canApprove(batchId)) {
+            throw new ConflictException("Chỉ xác nhận được batch đang READY_TO_APPROVE và không còn conflict "
+                    + "blocking (hiện tại: " + batch.getStatus() + ") — RULE 6/15/16");
         }
 
         if (batch.getDocumentType() == OcrTargetType.PRODUCTION_RECORD) {
@@ -775,7 +701,7 @@ public class ScanBatchService {
                 .map(this::toConflictResponse)
                 .sorted(Comparator.comparingInt(ScanBatchConflictResponse::displayOrder))
                 .toList();
-        boolean canApprove = !batch.getStatus().isTerminal() && conflictService.canApprove(batchId);
+        boolean canApprove = batch.getStatus() == BatchStatus.READY_TO_APPROVE && conflictService.canApprove(batchId);
         return new ScanBatchResponse(
                 batch.getId(), batch.getDocumentType().name(), batch.getWorkDate(),
                 batch.getTeam().getId(), batch.getTeam().getName(),
