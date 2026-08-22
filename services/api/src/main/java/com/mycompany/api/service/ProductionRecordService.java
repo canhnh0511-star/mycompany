@@ -16,6 +16,8 @@ import com.mycompany.api.entity.ProductionRecord;
 import com.mycompany.api.entity.ProductionRecordItem;
 import com.mycompany.api.entity.RecordSource;
 import com.mycompany.api.entity.RecordStatus;
+import com.mycompany.api.entity.ScanBatch;
+import com.mycompany.api.entity.ScanImage;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.exception.InvalidRequestException;
@@ -132,13 +134,16 @@ public class ProductionRecordService {
         return after;
     }
 
-    // Gọi từ OcrCaptureService (Phase 3, cùng package) — tạo draft row từ 1 dòng OCR đã fuzzy-match
+    // Gọi từ ScanBatchService (0021-scan-batch-model) — tạo draft row từ 1 dòng OCR đã fuzzy-match
     // ra employeeId. Khác createOne(): source=OCR_IMPORT, status=DRAFT (ADR-0006), có photoUrl/
-    // ocrCallLog/lowConfidenceFields. Validate cùng logic (trùng active/employee/ngày, trùng
-    // latexType trong items) — chồng lấn cũng phải chặn ở đây vì unique index không phân biệt nguồn.
+    // ocrCallLog/lowConfidenceFields/scanImage/scanBatch. Validate cùng logic (trùng active/
+    // employee/ngày, trùng latexType trong items) — chồng lấn cũng phải chặn ở đây vì unique index
+    // không phân biệt nguồn. scanImage nullable — null khi gọi từ code path cũ/test không qua Scan
+    // Batch (không nên xảy ra ở luồng thật sau 0021, nhưng giữ linh hoạt).
     @Transactional
     public ProductionRecordResponse createDraftFromOcr(LocalDate recordDate, UUID employeeId, String notes,
-            List<LatexItemRequest> items, OcrCallLog ocrCallLog, List<String> lowConfidenceFields, User currentUser) {
+            List<LatexItemRequest> items, OcrCallLog ocrCallLog, List<String> lowConfidenceFields,
+            ScanImage scanImage, User currentUser) {
         Employee employee = findEmployeeOrThrow(employeeId);
         checkNoActiveDuplicate(employee.getId(), recordDate, null);
 
@@ -152,10 +157,87 @@ public class ProductionRecordService {
                 .photoUrl(ocrCallLog.getPhotoUrl())
                 .ocrCallLog(ocrCallLog)
                 .lowConfidenceFields(writeLowConfidenceFieldsOrNull(lowConfidenceFields))
+                .scanImage(scanImage)
+                .scanBatch(scanImage != null ? scanImage.getScanBatch() : null)
                 .createdBy(currentUser)
                 .build();
         addItems(record, items);
         return toResponse(productionRecordRepository.saveAndFlush(record));
+    }
+
+    // ---- 0021-scan-batch-model: thao tác cấp batch, gọi từ ScanBatchService ----
+
+    // Batch APPROVE (Spec 1 mục 6 "Điều kiện approve") — bulk-approve mọi DRAFT record thuộc batch.
+    // KHÔNG ghi edit_history (cùng lý do approve() đơn lẻ — bước hoàn tất review, không phải "sửa").
+    @Transactional
+    public int bulkApproveByScanBatch(UUID scanBatchId) {
+        List<ProductionRecord> drafts = productionRecordRepository.findByScanBatchIdAndStatus(scanBatchId, RecordStatus.DRAFT);
+        drafts.forEach(r -> r.setStatus(RecordStatus.APPROVED));
+        productionRecordRepository.saveAll(drafts);
+        return drafts.size();
+    }
+
+    // RULE 8/CHANGE_DATE (không phải nhánh Supplement) — reparent draft record của 1 ScanImage sang
+    // batch đích (merge thẳng), đổi luôn record_date theo effectiveDate mới.
+    @Transactional
+    public void reparentDraftsForImage(UUID scanImageId, ScanBatch targetBatch, LocalDate newRecordDate) {
+        List<ProductionRecord> records = productionRecordRepository.findByScanImageId(scanImageId);
+        for (ProductionRecord r : records) {
+            if (r.getStatus() != RecordStatus.DRAFT) {
+                continue;
+            }
+            r.setScanBatch(targetBatch);
+            r.setTeam(targetBatch.getTeam());
+            r.setRecordDate(newRecordDate);
+        }
+        productionRecordRepository.saveAll(records);
+    }
+
+    // RULE 9/PENDING_MOVE — COPY (không move) draft record của 1 ScanImage sang Supplement batch;
+    // record GỐC giữ nguyên ở source (loại khỏi tính toán qua ImageStatus=PENDING_MOVE, không phải
+    // qua RecordStatus — xem ScanBatchService).
+    @Transactional
+    public void copyDraftsForImage(UUID scanImageId, ScanImage targetImage, ScanBatch targetSupplement, LocalDate newRecordDate) {
+        List<ProductionRecord> sourceRecords = productionRecordRepository.findByScanImageId(scanImageId);
+        List<ProductionRecord> copies = new ArrayList<>();
+        for (ProductionRecord src : sourceRecords) {
+            if (src.getStatus() != RecordStatus.DRAFT) {
+                continue;
+            }
+            ProductionRecord copy = ProductionRecord.builder()
+                    .recordDate(newRecordDate)
+                    .employee(src.getEmployee())
+                    .team(targetSupplement.getTeam())
+                    .notes(src.getNotes())
+                    .source(src.getSource())
+                    .status(RecordStatus.DRAFT)
+                    .photoUrl(src.getPhotoUrl())
+                    .ocrCallLog(src.getOcrCallLog())
+                    .lowConfidenceFields(src.getLowConfidenceFields())
+                    .scanImage(targetImage)
+                    .scanBatch(targetSupplement)
+                    .createdBy(src.getCreatedBy())
+                    .build();
+            src.getItems().forEach(item -> copy.addItem(ProductionRecordItem.builder()
+                    .latexType(item.getLatexType())
+                    .kg(item.getKg())
+                    .drcPercent(item.getDrcPercent())
+                    .build()));
+            copies.add(copy);
+        }
+        productionRecordRepository.saveAll(copies);
+    }
+
+    // Khi Supplement approve xong (move hoàn tất) hoặc user discard 1 ảnh lỗi — hủy các DRAFT record
+    // còn lại gắn với 1 ScanImage. Dùng cancel() để đi qua đúng guard/edit_history hiện có.
+    @Transactional
+    public void cancelDraftsForImage(UUID scanImageId, User currentUser) {
+        List<ProductionRecord> records = productionRecordRepository.findByScanImageId(scanImageId);
+        for (ProductionRecord r : records) {
+            if (r.getStatus() == RecordStatus.DRAFT) {
+                cancel(r.getId(), currentUser);
+            }
+        }
     }
 
     // draft → approved (ADR-0006, đổi tên từ "confirm" ở 0021-scan-batch-model để nhất quán thuật ngữ

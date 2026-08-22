@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Đọc ocr_call_logs — theo dõi chi phí/thời gian phản hồi/tỷ lệ thành công (CLAUDE.md §4, docs/TASKS.md
- * Phase 4). Chỉ đọc — ghi log do OcrCaptureService (Phase 3) đảm nhiệm, không đụng ở đây.
+ * Phase 4). Chỉ đọc — ghi log do ScanBatchService (0021-scan-batch-model) đảm nhiệm, không đụng ở đây.
  */
 @Service
 @RequiredArgsConstructor

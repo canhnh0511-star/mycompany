@@ -1,40 +1,31 @@
 package com.mycompany.api.controller;
 
 import com.mycompany.api.dto.CreateSignedUploadUrlRequest;
-import com.mycompany.api.dto.OcrCaptureRequest;
-import com.mycompany.api.dto.OcrCaptureResponse;
 import com.mycompany.api.dto.SignedUploadUrlResponse;
-import com.mycompany.api.entity.User;
-import com.mycompany.api.service.OcrCaptureService;
 import com.mycompany.api.service.SupabaseStorageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Luồng OCR (CLAUDE.md §5, ADR-0005, ADR-0006). Gọi đồng bộ — request chờ tới khi Claude trả kết quả. */
+/**
+ * Upload ảnh (bước 1/2 của luồng quét — CLAUDE.md §5, ADR-0005). Bước 2 (OCR + tạo draft) chuyển
+ * sang {@code POST /api/v1/scan-batches/images} (0021-scan-batch-model, ScanBatchController) —
+ * endpoint {@code POST /ocr/capture} cũ đã bị XÓA, không giữ song song 2 code path.
+ */
 @RestController
 @RequestMapping("/api/v1/ocr")
 @RequiredArgsConstructor
 public class OcrController {
 
     private final SupabaseStorageService storageService;
-    private final OcrCaptureService ocrCaptureService;
 
-    // Bước 1: xin URL để app upload TRỰC TIẾP lên Supabase Storage (không proxy binary qua backend).
+    // Xin URL để app upload TRỰC TIẾP lên Supabase Storage (không proxy binary qua backend).
     @PostMapping("/upload-url")
     public SignedUploadUrlResponse createUploadUrl(@Valid @RequestBody CreateSignedUploadUrlRequest request) {
         SupabaseStorageService.SignedUploadUrl signed = storageService.createSignedUploadUrl(request.contentType());
         return new SignedUploadUrlResponse(signed.objectPath(), signed.uploadUrl(), signed.token());
-    }
-
-    // Bước 2: sau khi app đã PUT xong ảnh lên uploadUrl ở bước 1, gọi capture với photoPath trả về.
-    @PostMapping("/capture")
-    public OcrCaptureResponse capture(@Valid @RequestBody OcrCaptureRequest request,
-            @AuthenticationPrincipal User currentUser) {
-        return ocrCaptureService.capture(request, currentUser);
     }
 }

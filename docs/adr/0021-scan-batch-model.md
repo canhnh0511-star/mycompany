@@ -20,3 +20,14 @@ Luồng OCR v1 (ADR-0005/0006/0011) không có khái niệm nhóm nhiều ảnh:
 **`RecordStatus.CONFIRMED` đổi tên thành `APPROVED`** (migration 006) — nhất quán thuật ngữ với `ScanBatch.status APPROVED` (cùng nghĩa "đã khóa, immutable"), tránh 2 từ khác nhau cho cùng 1 khái niệm. Endpoint `/confirm` đổi thành `/approve`. `attendance_records` KHÔNG bị ảnh hưởng — xem ADR-0022 (tách `AttendanceRecordStatus` riêng TRƯỚC khi rename, vì `RecordStatus` trước đó bị dùng chung cho cả 3 entity dù comment chỉ nhắc 2).
 
 **Ngoài scope migration này:** wiring `ScanBatchService`/`ScanBatchController` (create/merge/approve/cancel/retry, date verification, conflict detection) — đây mới là phần entity/migration nền tảng, additive, không đổi runtime OCR hiện tại cho tới khi API mới nối vào (xem plan implementation phases).
+
+## Addendum — Phase 2 (wiring API, `ScanBatchController`/`ScanBatchService`)
+
+`POST /api/v1/ocr/capture` cũ đã **xóa hẳn** (cùng `OcrCaptureService`/`OcrCaptureRequest`/`OcrCaptureResponse`), thay bằng `POST /api/v1/scan-batches/images` — không giữ 2 code path song song. `OcrController` chỉ còn `/upload-url`.
+
+Deviation có chủ đích so với plan gốc:
+- `resolve-conflict` route theo **conflictId** (`POST /scan-batches/conflicts/{conflictId}/resolve`), không phải `imageId` như phác thảo ban đầu — 1 ảnh có thể phát sinh nhiều conflict cùng lúc (vd vừa `UNKNOWN_EMPLOYEE` vừa `INVALID_BUSINESS_VALUE`), cần định danh đúng 1 conflict cụ thể để resolve.
+- `ScanBatchService` các method orchestration cấp cao (`captureImage`, `processOcr`, ...) **không** `@Transactional` — lặp lại đúng lý do đã ghi trong `OcrCaptureService` gốc: bọc cả method sẽ khiến 1 exception ở bước con (vd trùng unique index khi tạo draft) đánh dấu rollback-only cho cả transaction, kéo theo mất luôn `ocr_call_logs`/`ScanImage` đã ghi trước đó. Method con nào cần transaction thật (advisory lock, ghi nhất quán nhiều bảng) tự khai báo `@Transactional` riêng.
+- `cancelBatch` cho phép hủy từ **bất kỳ trạng thái non-terminal nào**, không chỉ `FAILED` — UI chỉ nổi bật nút "Hủy phiên này" trên banner FAILED của PRIMARY, nhưng Supplement cần hủy được từ `NEED_REVIEW`/`READY_TO_APPROVE` khi user reject bổ sung (Case 22).
+
+Chưa verify được bằng integration test thật (sandbox không có Postgres) — `DateVerificationServiceTest`/`BatchStatusRecomputeServiceTest` (Mockito, không cần DB) đã cover phần pure-logic (RULE 16 precedence, mục 4 date verification). Case 17-28 (Spec 1 mục 9) cần viết integration test trên máy có DB thật trước khi coi Phase 2 là "done" theo đúng nghĩa test plan đã duyệt.
