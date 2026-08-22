@@ -73,7 +73,7 @@ public class ProductionRecord {
     private OcrCallLog ocrCallLog; // nullable; set khi source = OCR_IMPORT — trace về lần gọi OCR
 
     // Nullable — chỉ set khi record tạo qua luồng Scan Batch (0021-scan-batch-model); null cho
-    // record source=manual và toàn bộ dữ liệu tạo trước migration 005 (không backfill, xem plan mục
+    // record source=manual và toàn bộ dữ liệu tạo trước migration 008 (không backfill, xem plan mục
     // Rủi ro). scanBatch denormalize từ scanImage.scanBatch, giống tiền lệ team denormalize từ
     // employee.team — tránh Sản lượng v2 phải join qua scan_images mỗi lần aggregate theo batch.
     @ManyToOne(fetch = FetchType.LAZY)

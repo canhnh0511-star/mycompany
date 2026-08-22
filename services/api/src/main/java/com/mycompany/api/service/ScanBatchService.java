@@ -125,7 +125,7 @@ public class ScanBatchService {
 
     // Advisory lock transaction-scoped (tự release lúc commit/rollback) — chặn 2 request đồng thời
     // cùng đọc "chưa có batch" rồi cùng tạo mới (Case 19). Unique index uq_scan_batches_primary_key
-    // (migration 004) là belt-and-suspenders nếu lock bị miss ở 1 code path khác sau này.
+    // (migration 007) là belt-and-suspenders nếu lock bị miss ở 1 code path khác sau này.
     @Transactional
     public ScanBatch resolveOrCreateBatchForImage(OcrTargetType documentType, LocalDate workDate, UUID teamId, User currentUser) {
         acquireAdvisoryLock("primary", documentType.name(), workDate.toString(), teamId.toString());

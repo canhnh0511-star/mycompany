@@ -31,3 +31,18 @@ Deviation có chủ đích so với plan gốc:
 - `cancelBatch` cho phép hủy từ **bất kỳ trạng thái non-terminal nào**, không chỉ `FAILED` — UI chỉ nổi bật nút "Hủy phiên này" trên banner FAILED của PRIMARY, nhưng Supplement cần hủy được từ `NEED_REVIEW`/`READY_TO_APPROVE` khi user reject bổ sung (Case 22).
 
 Chưa verify được bằng integration test thật (sandbox không có Postgres) — `DateVerificationServiceTest`/`BatchStatusRecomputeServiceTest` (Mockito, không cần DB) đã cover phần pure-logic (RULE 16 precedence, mục 4 date verification). Case 17-28 (Spec 1 mục 9) cần viết integration test trên máy có DB thật trước khi coi Phase 2 là "done" theo đúng nghĩa test plan đã duyệt.
+
+## Addendum — renumber migration (verify với DB thật)
+
+Lúc verify Phase 1/2 trên DB Supabase dev thật, phát hiện migration `004_add_employee_spouse.sql` (nhánh
+`main`, tính năng chia đôi sản lượng vợ/chồng — không liên quan Scan Batch) đã áp dụng thật vào DB này từ
+2026-08-16, ở một phiên làm việc khác — **trước khi** nhánh `claude/tim-phieu-screen-status-6wfiar` được
+verify. 3 migration của Phase 1 (`004_scan_batches_and_images.sql`, `005_link_records_to_scan_images.sql`,
+`006_rename_confirmed_to_approved.sql`) đụng số thứ tự với migration đã sống thật đó → Flyway checksum
+mismatch khi chạy trên DB dùng chung.
+
+**Xử lý:** đổi số 3 file thành `007/008/009` (giữ nguyên nội dung), đồng thời thêm luôn
+`004_add_employee_spouse.sql` vào nhánh này (copy nguyên văn từ `main`, checksum khớp với bản đã áp dụng
+trên DB) để lịch sử migration nhất quán khi 2 nhánh merge lại. Các comment code tham chiếu số migration cũ
+(`ScanBatchService`, `ProductionRecord`, `RecordStatus`) đã cập nhật theo số mới; nội dung quyết định ở
+phần ADR gốc phía trên giữ nguyên, chỉ số file thay đổi.
