@@ -40,7 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 /**
  * Test 2 hành vi nghiệp vụ phức tạp nhất của service này (docs/TASKS.md Phase 5):
  * 1) batch best-effort theo từng dòng (ADR-0007) — 1 dòng lỗi không chặn/rollback các dòng khác.
- * 2) guard "chỉ ghi edit_history khi record đã CONFIRMED trước khi sửa/hủy" (docs/TASKS.md Phase 2).
+ * 2) guard "chỉ ghi edit_history khi record đã APPROVED trước khi sửa/hủy" (docs/TASKS.md Phase 2).
  * RequiresNewTransactionRunner bị mock để chạy action trực tiếp (không cần transaction thật) — test
  * này chỉ xác nhận HÀNH VI best-effort ở tầng service, không test cơ chế transaction của Spring.
  */
@@ -136,7 +136,7 @@ class ProductionRecordServiceTest {
 
     @Test
     void update_logsEditHistory_whenRecordWasAlreadyConfirmed() {
-        ProductionRecord confirmedRecord = existingRecord(RecordStatus.CONFIRMED);
+        ProductionRecord confirmedRecord = existingRecord(RecordStatus.APPROVED);
         when(productionRecordRepository.findById(confirmedRecord.getId())).thenReturn(Optional.of(confirmedRecord));
         when(employeeRepository.findById(employee.getId())).thenReturn(Optional.of(employee));
         when(latexTypeRepository.findById(waterType.getId())).thenReturn(Optional.of(waterType));

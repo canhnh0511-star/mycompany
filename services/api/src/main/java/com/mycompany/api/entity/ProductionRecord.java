@@ -72,6 +72,18 @@ public class ProductionRecord {
     @JoinColumn(name = "ocr_call_log_id")
     private OcrCallLog ocrCallLog; // nullable; set khi source = OCR_IMPORT — trace về lần gọi OCR
 
+    // Nullable — chỉ set khi record tạo qua luồng Scan Batch (0021-scan-batch-model); null cho
+    // record source=manual và toàn bộ dữ liệu tạo trước migration 008 (không backfill, xem plan mục
+    // Rủi ro). scanBatch denormalize từ scanImage.scanBatch, giống tiền lệ team denormalize từ
+    // employee.team — tránh Sản lượng v2 phải join qua scan_images mỗi lần aggregate theo batch.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scan_image_id")
+    private ScanImage scanImage;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scan_batch_id")
+    private ScanBatch scanBatch;
+
     // JSON thô (Jackson serialize ở service layer) — field nào OCR không chắc chắn, để frontend đọc
     // thẳng từ draft row mà highlight (CLAUDE.md §5), không phải state tạm ở client (ADR-0006).
     @JdbcTypeCode(SqlTypes.JSON)

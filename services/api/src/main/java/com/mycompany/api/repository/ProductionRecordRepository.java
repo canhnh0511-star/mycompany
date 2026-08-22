@@ -3,6 +3,7 @@ package com.mycompany.api.repository;
 import com.mycompany.api.entity.ProductionRecord;
 import com.mycompany.api.entity.RecordStatus;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -18,4 +19,9 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
 
     boolean existsByEmployeeIdAndRecordDateAndStatusNotAndIdNot(
             UUID employeeId, LocalDate recordDate, RecordStatus status, UUID id);
+
+    // 0021-scan-batch-model — trace/reparent record theo ScanImage/ScanBatch.
+    List<ProductionRecord> findByScanImageId(UUID scanImageId);
+
+    List<ProductionRecord> findByScanBatchIdAndStatus(UUID scanBatchId, RecordStatus status);
 }

@@ -17,6 +17,14 @@ public final class ProductionRecordSpecifications {
 
     public static Specification<ProductionRecord> withFilters(
             UUID teamId, UUID employeeId, LocalDate fromDate, LocalDate toDate, RecordStatus status) {
+        return withFilters(teamId, employeeId, fromDate, toDate, status, null);
+    }
+
+    // scanBatchId — 0021-scan-batch-model, dùng cho màn review 1 phiên quét cụ thể (draft record nào
+    // thuộc batch này). Overload riêng thay vì thêm tham số vào chữ ký cũ để không phá các call site
+    // hiện có (report/list thông thường không cần lọc theo batch).
+    public static Specification<ProductionRecord> withFilters(
+            UUID teamId, UUID employeeId, LocalDate fromDate, LocalDate toDate, RecordStatus status, UUID scanBatchId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (teamId != null) {
@@ -33,6 +41,9 @@ public final class ProductionRecordSpecifications {
             }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (scanBatchId != null) {
+                predicates.add(cb.equal(root.get("scanBatch").get("id"), scanBatchId));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };

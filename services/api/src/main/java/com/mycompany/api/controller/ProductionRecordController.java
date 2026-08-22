@@ -48,7 +48,8 @@ public class ProductionRecordController {
         return productionRecordService.get(id);
     }
 
-    // Tab "Tra cứu" (CLAUDE.md §5) — mặc định trả cả draft chưa confirm khi không lọc status.
+    // Tab "Tra cứu" (CLAUDE.md §5) — mặc định trả cả draft chưa approve khi không lọc status.
+    // scanBatchId (0021-scan-batch-model) — màn review 1 phiên quét cụ thể (ScanBatchController).
     @GetMapping
     public Page<ProductionRecordResponse> list(
             @RequestParam(required = false) UUID teamId,
@@ -56,8 +57,9 @@ public class ProductionRecordController {
             @RequestParam(required = false) LocalDate fromDate,
             @RequestParam(required = false) LocalDate toDate,
             @RequestParam(required = false) RecordStatus status,
+            @RequestParam(required = false) UUID scanBatchId,
             @PageableDefault(size = 50, sort = "recordDate", direction = Direction.DESC) Pageable pageable) {
-        return productionRecordService.list(teamId, employeeId, fromDate, toDate, status, pageable);
+        return productionRecordService.list(teamId, employeeId, fromDate, toDate, status, scanBatchId, pageable);
     }
 
     @PatchMapping("/{id}")
@@ -73,9 +75,10 @@ public class ProductionRecordController {
         return productionRecordService.cancel(id, currentUser);
     }
 
-    // draft → confirmed (ADR-0006) — chỉ áp dụng cho record tạo qua luồng OCR (Phase 3).
-    @PostMapping("/{id}/confirm")
-    public ProductionRecordResponse confirm(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
-        return productionRecordService.confirm(id, currentUser);
+    // draft → approved (ADR-0006, đổi tên endpoint từ /confirm ở 0021-scan-batch-model) — chỉ áp dụng
+    // cho record tạo qua luồng OCR.
+    @PostMapping("/{id}/approve")
+    public ProductionRecordResponse approve(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
+        return productionRecordService.approve(id, currentUser);
     }
 }

@@ -6,9 +6,9 @@ import com.mycompany.api.dto.BatchResult.BatchItemResult;
 import com.mycompany.api.dto.CreateAttendanceRecordRequest;
 import com.mycompany.api.dto.UpdateAttendanceRecordRequest;
 import com.mycompany.api.entity.AttendanceRecord;
+import com.mycompany.api.entity.AttendanceRecordStatus;
 import com.mycompany.api.entity.AttendanceType;
 import com.mycompany.api.entity.Employee;
-import com.mycompany.api.entity.RecordStatus;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.exception.InvalidRequestException;
@@ -70,7 +70,7 @@ public class AttendanceRecordService {
 
     // GET list + filter (docs/TASKS.md Phase 4) — bao gồm cả draft chưa confirm khi không lọc status.
     public Page<AttendanceRecordResponse> list(UUID teamId, UUID employeeId, LocalDate fromDate,
-            LocalDate toDate, RecordStatus status, AttendanceType attendanceType, Pageable pageable) {
+            LocalDate toDate, AttendanceRecordStatus status, AttendanceType attendanceType, Pageable pageable) {
         Specification<AttendanceRecord> spec = AttendanceRecordSpecifications.withFilters(
                 teamId, employeeId, fromDate, toDate, status, attendanceType);
         return attendanceRecordRepository.findAll(spec, pageable).map(this::toResponse);
@@ -79,10 +79,10 @@ public class AttendanceRecordService {
     @Transactional
     public AttendanceRecordResponse update(UUID id, UpdateAttendanceRecordRequest request, User currentUser) {
         AttendanceRecord record = findOrThrow(id);
-        if (record.getStatus() == RecordStatus.CANCELLED) {
+        if (record.getStatus() == AttendanceRecordStatus.CANCELLED) {
             throw new ConflictException("Bản ghi id=" + id + " đã bị hủy — không thể sửa");
         }
-        boolean shouldLog = record.getStatus() != RecordStatus.DRAFT;
+        boolean shouldLog = record.getStatus() != AttendanceRecordStatus.DRAFT;
         AttendanceRecordResponse before = shouldLog ? toResponse(record) : null;
 
         Employee employee = findEmployeeOrThrow(request.employeeId());
@@ -102,13 +102,13 @@ public class AttendanceRecordService {
     @Transactional
     public AttendanceRecordResponse cancel(UUID id, User currentUser) {
         AttendanceRecord record = findOrThrow(id);
-        if (record.getStatus() == RecordStatus.CANCELLED) {
+        if (record.getStatus() == AttendanceRecordStatus.CANCELLED) {
             throw new ConflictException("Bản ghi id=" + id + " đã bị hủy trước đó");
         }
-        boolean shouldLog = record.getStatus() != RecordStatus.DRAFT;
+        boolean shouldLog = record.getStatus() != AttendanceRecordStatus.DRAFT;
         AttendanceRecordResponse before = shouldLog ? toResponse(record) : null;
 
-        record.setStatus(RecordStatus.CANCELLED);
+        record.setStatus(AttendanceRecordStatus.CANCELLED);
         AttendanceRecordResponse after = toResponse(attendanceRecordRepository.save(record));
         if (shouldLog) {
             editHistoryService.recordEdit(TABLE_NAME, id, currentUser, before, after);
@@ -126,7 +126,7 @@ public class AttendanceRecordService {
                 .attendanceType(request.attendanceType())
                 .quantity(request.quantity())
                 .notes(request.notes())
-                .status(RecordStatus.CONFIRMED)
+                .status(AttendanceRecordStatus.CONFIRMED)
                 .createdBy(currentUser)
                 .build();
         // saveAndFlush — xem ghi chú trong TeamService.create() về @CreationTimestamp + id sinh client-side.

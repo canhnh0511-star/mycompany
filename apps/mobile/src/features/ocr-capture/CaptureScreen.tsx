@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
@@ -11,11 +11,13 @@ import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
+import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { todayIsoDate } from '@/features/reports/dateRange';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import type { OcrTargetType } from '@/types/api';
+import { scanBatchApi } from './api';
 import { useOcrSessionStore } from './store';
 import { useOcrQueue, type QueueItem } from './useOcrQueue';
 
@@ -24,22 +26,34 @@ const DOCUMENT_TYPE_OPTIONS: { value: OcrTargetType; title: string; description:
   { value: 'LATEX_SALE', title: 'Sổ bán mủ', description: 'Bán theo tổ · người mua, người ký bán' },
 ];
 
-function todayLabel(): string {
-  return `${todayIsoDate().split('-').reverse().join('/')} · Hôm nay`;
+function dateLabel(iso: string): string {
+  const isToday = iso === todayIsoDate();
+  return `${iso.split('-').reverse().join('/')}${isToday ? ' · Hôm nay' : ''}`;
+}
+
+/** Nhãn banner khi `/scan-batches/lookup` báo key (documentType+teamId+workDate) đang bị chặn — Spec 1
+ * mục 1: FAILED cần "Thử lại"/"Hủy phiên" (mở màn Batch Review để xử lý), APPROVED thì ngày này đã chốt
+ * số liệu, không mở camera tiếp cho đúng key đó nữa (đổi ngày/Tổ khác nếu cần chụp bổ sung thật). */
+function blockedReasonLabel(status: string | null): string {
+  if (status === 'FAILED') {
+    return 'Phiên quét trước cho Tổ/ngày/loại phiếu này đang LỖI — mở lại để "Thử lại" hoặc "Hủy phiên" trước khi chụp tiếp.';
+  }
+  if (status === 'APPROVED') {
+    return 'Tổ/ngày/loại phiếu này đã được xác nhận (APPROVED) — không thể chụp thêm vào đúng ngày này.';
+  }
+  return 'Không thể chụp tiếp cho Tổ/ngày/loại phiếu này lúc này.';
 }
 
 /**
  * Tab "Chụp ảnh" — chia 2 bước theo đúng Claude Design (màn 02 "Chọn loại phiếu" tách khỏi màn 03
- * "Camera", KHÔNG gộp chung 1 màn như bản trước — xem docs/module-1-1-frontend-redesign-progress.md).
- * Vẫn cùng 1 route `/capture` (không thêm route mới) — chỉ đổi bằng step state cục bộ, giữ nguyên toàn
- * bộ logic nghiệp vụ (`useOcrQueue`/ADR-0011, chụp liên tục tự động upload+OCR từng ảnh — Phase 7 CHƯA
- * đổi sang mô hình "kiểm ảnh trước khi gửi", còn chờ Product Owner quyết định).
+ * "Camera", KHÔNG gộp chung 1 màn — xem docs/module-1-1-frontend-redesign-progress.md). Vẫn cùng 1
+ * route `/capture` (không thêm route mới) — chỉ đổi bằng step state cục bộ.
  *
- * "Ngày" ở bước chọn loại phiếu CHỈ hiển thị (không có nút "Đổi" như Claude Design) — vì
- * `OcrCaptureRequest` (services/api dto) không có field `recordDate`: ngày ghi nhận do AI tự đọc từ ảnh
- * phiếu giấy, không phải Admin chọn trước ở client. Thêm 1 date-picker giả ở đây sẽ đánh lừa người dùng
- * là họ đang chỉnh được ngày trong khi thực tế backend bỏ qua — vi phạm CLAUDE.md "UI cần data gì chưa
- * có API → ghi rõ, không tự thêm field không có tác dụng".
+ * 0021-scan-batch-model (Spec 1): `sessionWorkDate` giờ là input THẬT của Admin (RULE 1 — nguồn ngày
+ * làm việc chính, KHÔNG suy từ OCR nữa) và Tổ BẮT BUỘC chọn cho CẢ 2 loại phiếu (khác bản trước —
+ * PRODUCTION_RECORD từng không bắt buộc) vì cả 2 đều là 1 phần của LogicalBatchKey. Trước khi mở camera,
+ * gọi `GET /scan-batches/lookup` để biết ngay có batch FAILED/APPROVED đang giữ đúng key này không —
+ * chặn tại chỗ thay vì để Admin chụp xong mới nhận lỗi 409 giữa chừng.
  */
 export function CaptureScreen() {
   const router = useRouter();
@@ -48,30 +62,44 @@ export function CaptureScreen() {
   const [changingTeam, setChangingTeam] = useState(false);
   const [dismissedBannerFor, setDismissedBannerFor] = useState<string | null>(null);
   const [showQueue, setShowQueue] = useState(false);
+  const [checkingLookup, setCheckingLookup] = useState(false);
+  const [blockedStatus, setBlockedStatus] = useState<string | null>(null);
 
   const { data: teams } = useTeamsLookupQuery();
   const activeTeamId = useOcrSessionStore((s) => s.activeTeamId);
   const activeTeamName = useOcrSessionStore((s) => s.activeTeamName);
   const setActiveTeam = useOcrSessionStore((s) => s.setActiveTeam);
+  const sessionWorkDate = useOcrSessionStore((s) => s.sessionWorkDate);
+  const setSessionWorkDate = useOcrSessionStore((s) => s.setSessionWorkDate);
+
+  // Mặc định hôm nay khi phiên chưa từng chọn ngày (lần đầu mở tab) — không ghi đè nếu Admin đã chọn
+  // trong 1 phiên trước đó rồi điều hướng qua lại.
+  useEffect(() => {
+    if (!sessionWorkDate) {
+      setSessionWorkDate(todayIsoDate());
+    }
+  }, [sessionWorkDate, setSessionWorkDate]);
 
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const { items, enqueue } = useOcrQueue();
+  const { items, enqueue, batchId } = useOcrQueue();
 
   const teamOptions = (teams ?? []).map((t) => ({ label: t.name, value: t.id }));
   const selectedType = DOCUMENT_TYPE_OPTIONS.find((o) => o.value === targetType)!;
   const latestError = items.find((i) => i.status === 'error' && i.id !== dismissedBannerFor);
   const doneCount = items.filter((i) => i.status === 'done').length;
+  const canOpenCamera = Boolean(activeTeamId && sessionWorkDate);
 
   async function handleShutter() {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || !activeTeamId || !sessionWorkDate) return;
     const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
     if (photo?.uri) {
-      enqueue(photo.uri, photo.uri.split('/').pop() ?? 'capture.jpg', targetType, activeTeamId);
+      enqueue(photo.uri, photo.uri.split('/').pop() ?? 'capture.jpg', targetType, activeTeamId, sessionWorkDate);
     }
   }
 
   async function handlePickLibrary() {
+    if (!activeTeamId || !sessionWorkDate) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
@@ -79,8 +107,48 @@ export function CaptureScreen() {
     });
     if (result.canceled) return;
     result.assets.forEach((asset) => {
-      enqueue(asset.uri, asset.fileName ?? asset.uri.split('/').pop() ?? 'photo.jpg', targetType, activeTeamId);
+      enqueue(
+        asset.uri,
+        asset.fileName ?? asset.uri.split('/').pop() ?? 'photo.jpg',
+        targetType,
+        activeTeamId,
+        sessionWorkDate,
+      );
     });
+  }
+
+  async function handleOpenCamera() {
+    if (!activeTeamId || !sessionWorkDate) return;
+    setCheckingLookup(true);
+    setBlockedStatus(null);
+    try {
+      const result = await scanBatchApi.lookup(targetType, activeTeamId, sessionWorkDate);
+      if (result.blocked) {
+        setBlockedStatus(result.status);
+        return;
+      }
+      setStep('camera');
+    } catch (err) {
+      // Lookup lỗi kỹ thuật (mất mạng...) — không chặn cứng, để Admin tự thử chụp (capture sẽ báo lỗi
+      // rõ ràng nếu thật sự có conflict, CLAUDE.md §9 chấp nhận rủi ro mất mạng thực địa).
+      setStep('camera');
+    } finally {
+      setCheckingLookup(false);
+    }
+  }
+
+  function handleFinish() {
+    if (batchId) {
+      router.push(`/scan-batch-review/${batchId}`);
+    } else {
+      router.push('/(tabs)');
+    }
+  }
+
+  function openBatchReview(item: QueueItem) {
+    if (item.batchId) {
+      router.push(`/scan-batch-review/${item.batchId}`);
+    }
   }
 
   if (step === 'select') {
@@ -119,18 +187,23 @@ export function CaptureScreen() {
               Áp dụng cho cả buổi chụp
             </AppText>
             <AppCard className="p-0 overflow-hidden">
-              <HStack className="items-center justify-between p-4">
-                <VStack>
-                  <AppText size="xs" className="text-muted-foreground">
-                    Ngày
+              <Box className="p-4">
+                <AppInput
+                  label="Ngày"
+                  value={sessionWorkDate ?? ''}
+                  onChangeText={setSessionWorkDate}
+                  placeholder="yyyy-mm-dd"
+                />
+                {sessionWorkDate ? (
+                  <AppText size="xs" className="text-muted-foreground mt-1">
+                    {dateLabel(sessionWorkDate)}
                   </AppText>
-                  <AppText className="font-medium mt-0.5">{todayLabel()}</AppText>
-                </VStack>
-              </HStack>
+                ) : null}
+              </Box>
               <HStack className="items-center justify-between p-4 border-t border-border">
                 <VStack className="flex-1">
                   <AppText size="xs" className="text-muted-foreground">
-                    Tổ
+                    Tổ (bắt buộc)
                   </AppText>
                   <AppText className="font-medium mt-0.5">{activeTeamName ?? 'Chưa chọn Tổ'}</AppText>
                   {changingTeam ? (
@@ -158,7 +231,13 @@ export function CaptureScreen() {
             </AppText>
           </VStack>
 
-          <AppButton size="lg" onPress={() => setStep('camera')}>
+          {blockedStatus ? (
+            <Box className="border border-destructive rounded-md p-3 bg-destructive/10">
+              <AppText size="sm">{blockedReasonLabel(blockedStatus)}</AppText>
+            </Box>
+          ) : null}
+
+          <AppButton size="lg" onPress={handleOpenCamera} isDisabled={!canOpenCamera} isLoading={checkingLookup}>
             Mở camera
           </AppButton>
         </VStack>
@@ -171,7 +250,7 @@ export function CaptureScreen() {
       <HStack className="items-center justify-between px-4 pt-3 pb-2">
         <Box className="rounded-full px-3.5 py-2" style={{ backgroundColor: 'rgba(255,255,255,.12)' }}>
           <AppText size="sm" className="font-medium" style={{ color: '#F4F5F5' }}>
-            {`${selectedType.title}${activeTeamName ? ` · ${activeTeamName}` : ''}`}
+            {`${selectedType.title}${activeTeamName ? ` · ${activeTeamName}` : ''}${sessionWorkDate ? ` · ${sessionWorkDate}` : ''}`}
           </AppText>
         </Box>
         <RNPressable onPress={() => setStep('select')} hitSlop={8}>
@@ -235,11 +314,7 @@ export function CaptureScreen() {
             style={[styles.shutter, !permission?.granted && { opacity: 0.4 }]}
             accessibilityLabel="Chụp ảnh"
           />
-          <AppButton
-            size="sm"
-            isDisabled={items.length === 0}
-            onPress={() => router.push('/(tabs)')}
-          >
+          <AppButton size="sm" isDisabled={items.length === 0} onPress={handleFinish}>
             {`Hoàn tất${items.length > 0 ? ` · ${doneCount}/${items.length}` : ''}`}
           </AppButton>
         </HStack>
@@ -248,7 +323,7 @@ export function CaptureScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <HStack space="sm">
               {items.map((item) => (
-                <ThumbnailTile key={item.id} item={item} onOpenReview={() => router.push(`/ocr-review/${item.response?.ocrCallLogId}`)} />
+                <ThumbnailTile key={item.id} item={item} onOpenReview={() => openBatchReview(item)} />
               ))}
             </HStack>
           </ScrollView>
@@ -311,7 +386,8 @@ function queueStatusColor(status: QueueItem['status']): string {
 }
 
 /** Thumbnail ảnh thật (khớp dải ảnh vừa chụp ở Claude Design màn 03) — thay cho danh sách text trước
- * đây. Ảnh mờ dần khi đang xử lý, viền màu theo trạng thái; bấm vào ảnh đã xong để mở lại màn review. */
+ * đây. Ảnh mờ dần khi đang xử lý, viền màu theo trạng thái; bấm vào ảnh đã xong để mở màn Batch Review
+ * (0021-scan-batch-model — thay cho mở lại đúng response OCR của riêng ảnh này như bản cũ). */
 function ThumbnailTile({ item, onOpenReview }: { item: QueueItem; onOpenReview: () => void }) {
   const borderColor =
     item.status === 'done' ? '#9FD3C4' : item.status === 'error' ? '#E7B3AC' : 'rgba(244,245,245,.25)';
@@ -334,7 +410,7 @@ function ThumbnailTile({ item, onOpenReview }: { item: QueueItem; onOpenReview: 
       ) : null}
     </Box>
   );
-  return item.status === 'done' ? <RNPressable onPress={onOpenReview}>{content}</RNPressable> : content;
+  return item.batchId ? <RNPressable onPress={onOpenReview}>{content}</RNPressable> : content;
 }
 
 const styles = StyleSheet.create({

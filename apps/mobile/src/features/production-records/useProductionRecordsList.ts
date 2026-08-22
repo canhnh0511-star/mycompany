@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryClient';
 import { productionRecordsApi, type ProductionRecordFilters } from './api';
 
-export function useProductionRecordsListQuery(filters: ProductionRecordFilters) {
+export function useProductionRecordsListQuery(filters: ProductionRecordFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.productionRecords.list(filters as Record<string, unknown>),
     queryFn: () => productionRecordsApi.list(filters),
+    enabled: options.enabled,
   });
 }
 

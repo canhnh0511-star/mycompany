@@ -14,6 +14,8 @@ import com.mycompany.api.entity.LatexSaleItem;
 import com.mycompany.api.entity.LatexType;
 import com.mycompany.api.entity.OcrCallLog;
 import com.mycompany.api.entity.RecordStatus;
+import com.mycompany.api.entity.ScanBatch;
+import com.mycompany.api.entity.ScanImage;
 import com.mycompany.api.entity.Team;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
@@ -81,9 +83,11 @@ public class LatexSaleService {
     }
 
     // GET list + filter (docs/TASKS.md Phase 4) — bao gồm cả draft chưa confirm khi không lọc status.
+    // scanBatchId (0021-scan-batch-model) — màn review 1 phiên quét cụ thể (ScanBatchController).
     public Page<LatexSaleResponse> list(UUID teamId, LocalDate fromDate, LocalDate toDate,
-            RecordStatus status, Pageable pageable) {
-        Specification<LatexSale> spec = LatexSaleSpecifications.withFilters(teamId, fromDate, toDate, status);
+            RecordStatus status, UUID scanBatchId, Pageable pageable) {
+        Specification<LatexSale> spec =
+                LatexSaleSpecifications.withFilters(teamId, fromDate, toDate, status, scanBatchId);
         return latexSaleRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -128,12 +132,12 @@ public class LatexSaleService {
         return after;
     }
 
-    // Gọi từ OcrCaptureService (Phase 3, cùng package) — tạo draft từ dữ liệu OCR đọc được (không
+    // Gọi từ ScanBatchService (0021-scan-batch-model) — tạo draft từ dữ liệu OCR đọc được (không
     // cần fuzzy-match vì latex_sales không có employee_id, chỉ ghi seller_signed_by dạng text).
     @Transactional
     public LatexSaleResponse createDraftFromOcr(LocalDate recordDate, Team team, String buyerName,
             String sellerSignedBy, String notes, List<LatexItemRequest> items, OcrCallLog ocrCallLog,
-            List<String> lowConfidenceFields, User currentUser) {
+            List<String> lowConfidenceFields, ScanImage scanImage, User currentUser) {
         LatexSale sale = LatexSale.builder()
                 .recordDate(recordDate)
                 .team(team)
@@ -144,21 +148,90 @@ public class LatexSaleService {
                 .photoUrl(ocrCallLog.getPhotoUrl())
                 .ocrCallLog(ocrCallLog)
                 .lowConfidenceFields(writeLowConfidenceFieldsOrNull(lowConfidenceFields))
+                .scanImage(scanImage)
+                .scanBatch(scanImage != null ? scanImage.getScanBatch() : null)
                 .createdBy(currentUser)
                 .build();
         addItems(sale, items);
         return toResponse(latexSaleRepository.saveAndFlush(sale));
     }
 
-    // draft → confirmed — xem ghi chú tương ứng trong ProductionRecordService.confirm().
+    // ---- 0021-scan-batch-model: thao tác cấp batch, gọi từ ScanBatchService — xem ghi chú tương
+    // ứng trong ProductionRecordService ----
+
     @Transactional
-    public LatexSaleResponse confirm(UUID id, User currentUser) {
+    public int bulkApproveByScanBatch(UUID scanBatchId) {
+        List<LatexSale> drafts = latexSaleRepository.findByScanBatchIdAndStatus(scanBatchId, RecordStatus.DRAFT);
+        drafts.forEach(s -> s.setStatus(RecordStatus.APPROVED));
+        latexSaleRepository.saveAll(drafts);
+        return drafts.size();
+    }
+
+    @Transactional
+    public void reparentDraftsForImage(UUID scanImageId, ScanBatch targetBatch, LocalDate newRecordDate) {
+        List<LatexSale> sales = latexSaleRepository.findByScanImageId(scanImageId);
+        for (LatexSale s : sales) {
+            if (s.getStatus() != RecordStatus.DRAFT) {
+                continue;
+            }
+            s.setScanBatch(targetBatch);
+            s.setTeam(targetBatch.getTeam());
+            s.setRecordDate(newRecordDate);
+        }
+        latexSaleRepository.saveAll(sales);
+    }
+
+    @Transactional
+    public void copyDraftsForImage(UUID scanImageId, ScanImage targetImage, ScanBatch targetSupplement, LocalDate newRecordDate) {
+        List<LatexSale> sourceSales = latexSaleRepository.findByScanImageId(scanImageId);
+        List<LatexSale> copies = new ArrayList<>();
+        for (LatexSale src : sourceSales) {
+            if (src.getStatus() != RecordStatus.DRAFT) {
+                continue;
+            }
+            LatexSale copy = LatexSale.builder()
+                    .recordDate(newRecordDate)
+                    .team(targetSupplement.getTeam())
+                    .buyerName(src.getBuyerName())
+                    .sellerSignedBy(src.getSellerSignedBy())
+                    .notes(src.getNotes())
+                    .status(RecordStatus.DRAFT)
+                    .photoUrl(src.getPhotoUrl())
+                    .ocrCallLog(src.getOcrCallLog())
+                    .lowConfidenceFields(src.getLowConfidenceFields())
+                    .scanImage(targetImage)
+                    .scanBatch(targetSupplement)
+                    .createdBy(src.getCreatedBy())
+                    .build();
+            src.getItems().forEach(item -> copy.addItem(LatexSaleItem.builder()
+                    .latexType(item.getLatexType())
+                    .kg(item.getKg())
+                    .drcPercent(item.getDrcPercent())
+                    .build()));
+            copies.add(copy);
+        }
+        latexSaleRepository.saveAll(copies);
+    }
+
+    @Transactional
+    public void cancelDraftsForImage(UUID scanImageId, User currentUser) {
+        List<LatexSale> sales = latexSaleRepository.findByScanImageId(scanImageId);
+        for (LatexSale s : sales) {
+            if (s.getStatus() == RecordStatus.DRAFT) {
+                cancel(s.getId(), currentUser);
+            }
+        }
+    }
+
+    // draft → approved — xem ghi chú tương ứng trong ProductionRecordService.approve().
+    @Transactional
+    public LatexSaleResponse approve(UUID id, User currentUser) {
         LatexSale sale = findOrThrow(id);
         if (sale.getStatus() != RecordStatus.DRAFT) {
             throw new ConflictException("Chỉ có thể xác nhận bản ghi đang ở trạng thái draft (hiện tại: "
                     + sale.getStatus() + ")");
         }
-        sale.setStatus(RecordStatus.CONFIRMED);
+        sale.setStatus(RecordStatus.APPROVED);
         return toResponse(latexSaleRepository.save(sale));
     }
 
@@ -183,7 +256,7 @@ public class LatexSaleService {
                 .buyerName(request.buyerName())
                 .sellerSignedBy(request.sellerSignedBy())
                 .notes(request.notes())
-                .status(RecordStatus.CONFIRMED)
+                .status(RecordStatus.APPROVED)
                 .createdBy(currentUser)
                 .build();
         addItems(sale, request.items());

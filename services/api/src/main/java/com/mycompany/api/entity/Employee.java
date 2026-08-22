@@ -51,6 +51,15 @@ public class Employee {
     @Builder.Default
     private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
+    // Vợ/chồng cùng làm cạo mủ (CLAUDE.md §5, bổ sung 2026-08-16) — nullable, khai báo TRƯỚC qua
+    // EmployeeService.update(), giữ đối xứng 2 chiều ở tầng service. FetchType.EAGER (khác team/user ở
+    // trên) vì ScanBatchService.captureProductionRecordRows đọc field này NGOÀI transaction (cố ý —
+    // captureImage/processOcr không @Transactional, xem javadoc ScanBatchService); self-join 1 nhân
+    // viên, dữ liệu nhỏ, chi phí không đáng kể.
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "spouse_employee_id")
+    private Employee spouseEmployee;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -91,8 +91,15 @@ export interface LatexItemResponse {
   drcPercent: number | null;
 }
 
-/** Khớp services/api entity/RecordStatus.java — Jackson serialize enum bằng .name(), UPPERCASE. */
-export type RecordStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
+/** Khớp services/api entity/RecordStatus.java (0021-scan-batch-model: CONFIRMED đổi tên thành
+ * APPROVED, nhất quán thuật ngữ với ScanBatch.status APPROVED) — Jackson serialize enum bằng
+ * .name(), UPPERCASE. CHỈ dùng cho production_records/latex_sales — attendance_records dùng
+ * {@link AttendanceRecordStatus} riêng (KHÔNG đổi tên, xem entity AttendanceRecordStatus backend). */
+export type RecordStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
+
+/** Khớp services/api entity/AttendanceRecordStatus.java — tách riêng khỏi RecordStatus, giữ nguyên
+ * 3 giá trị gốc (KHÔNG đổi CONFIRMED→APPROVED, attendance ngoài phạm vi rename). */
+export type AttendanceRecordStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 
 /** Khớp services/api dto/CreateProductionRecordRequest.java (nhập tay batch, ADR-0007) */
 export interface CreateProductionRecordRequest {
@@ -174,15 +181,8 @@ export interface SignedUploadUrlResponse {
   token: string;
 }
 
-/** Khớp services/api dto/OcrCaptureRequest.java */
-export interface OcrCaptureRequest {
-  targetType: OcrTargetType;
-  photoPath: string;
-  /** Bắt buộc khi targetType=LATEX_SALE; chỉ là gợi ý thu hẹp fuzzy-match khi PRODUCTION_RECORD. */
-  teamId: string | null;
-}
-
-/** Khớp services/api dto/OcrUnmatchedLine.java — dòng OCR không fuzzy-match ra nhân viên nào. */
+/** Khớp services/api dto/OcrUnmatchedLine.java — dòng OCR không fuzzy-match ra nhân viên nào, cũng
+ * là shape `detail` JSON của 1 ScanBatchConflict loại UNKNOWN_EMPLOYEE (0021-scan-batch-model). */
 export interface OcrUnmatchedLine {
   employeeNameRaw: string | null;
   items: LatexItemRequest[];
@@ -190,16 +190,141 @@ export interface OcrUnmatchedLine {
   lowConfidenceFields: string[];
 }
 
-/** Khớp services/api dto/OcrCaptureResponse.java */
-export interface OcrCaptureResponse {
-  ocrCallLogId: string;
-  success: boolean;
+// ===================================================================================
+// Scan Session/Batch (0021-scan-batch-model, Spec 1) — thay thế hẳn OcrCaptureRequest/
+// OcrCaptureResponse cũ. Khớp services/api dto/CaptureImageRequest.java,
+// ScanBatchResponse.java, ScanImageResponse.java, ScanBatchConflictResponse.java,
+// ScanBatchLookupResponse.java, ResolveDateRequest.java, ResolveConflictRequest.java,
+// ScanBatchAuditLogResponse.java + entity BatchType/BatchStatus/ImageStatus/
+// DateVerificationStatus/DateResolution/ConflictType/ConflictStatus.
+// ===================================================================================
+
+export type BatchType = 'PRIMARY' | 'SUPPLEMENT';
+
+/** ACTIVE/MERGEABLE = DRAFT..PARTIAL_FAILED (batch còn sống, nhận merge ảnh mới); FAILED = cần
+ * "Thử lại"/"Hủy phiên" trước khi chụp tiếp; APPROVED/CANCELLED = terminal (Spec 1 mục 1). */
+export type BatchStatus =
+  | 'DRAFT'
+  | 'UPLOADING'
+  | 'PROCESSING'
+  | 'NEED_REVIEW'
+  | 'READY_TO_APPROVE'
+  | 'PARTIAL_FAILED'
+  | 'FAILED'
+  | 'APPROVED'
+  | 'CANCELLED';
+
+export type ImageStatus = 'UPLOADING' | 'PROCESSING' | 'ACTIVE' | 'FAILED' | 'PENDING_MOVE' | 'MOVED' | 'REPLACED';
+
+export type DateVerificationStatus = 'MATCHED' | 'NOT_DETECTED' | 'MISMATCH';
+
+export type DateResolution = 'FALLBACK_SESSION_DATE' | 'KEEP_SESSION_DATE' | 'CHANGE_DATE' | 'UNRESOLVED';
+
+export type ConflictType =
+  | 'DUPLICATE_IMAGE'
+  | 'IMAGE_QUALITY_OR_OCR_FAILED'
+  | 'DATE_MISMATCH'
+  | 'UNKNOWN_EMPLOYEE'
+  | 'INVALID_BUSINESS_VALUE'
+  | 'POTENTIAL_DUPLICATE_OCR_ROW'
+  | 'PENDING_MOVE'
+  | 'OTHER';
+
+export type ConflictStatus = 'OPEN' | 'RESOLVED' | 'OVERRIDDEN';
+
+/** workDate = sessionWorkDate (RULE 1, nguồn ngày làm việc chính) — Admin chọn TRƯỚC khi chụp, KHÔNG
+ * suy từ OCR. teamId BẮT BUỘC cho cả 2 documentType (khác OcrCaptureRequest cũ). clientImageId sinh
+ * client-side (dedup retry-upload, RULE 4). */
+export interface CaptureImageRequest {
+  documentType: OcrTargetType;
+  workDate: string;
+  teamId: string;
+  photoPath: string;
+  clientImageId: string;
+}
+
+/** clientImageId echo lại nguyên văn từ CaptureImageRequest — dùng để khớp ảnh vừa upload trong hàng
+ * đợi cục bộ (`useOcrQueue`) với đúng dòng trả về ở đây (id server sinh, client không biết trước). */
+export interface ScanImageResponse {
+  id: string;
+  clientImageId: string;
+  photoUrl: string;
+  status: ImageStatus;
+  dateVerificationStatus: DateVerificationStatus | null;
+  dateResolution: DateResolution | null;
+  ocrDetectedDate: string | null;
+  effectiveWorkDate: string | null;
+  pendingMoveTargetBatchId: string | null;
   errorMessage: string | null;
-  typeMismatch: boolean;
-  mismatchReason: string | null;
-  productionRecords: BatchItemResult<ProductionRecordResponse>[] | null;
-  latexSales: BatchItemResult<LatexSaleResponse>[] | null;
-  unmatchedLines: OcrUnmatchedLine[] | null;
+  createdAt: string;
+}
+
+/** displayOrder tính sẵn ở backend (Spec 1 mục 6 "thứ tự hiển thị") — sort theo field này khi render,
+ * không tự suy luận lại ở client. detail là JSON thô, hình dạng tùy conflictType (vd OcrUnmatchedLine
+ * cho UNKNOWN_EMPLOYEE) — tự JSON.parse khi cần đọc chi tiết. */
+export interface ScanBatchConflictResponse {
+  id: string;
+  scanImageId: string | null;
+  recordTable: string | null;
+  recordId: string | null;
+  conflictType: ConflictType;
+  blocking: boolean;
+  status: ConflictStatus;
+  detail: string | null;
+  displayOrder: number;
+}
+
+/** canApprove = đã tính sẵn ở backend (status===READY_TO_APPROVE && không còn conflict blocking OPEN)
+ * — dùng thẳng để enable/disable nút "Xác nhận dữ liệu", không tự suy luận lại ở client. */
+export interface ScanBatchResponse {
+  id: string;
+  documentType: OcrTargetType;
+  workDate: string;
+  teamId: string;
+  teamName: string;
+  batchType: BatchType;
+  originalBatchId: string | null;
+  status: BatchStatus;
+  canApprove: boolean;
+  createdBy: string;
+  createdAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  images: ScanImageResponse[];
+  conflicts: ScanBatchConflictResponse[];
+}
+
+/** Frontend gọi TRƯỚC khi mở camera — biết ngay có batch FAILED/APPROVED đang giữ key này không
+ * (Spec 1 mục 1). batchId/status null khi key đang trống. */
+export interface ScanBatchLookupResponse {
+  batchId: string | null;
+  status: BatchStatus | null;
+  blocked: boolean;
+}
+
+/** Chỉ chấp nhận KEEP_SESSION_DATE | CHANGE_DATE (Spec 1 mục 4-5). */
+export interface ResolveDateRequest {
+  resolution: 'KEEP_SESSION_DATE' | 'CHANGE_DATE';
+}
+
+/** action: OVERRIDE (giữ nguyên, bỏ qua) | DISCARD (bỏ dòng/ảnh) | ASSIGN_EMPLOYEE (chỉ cho
+ * UNKNOWN_EMPLOYEE, bắt buộc employeeId) — xem javadoc ResolveConflictRequest backend. */
+export interface ResolveConflictRequest {
+  action: 'OVERRIDE' | 'DISCARD' | 'ASSIGN_EMPLOYEE';
+  employeeId?: string | null;
+}
+
+/** performedBy = literal "SYSTEM" khi hệ thống tự resolve (RULE 13), ngược lại là id user dạng string. */
+export interface ScanBatchAuditLogResponse {
+  id: string;
+  scanImageId: string | null;
+  action: string;
+  performedBy: string | null;
+  performedAt: string;
+  oldValue: string | null;
+  newValue: string | null;
+  sourceBatchId: string | null;
+  targetBatchId: string | null;
 }
 
 /** Khớp services/api dto/RateConfigResponse.java — đơn giá theo latex_type_id, có hiệu lực theo thời
@@ -271,7 +396,7 @@ export interface AttendanceRecordResponse {
   notes: string | null;
   createdBy: string;
   createdAt: string;
-  status: RecordStatus;
+  status: AttendanceRecordStatus;
 }
 
 /** Hình dạng chung `org.springframework.data.domain.Page<T>` — dùng cho mọi endpoint list/filter có

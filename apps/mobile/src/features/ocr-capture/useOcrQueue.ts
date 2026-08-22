@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api/client';
 import { queryClient, queryKeys } from '@/lib/query/queryClient';
-import type { OcrCaptureResponse, OcrTargetType, UploadContentType } from '@/types/api';
-import { ocrApi, uploadPhotoToSupabase } from './api';
-import { useOcrReviewStore } from './reviewStore';
+import type { ImageStatus, OcrTargetType, UploadContentType } from '@/types/api';
+import { ocrApi, scanBatchApi, uploadPhotoToSupabase } from './api';
 
 export type QueueItemStatus = 'uploading' | 'processing' | 'done' | 'error';
 
@@ -15,7 +14,14 @@ export interface QueueItem {
   uri: string;
   status: QueueItemStatus;
   error?: string;
-  response?: OcrCaptureResponse;
+  /** Sinh client-side, gửi kèm CaptureImageRequest (RULE 4 dedup retry-upload) — dùng để khớp lại
+   * đúng dòng trong `ScanBatchResponse.images[]` (server trả về clientImageId nguyên văn). */
+  clientImageId: string;
+  /** Chỉ có sau khi captureImage() thành công — id ScanBatch chứa ảnh này (thường mọi ảnh trong 1
+   * phiên chụp cùng team/ngày/loại phiếu đều merge vào cùng 1 batch, xem `batchId` hook trả về). */
+  batchId?: string;
+  scanImageId?: string;
+  imageStatus?: ImageStatus;
 }
 
 /** Tối đa 2 ảnh xử lý song song — né rate-limit Claude API (ADR-0011/§2.4). */
@@ -45,25 +51,35 @@ function guessContentType(uri: string): UploadContentType {
   return uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
 }
 
+function newClientImageId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Hàng đợi xử lý ảnh trong bộ nhớ (KHÔNG phải offline queue bền vững — CLAUDE.md §9 đã chấp nhận rủi ro
  * mất mạng ở v1) — mỗi ảnh 1 item `uploading → processing → done/error`, tối đa 2 xử lý song song
- * (ADR-0011). Reset khi rời màn Chụp ảnh (state cục bộ, không phải Zustand — khác `activeTeamId` ở
- * `store.ts` vốn cần sống qua điều hướng giữa các tab).
+ * (ADR-0011). Reset khi rời màn Chụp ảnh (state cục bộ, không phải Zustand — khác `activeTeamId`/
+ * `sessionWorkDate` ở `store.ts` vốn cần sống qua điều hướng giữa các tab).
+ *
+ * 0021-scan-batch-model: mỗi ảnh giờ POST `/scan-batches/images` (thay `/ocr/capture` cũ) — trả về
+ * TOÀN BỘ ScanBatch (không chỉ ảnh vừa xử lý). `batchId` hook trả về là id batch mới nhất nhận được —
+ * dùng để điều hướng sang màn Batch Review khi bấm "Hoàn tất" (mọi ảnh cùng phiên/team/ngày/loại phiếu
+ * merge vào cùng 1 batch trong trường hợp bình thường).
  */
 export function useOcrQueue() {
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [batchId, setBatchId] = useState<string | null>(null);
   const semaphoreRef = useRef(createSemaphore(MAX_CONCURRENT));
-  const addReview = useOcrReviewStore((s) => s.addResponse);
 
   const updateItem = useCallback((id: string, patch: Partial<QueueItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }, []);
 
   const enqueue = useCallback(
-    (uri: string, fileName: string, targetType: OcrTargetType, teamId: string | null) => {
+    (uri: string, fileName: string, documentType: OcrTargetType, teamId: string, workDate: string) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setItems((prev) => [{ id, fileName, uri, status: 'uploading' as const }, ...prev]);
+      const clientImageId = newClientImageId();
+      setItems((prev) => [{ id, fileName, uri, status: 'uploading' as const, clientImageId }, ...prev]);
 
       (async () => {
         await semaphoreRef.current.acquire();
@@ -73,22 +89,35 @@ export function useOcrQueue() {
           await uploadPhotoToSupabase(uploadUrl, contentType, uri);
 
           updateItem(id, { status: 'processing' });
-          const response = await ocrApi.capture({ targetType, photoPath, teamId });
+          const response = await scanBatchApi.captureImage({
+            documentType,
+            workDate,
+            teamId,
+            photoPath,
+            clientImageId,
+          });
 
-          if (!response.success) {
-            updateItem(id, { status: 'error', error: response.errorMessage ?? 'Lỗi không xác định', response });
-          } else if (response.typeMismatch) {
+          setBatchId(response.id);
+          const image = response.images.find((img) => img.clientImageId === clientImageId);
+          if (!image || image.status === 'FAILED') {
             updateItem(id, {
               status: 'error',
-              error: response.mismatchReason ?? 'Ảnh không khớp loại phiếu đã chọn',
-              response,
+              error: image?.errorMessage ?? 'Lỗi không xác định',
+              batchId: response.id,
+              scanImageId: image?.id,
+              imageStatus: image?.status,
             });
           } else {
-            updateItem(id, { status: 'done', response });
-            addReview(response); // truyền response sang màn Review qua store (route param không mang được object)
-            queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.drafts() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.drafts() });
+            updateItem(id, {
+              status: 'done',
+              batchId: response.id,
+              scanImageId: image.id,
+              imageStatus: image.status,
+            });
           }
+          queryClient.setQueryData(queryKeys.scanBatches.detail(response.id), response);
+          queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.drafts() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.drafts() });
         } catch (err) {
           const message = err instanceof ApiError || err instanceof Error ? err.message : 'Lỗi không xác định';
           updateItem(id, { status: 'error', error: message });
@@ -99,8 +128,8 @@ export function useOcrQueue() {
 
       return id;
     },
-    [updateItem, addReview],
+    [updateItem],
   );
 
-  return { items, enqueue };
+  return { items, enqueue, batchId };
 }

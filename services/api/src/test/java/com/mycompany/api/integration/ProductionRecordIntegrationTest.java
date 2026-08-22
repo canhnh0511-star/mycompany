@@ -99,7 +99,7 @@ class ProductionRecordIntegrationTest extends IntegrationTestSupport {
                         .content(objectMapper.writeValueAsString(firstBatch)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.results[0].success").value(true))
-                .andExpect(jsonPath("$.results[0].data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.results[0].data.status").value("APPROVED"))
                 .andReturn().getResponse().getContentAsString();
         String recordId = objectMapper.readTree(firstResponseJson).at("/results/0/data/id").asText();
 

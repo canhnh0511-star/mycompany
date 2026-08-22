@@ -47,14 +47,16 @@ public class LatexSaleController {
     }
 
     // Tab "Tra cứu" (CLAUDE.md §5) — mặc định trả cả draft chưa confirm khi không lọc status.
+    // scanBatchId (0021-scan-batch-model) — màn review 1 phiên quét cụ thể (ScanBatchController).
     @GetMapping
     public Page<LatexSaleResponse> list(
             @RequestParam(required = false) UUID teamId,
             @RequestParam(required = false) LocalDate fromDate,
             @RequestParam(required = false) LocalDate toDate,
             @RequestParam(required = false) RecordStatus status,
+            @RequestParam(required = false) UUID scanBatchId,
             @PageableDefault(size = 50, sort = "recordDate", direction = Direction.DESC) Pageable pageable) {
-        return latexSaleService.list(teamId, fromDate, toDate, status, pageable);
+        return latexSaleService.list(teamId, fromDate, toDate, status, scanBatchId, pageable);
     }
 
     @PatchMapping("/{id}")
@@ -70,9 +72,10 @@ public class LatexSaleController {
         return latexSaleService.cancel(id, currentUser);
     }
 
-    // draft → confirmed (ADR-0006) — chỉ áp dụng cho record tạo qua luồng OCR (Phase 3).
-    @PostMapping("/{id}/confirm")
-    public LatexSaleResponse confirm(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
-        return latexSaleService.confirm(id, currentUser);
+    // draft → approved (ADR-0006, đổi tên endpoint từ /confirm ở 0021-scan-batch-model) — chỉ áp dụng
+    // cho record tạo qua luồng OCR.
+    @PostMapping("/{id}/approve")
+    public LatexSaleResponse approve(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
+        return latexSaleService.approve(id, currentUser);
     }
 }

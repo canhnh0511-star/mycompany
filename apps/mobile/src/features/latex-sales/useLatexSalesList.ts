@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryClient';
 import { latexSalesApi, type LatexSaleFilters } from './api';
 
-export function useLatexSalesListQuery(filters: LatexSaleFilters) {
+export function useLatexSalesListQuery(filters: LatexSaleFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.latexSales.list(filters as Record<string, unknown>),
     queryFn: () => latexSalesApi.list(filters),
+    enabled: options.enabled,
   });
 }
 

@@ -11,5 +11,8 @@ public record UpdateEmployeeRequest(
         @NotBlank @Size(max = 150) String fullName,
         @NotNull UUID teamId,
         @NotNull EmployeeStatus status,
-        UUID userId) {
+        UUID userId,
+        // nullable — vợ/chồng cùng làm cạo mủ (CLAUDE.md §5). null = không có/gỡ quan hệ hiện tại.
+        // EmployeeService.updateSpouse() giữ đối xứng 2 chiều, không set trực tiếp ở đây.
+        UUID spouseEmployeeId) {
 }

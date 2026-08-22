@@ -1,5 +1,10 @@
 # Luồng Chụp ảnh/OCR trên frontend — phạm vi v1
 
+> **Superseded một phần bởi ADR-0021** (Scan Session/Batch model): "phiên" mô tả ở đây (Zustand
+> process-lifetime, không có backend representation) được thay bằng `ScanBatch`/`ScanImage` thật —
+> xem ADR-0021 và plan implementation phase 3 (frontend capture rework). Nội dung dưới đây giữ
+> nguyên làm bối cảnh lịch sử.
+
 CLAUDE.md §5 mô tả "tự động crop & làm nét ảnh trước khi gửi OCR" kiểu app scan tài liệu (phát hiện 4
 cạnh giấy, warp phối cảnh) — tính năng này KHÔNG có sẵn trong Expo managed workflow:
 `expo-image-manipulator` chỉ resize/rotate/crop theo tọa độ cố định, không tự phát hiện cạnh. Ngoài ra,

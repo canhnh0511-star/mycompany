@@ -66,6 +66,15 @@ public class LatexSale {
     @JoinColumn(name = "ocr_call_log_id")
     private OcrCallLog ocrCallLog; // nullable; set khi tạo qua OCR
 
+    // Nullable — xem ghi chú tương ứng trong ProductionRecord (0021-scan-batch-model).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scan_image_id")
+    private ScanImage scanImage;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scan_batch_id")
+    private ScanBatch scanBatch;
+
     // JSON thô (Jackson serialize ở service layer) — field nào OCR không chắc chắn, để frontend đọc
     // thẳng từ draft row mà highlight (CLAUDE.md §5), không phải state tạm ở client (ADR-0006).
     @JdbcTypeCode(SqlTypes.JSON)

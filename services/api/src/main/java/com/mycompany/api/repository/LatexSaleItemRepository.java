@@ -13,14 +13,14 @@ public interface LatexSaleItemRepository extends JpaRepository<LatexSaleItem, UU
     // Dùng để chặn xóa 1 LatexType đang bị tham chiếu (docs/TASKS.md Phase 1).
     boolean existsByLatexTypeId(UUID latexTypeId);
 
-    // Report bán mủ theo Tổ (docs/TASKS.md Phase 4) — CHỈ tính bản ghi CONFIRMED, cùng lý do với
+    // Report bán mủ theo Tổ (docs/TASKS.md Phase 4) — CHỈ tính bản ghi APPROVED, cùng lý do với
     // ProductionRecordItemRepository.aggregateForReport.
     @Query("""
             SELECT new com.mycompany.api.repository.LatexSaleAggregateRow(
                 ls.team.id, ls.team.name, lsi.latexType.code, SUM(lsi.kg))
             FROM LatexSaleItem lsi
               JOIN lsi.latexSale ls
-            WHERE ls.status = com.mycompany.api.entity.RecordStatus.CONFIRMED
+            WHERE ls.status = com.mycompany.api.entity.RecordStatus.APPROVED
               AND ls.recordDate BETWEEN :fromDate AND :toDate
               AND (:teamId IS NULL OR ls.team.id = :teamId)
             GROUP BY ls.team.id, ls.team.name, lsi.latexType.code

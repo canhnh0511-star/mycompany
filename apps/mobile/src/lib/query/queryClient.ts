@@ -53,6 +53,11 @@ export const queryKeys = {
     list: (filters: Record<string, unknown>) => ['ocr-call-logs', 'list', filters] as const,
     stats: (filters: Record<string, unknown> = {}) => ['ocr-call-logs', 'stats', filters] as const,
   },
+  scanBatches: {
+    detail: (id: string) => ['scan-batches', 'detail', id] as const,
+    lookup: (documentType: string, teamId: string, workDate: string) =>
+      ['scan-batches', 'lookup', documentType, teamId, workDate] as const,
+  },
   editHistory: (tableName: string, recordId: string) => ['edit-history', tableName, recordId] as const,
   reports: {
     productionRecords: (filters: Record<string, unknown>) =>

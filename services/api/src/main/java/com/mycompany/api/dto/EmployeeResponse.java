@@ -10,5 +10,8 @@ public record EmployeeResponse(
         String teamName,
         UUID userId,
         String status,
+        // nullable — vợ/chồng cùng làm cạo mủ (CLAUDE.md §5); spouseEmployeeName chỉ để hiển thị.
+        UUID spouseEmployeeId,
+        String spouseEmployeeName,
         Instant createdAt) {
 }
