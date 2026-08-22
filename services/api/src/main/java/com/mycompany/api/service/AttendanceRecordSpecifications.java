@@ -1,8 +1,8 @@
 package com.mycompany.api.service;
 
 import com.mycompany.api.entity.AttendanceRecord;
+import com.mycompany.api.entity.AttendanceRecordStatus;
 import com.mycompany.api.entity.AttendanceType;
-import com.mycompany.api.entity.RecordStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ public final class AttendanceRecordSpecifications {
     }
 
     public static Specification<AttendanceRecord> withFilters(UUID teamId, UUID employeeId,
-            LocalDate fromDate, LocalDate toDate, RecordStatus status, AttendanceType attendanceType) {
+            LocalDate fromDate, LocalDate toDate, AttendanceRecordStatus status, AttendanceType attendanceType) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (teamId != null) {

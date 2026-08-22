@@ -158,17 +158,18 @@ public class ProductionRecordService {
         return toResponse(productionRecordRepository.saveAndFlush(record));
     }
 
-    // draft → confirmed (ADR-0006: Admin đã xem/sửa xong, bấm "Lưu"). KHÔNG ghi edit_history —
-    // đây là bước hoàn tất review đầu tiên, không phải "sửa" 1 record đã confirmed từ trước
-    // (docs/TASKS.md Phase 2, cùng logic shouldLog ở update()/cancel()).
+    // draft → approved (ADR-0006, đổi tên từ "confirm" ở 0021-scan-batch-model để nhất quán thuật ngữ
+    // với ScanBatch.APPROVED: Admin đã xem/sửa xong, bấm "Lưu"). KHÔNG ghi edit_history — đây là bước
+    // hoàn tất review đầu tiên, không phải "sửa" 1 record đã approved từ trước (cùng logic shouldLog
+    // ở update()/cancel()).
     @Transactional
-    public ProductionRecordResponse confirm(UUID id, User currentUser) {
+    public ProductionRecordResponse approve(UUID id, User currentUser) {
         ProductionRecord record = findOrThrow(id);
         if (record.getStatus() != RecordStatus.DRAFT) {
             throw new ConflictException("Chỉ có thể xác nhận bản ghi đang ở trạng thái draft (hiện tại: "
                     + record.getStatus() + ")");
         }
-        record.setStatus(RecordStatus.CONFIRMED);
+        record.setStatus(RecordStatus.APPROVED);
         return toResponse(productionRecordRepository.save(record));
     }
 
@@ -198,7 +199,7 @@ public class ProductionRecordService {
                 .team(employee.getTeam())
                 .notes(request.notes())
                 .source(RecordSource.MANUAL)
-                .status(RecordStatus.CONFIRMED)
+                .status(RecordStatus.APPROVED)
                 .createdBy(currentUser)
                 .build();
         addItems(record, request.items());

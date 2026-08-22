@@ -70,9 +70,10 @@ public class LatexSaleController {
         return latexSaleService.cancel(id, currentUser);
     }
 
-    // draft → confirmed (ADR-0006) — chỉ áp dụng cho record tạo qua luồng OCR (Phase 3).
-    @PostMapping("/{id}/confirm")
-    public LatexSaleResponse confirm(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
-        return latexSaleService.confirm(id, currentUser);
+    // draft → approved (ADR-0006, đổi tên endpoint từ /confirm ở 0021-scan-batch-model) — chỉ áp dụng
+    // cho record tạo qua luồng OCR.
+    @PostMapping("/{id}/approve")
+    public LatexSaleResponse approve(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
+        return latexSaleService.approve(id, currentUser);
     }
 }

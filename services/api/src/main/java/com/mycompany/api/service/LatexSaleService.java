@@ -147,15 +147,15 @@ public class LatexSaleService {
         return toResponse(latexSaleRepository.saveAndFlush(sale));
     }
 
-    // draft → confirmed — xem ghi chú tương ứng trong ProductionRecordService.confirm().
+    // draft → approved — xem ghi chú tương ứng trong ProductionRecordService.approve().
     @Transactional
-    public LatexSaleResponse confirm(UUID id, User currentUser) {
+    public LatexSaleResponse approve(UUID id, User currentUser) {
         LatexSale sale = findOrThrow(id);
         if (sale.getStatus() != RecordStatus.DRAFT) {
             throw new ConflictException("Chỉ có thể xác nhận bản ghi đang ở trạng thái draft (hiện tại: "
                     + sale.getStatus() + ")");
         }
-        sale.setStatus(RecordStatus.CONFIRMED);
+        sale.setStatus(RecordStatus.APPROVED);
         return toResponse(latexSaleRepository.save(sale));
     }
 
@@ -180,7 +180,7 @@ public class LatexSaleService {
                 .buyerName(request.buyerName())
                 .sellerSignedBy(request.sellerSignedBy())
                 .notes(request.notes())
-                .status(RecordStatus.CONFIRMED)
+                .status(RecordStatus.APPROVED)
                 .createdBy(currentUser)
                 .build();
         addItems(sale, request.items());

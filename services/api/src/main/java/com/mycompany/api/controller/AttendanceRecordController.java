@@ -4,8 +4,8 @@ import com.mycompany.api.dto.AttendanceRecordResponse;
 import com.mycompany.api.dto.BatchResult;
 import com.mycompany.api.dto.CreateAttendanceRecordRequest;
 import com.mycompany.api.dto.UpdateAttendanceRecordRequest;
+import com.mycompany.api.entity.AttendanceRecordStatus;
 import com.mycompany.api.entity.AttendanceType;
-import com.mycompany.api.entity.RecordStatus;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.service.AttendanceRecordService;
 import jakarta.validation.Valid;
@@ -54,7 +54,7 @@ public class AttendanceRecordController {
             @RequestParam(required = false) UUID employeeId,
             @RequestParam(required = false) LocalDate fromDate,
             @RequestParam(required = false) LocalDate toDate,
-            @RequestParam(required = false) RecordStatus status,
+            @RequestParam(required = false) AttendanceRecordStatus status,
             @RequestParam(required = false) AttendanceType attendanceType,
             @PageableDefault(size = 50, sort = "recordDate", direction = Direction.DESC) Pageable pageable) {
         return attendanceRecordService.list(teamId, employeeId, fromDate, toDate, status, attendanceType, pageable);

@@ -73,9 +73,10 @@ public class ProductionRecordController {
         return productionRecordService.cancel(id, currentUser);
     }
 
-    // draft → confirmed (ADR-0006) — chỉ áp dụng cho record tạo qua luồng OCR (Phase 3).
-    @PostMapping("/{id}/confirm")
-    public ProductionRecordResponse confirm(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
-        return productionRecordService.confirm(id, currentUser);
+    // draft → approved (ADR-0006, đổi tên endpoint từ /confirm ở 0021-scan-batch-model) — chỉ áp dụng
+    // cho record tạo qua luồng OCR.
+    @PostMapping("/{id}/approve")
+    public ProductionRecordResponse approve(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
+        return productionRecordService.approve(id, currentUser);
     }
 }

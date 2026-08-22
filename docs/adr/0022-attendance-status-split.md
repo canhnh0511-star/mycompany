@@ -1,0 +1,5 @@
+# Tách AttendanceRecordStatus khỏi RecordStatus
+
+`RecordStatus` (`entity/RecordStatus.java`) có comment "Dùng chung cho ProductionRecord.status và LatexSale.status", nhưng thực tế `AttendanceRecord.status` (thêm ở migration 003) cũng dùng thẳng enum này qua cùng converter — comment không khớp code. Phát hiện khi audit trước khi rename `RecordStatus.CONFIRMED → APPROVED` (ADR-0021): nếu rename thẳng mà không tách trước, `attendance_records` (ngoài phạm vi cả 2 spec đang triển khai) sẽ bị kéo theo ngoài ý muốn.
+
+**Quyết định:** tạo `AttendanceRecordStatus` enum riêng (copy y hệt 3 giá trị `DRAFT/CONFIRMED/CANCELLED`) + converter riêng (`AttendanceRecordStatusConverter`), đổi `AttendanceRecord.status` sang dùng enum mới. Đây thuần là refactor Java — converter vẫn lowercase `.name()` giống hệt quy ước cũ, giá trị lưu DB **không đổi 1 ký tự nào**, CHECK constraint của `attendance_records` không cần sửa. Sau bước tách này, `RecordStatus` chỉ còn dùng bởi `ProductionRecord`/`LatexSale`, an toàn để rename `CONFIRMED → APPROVED` (ADR-0021) mà không đụng attendance.

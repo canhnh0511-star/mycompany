@@ -64,10 +64,11 @@ public class AttendanceRecord {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    // enum ↔ VARCHAR qua RecordStatusConverter (autoApply). Mặc định 'confirmed' — dữ liệu nhập tay
-    // không qua vòng OCR nên không cần draft tạm; 'cancelled' dùng để "hủy" thay vì hard delete
-    // (migration 003, nhất quán với production_records/latex_sales).
+    // enum ↔ VARCHAR qua AttendanceRecordStatusConverter (autoApply). Tách riêng khỏi RecordStatus
+    // (0021-scan-batch-model) — attendance không liên quan Scan Batch/production/latex-sale, giá trị
+    // DB không đổi. Mặc định 'confirmed' — dữ liệu nhập tay không qua vòng OCR nên không cần draft
+    // tạm; 'cancelled' dùng để "hủy" thay vì hard delete (migration 003).
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private RecordStatus status = RecordStatus.CONFIRMED;
+    private AttendanceRecordStatus status = AttendanceRecordStatus.CONFIRMED;
 }
