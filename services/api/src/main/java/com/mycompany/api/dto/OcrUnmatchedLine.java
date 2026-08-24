@@ -12,5 +12,8 @@ public record OcrUnmatchedLine(
         String employeeNameRaw,
         List<LatexItemRequest> items,
         String notes,
-        List<String> lowConfidenceFields) {
+        List<String> lowConfidenceFields,
+        // Thứ tự dòng gốc trên phiếu giấy (Vấn đề 3, migration 013) — mang theo tới lúc Admin
+        // ASSIGN_EMPLOYEE để record tạo ra vẫn xếp đúng vị trí trong bảng.
+        Integer rowIndex) {
 }

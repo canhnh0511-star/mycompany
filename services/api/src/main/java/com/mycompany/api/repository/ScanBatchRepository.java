@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * Create-or-merge/reuse thuật toán (0021-scan-batch-model, Spec 1 mục 2-3) đọc qua 2 finder này —
@@ -28,4 +29,14 @@ public interface ScanBatchRepository extends JpaRepository<ScanBatch, UUID> {
             UUID originalBatchId, BatchType batchType, Collection<BatchStatus> statuses);
 
     List<ScanBatch> findByOriginalBatchIdAndBatchType(UUID originalBatchId, BatchType batchType);
+
+    // JOIN FETCH team — buildResponse() (ScanBatchService) đọc batch.getTeam().getName() ở những chỗ
+    // KHÔNG có @Transactional bao quanh (captureImage/get, xem javadoc ScanBatchService lý do không
+    // @Transactional ở method orchestration cấp cao) + open-in-view=false → nếu team chỉ findById
+    // thường (LAZY) thì proxy chưa init sẽ ném LazyInitializationException ngay khi hết session của
+    // transaction con bên trong. Fetch sẵn ở đây để không phụ thuộc session còn mở hay không — phát
+    // hiện lỗi 500 khi test thật trên iPhone (batch đã tồn tại từ ảnh trước, ảnh thứ 2 trở đi mới lộ
+    // ra vì batch mới tạo có team được gán trực tiếp từ object đã load, không qua proxy).
+    @Query("select b from ScanBatch b join fetch b.team where b.id = :id")
+    Optional<ScanBatch> findByIdWithTeam(UUID id);
 }

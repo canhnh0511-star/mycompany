@@ -232,7 +232,7 @@ class ScanBatchIntegrationTest extends IntegrationTestSupport {
         savedConflict(sourceBatch, sourceImage, ConflictType.DATE_MISMATCH, true);
 
         ProductionRecordResponse sourceRecord = productionRecordService.createDraftFromOcr(
-                sessionDate, employee.getId(), null, List.of(), callLog, List.of(), sourceImage, admin);
+                sessionDate, employee.getId(), null, List.of(), callLog, List.of(), sourceImage, 0, admin);
 
         scanBatchService.resolveDate(sourceImage.getId(), new ResolveDateRequest(DateResolution.CHANGE_DATE), admin);
 

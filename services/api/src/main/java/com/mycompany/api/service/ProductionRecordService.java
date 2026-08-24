@@ -149,7 +149,7 @@ public class ProductionRecordService {
     @Transactional
     public ProductionRecordResponse createDraftFromOcr(LocalDate recordDate, UUID employeeId, String notes,
             List<LatexItemRequest> items, OcrCallLog ocrCallLog, List<String> lowConfidenceFields,
-            ScanImage scanImage, User currentUser) {
+            ScanImage scanImage, Integer rowIndex, User currentUser) {
         Employee employee = findEmployeeOrThrow(employeeId);
         checkNoActiveDuplicate(employee.getId(), recordDate, null);
 
@@ -165,6 +165,7 @@ public class ProductionRecordService {
                 .lowConfidenceFields(writeLowConfidenceFieldsOrNull(lowConfidenceFields))
                 .scanImage(scanImage)
                 .scanBatch(scanImage != null ? scanImage.getScanBatch() : null)
+                .rowIndex(rowIndex)
                 .createdBy(currentUser)
                 .build();
         addItems(record, items);
@@ -380,6 +381,9 @@ public class ProductionRecordService {
                 record.getCreatedBy().getId(),
                 record.getCreatedAt(),
                 record.getStatus().name(),
-                items);
+                items,
+                record.getScanImage() == null ? null : record.getScanImage().getId(),
+                record.getRowIndex(),
+                record.getScanBatch() == null ? null : record.getScanBatch().getId());
     }
 }

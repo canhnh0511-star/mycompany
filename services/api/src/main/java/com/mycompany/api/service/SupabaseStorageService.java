@@ -2,11 +2,14 @@ package com.mycompany.api.service;
 
 import com.mycompany.api.config.SupabaseStorageProperties;
 import com.mycompany.api.exception.InvalidRequestException;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -36,7 +39,13 @@ public class SupabaseStorageService {
 
     public SupabaseStorageService(SupabaseStorageProperties properties) {
         this.properties = properties;
-        this.restClient = RestClient.builder().baseUrl(properties.url() + "/storage/v1").build();
+        // Cùng lý do đã ghi ở ClaudeOcrService — RestClient.builder() mặc định không có timeout,
+        // request thread có thể treo vô thời hạn nếu Supabase Storage chậm/hang.
+        var requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(60));
+        this.restClient = RestClient.builder().baseUrl(properties.url() + "/storage/v1")
+                .requestFactory(requestFactory).build();
     }
 
     public record SignedUploadUrl(String objectPath, String uploadUrl, String token) {

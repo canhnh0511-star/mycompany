@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mycompany.api.config.AnthropicProperties;
 import com.mycompany.api.entity.OcrTargetType;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -54,7 +57,7 @@ public class ClaudeOcrService {
                 },
                 "rows": {
                   "type": "array",
-                  "description": "Mỗi phần tử tương ứng 1 công nhân trên phiếu. Để rỗng nếu type_mismatch = true.",
+                  "description": "BẮT BUỘC 1 phần tử cho MỖI dòng STT liên tục trên phiếu, từ STT nhỏ nhất tới STT lớn nhất — kể cả dòng CHỈ CÓ TÊN, không có số liệu (thường là vợ/chồng của người dòng trên, số liệu đã gộp chung). TUYỆT ĐỐI KHÔNG được tự ý bỏ qua/gộp các dòng trống này — set items=[] cho dòng đó, KHÔNG xóa khỏi mảng. Số phần tử trong rows PHẢI khớp đúng số dòng STT trên phiếu. Để rỗng nếu type_mismatch = true.",
                   "items": {
                     "type": "object",
                     "properties": {
@@ -88,6 +91,19 @@ public class ClaudeOcrService {
                       }
                     },
                     "required": ["employee_name_raw", "items"]
+                  }
+                }
+                ,
+                "column_totals": {
+                  "type": "array",
+                  "description": "CHỈ điền nếu phiếu CÓ dòng 'Tổng cộng'/'Cộng' ở cuối bảng ghi sẵn tổng theo TỪNG CỘT loại mủ (không phải tự cộng tay) — dùng để đối chiếu chéo, phát hiện đọc nhầm cột. Để rỗng nếu phiếu không có dòng tổng này.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "latex_type_code": {"type": "string", "enum": ["water", "cup", "strip", "coagulated"]},
+                      "total_kg": {"type": "number", "description": "Số ghi trên dòng Tổng cộng của ĐÚNG cột này. Chỉ điền nếu ô này có số viết tay, để trống/bỏ qua cột nếu ô Tổng cộng của cột đó trống."}
+                    },
+                    "required": ["latex_type_code", "total_kg"]
                   }
                 }
               },
@@ -146,7 +162,17 @@ public class ClaudeOcrService {
     public ClaudeOcrService(AnthropicProperties anthropicProperties, ObjectMapper objectMapper) {
         this.anthropicProperties = anthropicProperties;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.builder().baseUrl(anthropicProperties.baseUrl()).build();
+        // RestClient.builder() mặc định KHÔNG có timeout nào (connect lẫn read) — 1 lần gọi Claude bị
+        // treo (mạng chập chờn thực địa, CLAUDE.md §9, hoặc Anthropic API tự hang) sẽ khiến request
+        // thread chờ VÔ THỜI HẠN, phía app chỉ thấy "timeout" mù mờ không bao giờ tự thoát ra được lỗi
+        // rõ ràng để cho phép chụp lại — phát hiện khi test thật trên iPhone (2026-08-23). Read timeout
+        // để rộng (120s) vì model chạy adaptive thinking + vision, quan sát thực tế đã từng mất
+        // 12-25s/ảnh bình thường.
+        var requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(120));
+        this.restClient = RestClient.builder().baseUrl(anthropicProperties.baseUrl())
+                .requestFactory(requestFactory).build();
     }
 
     /** Kết quả 1 lần gọi Claude — {@code toolInput} null khi {@code success = false}. */
@@ -262,9 +288,15 @@ public class ClaudeOcrService {
                     + "(chỉ ghi kèm mủ nước, có thể để trống nếu phiếu không ghi). Nếu ảnh KHÔNG PHẢI loại phiếu "
                     + "này (vd là sổ bán mủ theo Tổ có chữ ký người mua, hoặc ảnh không liên quan), set "
                     + "type_mismatch=true, giải thích trong mismatch_reason, để rows rỗng — KHÔNG cố gán ép dữ "
-                    + "liệu vào sai schema. Nếu khớp: đọc NGÀY ghi trên phiếu và TỪNG DÒNG công nhân. Trường nào "
-                    + "không chắc chắn (chữ mờ/khó đọc) → liệt kê tên trường vào low_confidence_fields của đúng "
-                    + "dòng đó thay vì đoán bừa. PHẢI gọi tool extract_production_records để trả kết quả.";
+                    + "liệu vào sai schema. Nếu khớp: đọc NGÀY ghi trên phiếu và TỪNG DÒNG công nhân theo ĐÚNG số "
+                    + "thứ tự (STT) in sẵn trên phiếu — phiếu thường đánh số liên tục 1, 2, 3... tới hết, PHẢI trả "
+                    + "về đủ 1 phần tử rows[] cho MỖI số STT đó, TUYỆT ĐỐI không được bỏ qua dòng nào chỉ vì dòng "
+                    + "đó không ghi số liệu (rất phổ biến: dòng chỉ có tên vợ/chồng của người dòng ngay trên, số "
+                    + "liệu đã gộp chung vào dòng đó) — với dòng này vẫn tạo 1 phần tử, employee_name_raw = tên đọc "
+                    + "được, items = mảng rỗng []. Đếm lại số dòng rows[] so với số STT lớn nhất trên phiếu trước "
+                    + "khi trả kết quả để chắc chắn không sót dòng nào. Trường nào không chắc chắn (chữ mờ/khó đọc) "
+                    + "→ liệt kê tên trường vào low_confidence_fields của đúng dòng đó thay vì đoán bừa. PHẢI gọi "
+                    + "tool extract_production_records để trả kết quả.";
         }
         return common
                 + "Đây PHẢI là sổ bán mủ theo Tổ cho người mua ngoài: có tên người mua, tên người đại diện Tổ ký "

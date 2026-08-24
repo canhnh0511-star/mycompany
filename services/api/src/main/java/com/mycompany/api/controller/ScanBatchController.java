@@ -61,6 +61,12 @@ public class ScanBatchController {
         return scanBatchService.retryImage(imageId, currentUser);
     }
 
+    // Xóa (soft) 1 ảnh chụp/chọn nhầm khỏi batch — chỉ áp dụng ảnh FAILED (xem javadoc removeImage).
+    @PostMapping("/images/{imageId}/remove")
+    public ScanBatchResponse removeImage(@PathVariable UUID imageId, @AuthenticationPrincipal User currentUser) {
+        return scanBatchService.removeImage(imageId, currentUser);
+    }
+
     // Batch-level "Thử lại" trên banner FAILED (Spec 1 mục 1) — retry mọi ảnh FAILED trong batch.
     @PostMapping("/{id}/retry")
     public ScanBatchResponse retryBatch(@PathVariable UUID id, @AuthenticationPrincipal User currentUser) {
@@ -84,6 +90,13 @@ public class ScanBatchController {
     public ScanBatchResponse resolveConflict(@PathVariable UUID conflictId,
             @Valid @RequestBody ResolveConflictRequest request, @AuthenticationPrincipal User currentUser) {
         return scanBatchService.resolveConflict(conflictId, request, currentUser);
+    }
+
+    // Gọi SAU khi Admin sửa xong 1 dòng record thuộc ảnh đang có TOTAL_MISMATCH open — khớp lại thì tự
+    // đóng cảnh báo, còn lệch thì cập nhật số lệch mới nhất (xem javadoc ScanBatchService).
+    @PostMapping("/conflicts/{conflictId}/recheck-total")
+    public ScanBatchResponse recheckTotal(@PathVariable UUID conflictId, @AuthenticationPrincipal User currentUser) {
+        return scanBatchService.recheckTotalMismatch(conflictId, currentUser);
     }
 
     @PostMapping("/{id}/approve")

@@ -1,5 +1,6 @@
 package com.mycompany.api.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mycompany.api.config.AnthropicProperties;
@@ -33,7 +34,9 @@ import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.exception.InvalidRequestException;
 import com.mycompany.api.repository.EmployeeRepository;
+import com.mycompany.api.repository.ImageLatexTotalRow;
 import com.mycompany.api.repository.OcrCallLogRepository;
+import com.mycompany.api.repository.ProductionRecordItemRepository;
 import com.mycompany.api.repository.ScanBatchAuditLogRepository;
 import com.mycompany.api.repository.ScanBatchRepository;
 import com.mycompany.api.repository.ScanImageRepository;
@@ -54,6 +57,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -86,6 +90,13 @@ public class ScanBatchService {
             "claude-sonnet-5", new double[] {3.00, 15.00},
             "claude-haiku-4-5", new double[] {1.00, 5.00});
 
+    // Cùng TTL với ProductionRecordService/LatexSaleService (1 giờ đủ cho 1 phiên review trên điện thoại).
+    private static final int PHOTO_READ_URL_TTL_SECONDS = 3600;
+
+    // Dùng chung cho verifyColumnTotals (mở conflict) và recheckTotalMismatch (kiểm tra lại sau khi
+    // Admin sửa) — cùng 1 ngưỡng chấp nhận sai số làm tròn viết tay/cộng tay.
+    private static final BigDecimal TOTAL_MISMATCH_TOLERANCE_KG = new BigDecimal("0.5");
+
     private final ScanBatchRepository scanBatchRepository;
     private final ScanImageRepository scanImageRepository;
     private final ScanBatchAuditLogRepository auditLogRepository;
@@ -102,6 +113,7 @@ public class ScanBatchService {
     private final EmployeeRepository employeeRepository;
     private final EmployeeFuzzyMatcher fuzzyMatcher;
     private final ProductionRecordService productionRecordService;
+    private final ProductionRecordItemRepository productionRecordItemRepository;
     private final LatexSaleService latexSaleService;
     private final ObjectMapper objectMapper;
     private final LatexTypeItemParser itemParser;
@@ -164,6 +176,45 @@ public class ScanBatchService {
 
         UUID batchId = image.getScanBatch().getId();
         auditLogService.logByUser(image.getScanBatch(), image, "IMAGE_RETRIED", currentUser);
+        recomputeService.recompute(batchId);
+        return buildResponse(batchId);
+    }
+
+    // Xóa 1 ảnh chụp/chọn NHẦM khỏi batch (vd chụp nhầm màn hình app khác — type_mismatch) — chỉ cho
+    // phép với ảnh đang FAILED (ảnh ACTIVE đã tạo draft record, xóa sẽ mất dấu vết đối chiếu, phải đi
+    // qua resolve-conflict DISCARD đúng luồng thay vì xóa thẳng). Soft-remove: tái dùng ImageStatus.
+    // REPLACED (đã có sẵn cho luồng "chụp lại ảnh" tương lai — RULE 6, entity ScanImage) thay vì thêm
+    // status mới — cùng ý nghĩa "không còn là dữ liệu active, loại khỏi mọi tính toán"
+    // (BatchStatusRecomputeService đã filter sẵn REPLACED). Không xóa vật lý row (giữ ảnh gốc + audit
+    // log để đối chiếu khi cần, đúng CLAUDE.md §4). Phát hiện thiếu tính năng này khi test thật trên
+    // iPhone (2026-08-22) — ảnh FAILED không có cách nào dọn khỏi màn review ngoài hủy cả batch.
+    public ScanBatchResponse removeImage(UUID imageId, User currentUser) {
+        ScanImage image = scanImageRepository.findById(imageId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_image với id=" + imageId));
+        // Mở rộng cho phép cả ACTIVE (không chỉ FAILED) — Admin phát hiện ảnh đã xử lý XONG nhưng đọc
+        // sai (vd lệch tổng cột thật, ô "A+B" khó đọc) và muốn chụp lại thay vì sửa tay từng dòng, batch
+        // CHƯA approve thì vẫn còn cơ hội sửa (phát hiện thiếu tính năng khi test thật trên iPhone
+        // 2026-08-23 — chỉ có nút Thử lại/Xóa cho ảnh FAILED, không có cách nào với ảnh ACTIVE "sai
+        // nhưng thành công"). Batch đã APPROVED thì record đã khóa (ADR-0006), không cho xóa nữa.
+        ScanBatch batch = getBatchOrThrow(image.getScanBatch().getId());
+        if (image.getStatus() != ImageStatus.FAILED && image.getStatus() != ImageStatus.ACTIVE) {
+            throw new ConflictException("Chỉ xóa được ảnh đang FAILED hoặc ACTIVE (hiện tại: " + image.getStatus() + ")");
+        }
+        if (batch.getStatus() == BatchStatus.APPROVED || batch.getStatus() == BatchStatus.CANCELLED) {
+            throw new ConflictException("Phiên đã " + batch.getStatus() + " — không xóa được ảnh nữa");
+        }
+        // Ảnh ACTIVE đã tạo draft record — hủy hết trước khi loại ảnh, tránh record mồ côi vẫn tính
+        // vào tổng dù ảnh nguồn đã bị loại (cùng logic dùng khi resolve-conflict DISCARD).
+        if (image.getStatus() == ImageStatus.ACTIVE) {
+            cancelDraftsForImage(batch, imageId, currentUser);
+        }
+        conflictService.openForImage(imageId)
+                .forEach(c -> conflictService.resolve(c, ConflictStatus.RESOLVED, "IMAGE_REMOVED", currentUser));
+        image.setStatus(ImageStatus.REPLACED);
+        scanImageRepository.save(image);
+
+        UUID batchId = image.getScanBatch().getId();
+        auditLogService.logByUser(image.getScanBatch(), image, "IMAGE_REMOVED", currentUser);
         recomputeService.recompute(batchId);
         return buildResponse(batchId);
     }
@@ -288,15 +339,111 @@ public class ScanBatchService {
         }
 
         if (batch.getDocumentType() == OcrTargetType.PRODUCTION_RECORD) {
+            // Ghi lại NGAY số dòng OCR đọc được (trước khi map thành record/conflict) — không suy
+            // ngược sau này được vì 1 dòng vợ/chồng tạo 2 record, 1 dòng lỗi số liệu vẫn tạo record +
+            // conflict riêng. Chỉ áp dụng PRODUCTION_RECORD — LATEX_SALE không có khái niệm "rows"
+            // (1 phiếu = 1 record theo Tổ, xem LATEX_SALE_TOOL_SCHEMA).
+            image.setOcrRowCount(input.path("rows").size());
+            scanImageRepository.save(image);
             captureProductionRecordRows(input, dateResult.effectiveDate(), batch, image, currentUser);
+            verifyColumnTotals(input, batch, image);
         } else {
             captureLatexSaleRow(input, dateResult.effectiveDate(), batch, image, currentUser);
         }
     }
 
+    // Đối chiếu dòng "Tổng cộng" OCR đọc được (nếu phiếu có) với tổng kg thực tế đã tạo record cho
+    // ảnh này — bắt được lỗi OCR đọc nhầm CỘT (vd Mủ dây ghi nhầm thành Mủ đông) dù giá trị "trông"
+    // hợp lý và KHÔNG bị model tự flag low_confidence, nên UI review không có tín hiệu nào khác để
+    // Admin phát hiện (phát hiện thật khi test trên iPhone, phiếu ngày 23/08/2026 — 5/7 dòng đọc nhầm
+    // cột được model báo "chắc chắn 100%"). Chạy SAU khi đã tạo xong record/conflict cho toàn bộ
+    // dòng của ảnh — cần record đã persist để query tổng thực tế.
+    private void verifyColumnTotals(JsonNode input, ScanBatch batch, ScanImage image) {
+        JsonNode columnTotals = input.path("column_totals");
+        if (!columnTotals.isArray() || columnTotals.isEmpty()) {
+            return;
+        }
+        // Bỏ qua CHỈ khi ảnh còn UNKNOWN_EMPLOYEE hoặc POTENTIAL_DUPLICATE_OCR_ROW đang mở — 2 loại DUY
+        // NHẤT khiến 1 dòng CHƯA tạo được record (xem createProductionDraft/captureProductionRecordRows),
+        // nên kg của chúng chưa cộng vào tổng hệ thống, tự gây lệch dù không hề đọc nhầm cột. Các loại
+        // khác (DATE_MISMATCH, INVALID_BUSINESS_VALUE — record VẪN được tạo dù bị flag, DUPLICATE_IMAGE...)
+        // không ảnh hưởng tới việc dòng đã thành record hay chưa, KHÔNG được gate ở đây — lần đầu implement
+        // gate theo "bất kỳ conflict nào" đã bỏ sót lệch tổng THẬT khi ảnh có kèm DATE_MISMATCH không liên
+        // quan (phát hiện khi test thật trên iPhone 2026-08-23, phiếu ngày 19 Phong Phú).
+        boolean hasIncompleteRowConflict = conflictService.openForImage(image.getId()).stream()
+                .anyMatch(c -> c.getConflictType() == ConflictType.UNKNOWN_EMPLOYEE
+                        || c.getConflictType() == ConflictType.POTENTIAL_DUPLICATE_OCR_ROW);
+        if (hasIncompleteRowConflict) {
+            return;
+        }
+        Map<String, BigDecimal> systemTotals = productionRecordItemRepository.sumKgByScanImage(image.getId()).stream()
+                .collect(Collectors.toMap(ImageLatexTotalRow::latexTypeCode, ImageLatexTotalRow::totalKg));
+        for (JsonNode entry : columnTotals) {
+            String code = entry.path("latex_type_code").asText(null);
+            if (code == null || !entry.hasNonNull("total_kg")) {
+                continue;
+            }
+            BigDecimal ocrTotal = BigDecimal.valueOf(entry.path("total_kg").asDouble());
+            BigDecimal systemTotal = systemTotals.getOrDefault(code, BigDecimal.ZERO);
+            // Sai số nhỏ (làm tròn viết tay/cộng tay) chấp nhận được — chỉ chặn khi lệch thật sự.
+            if (ocrTotal.subtract(systemTotal).abs().compareTo(TOTAL_MISMATCH_TOLERANCE_KG) > 0) {
+                conflictService.open(batch, image, null, null, ConflictType.TOTAL_MISMATCH, true,
+                        Map.of("latexTypeCode", code, "ocrTotal", ocrTotal, "systemTotal", systemTotal));
+            }
+        }
+    }
+
+    private record TotalMismatchDetail(String latexTypeCode, BigDecimal ocrTotal, BigDecimal systemTotal) {
+    }
+
+    // Admin sửa số liệu trực tiếp trong bảng record (PATCH) sau khi thấy cảnh báo TOTAL_MISMATCH — bảng
+    // không tự biết cảnh báo nào cần tính lại, nên frontend gọi endpoint này SAU MỖI LẦN lưu 1 dòng
+    // thuộc ảnh đang có TOTAL_MISMATCH open (Spec 1 UX — phát hiện thiếu khi test thật trên iPhone
+    // 2026-08-23: trước đây chỉ có "giữ nguyên"/"bỏ dòng", không có đường "tôi đã sửa xong"). Khớp lại
+    // (trong dung sai) → tự resolve; vẫn lệch → cập nhật số systemTotal mới nhất lên detail, giữ OPEN.
+    public ScanBatchResponse recheckTotalMismatch(UUID conflictId, User currentUser) {
+        ScanBatchConflict conflict = conflictService.getOrThrow(conflictId);
+        if (conflict.getConflictType() != ConflictType.TOTAL_MISMATCH) {
+            throw new InvalidRequestException("Chỉ áp dụng cho conflict TOTAL_MISMATCH");
+        }
+        if (conflict.getStatus() != ConflictStatus.OPEN) {
+            throw new ConflictException("Conflict id=" + conflictId + " đã được xử lý trước đó (status=" + conflict.getStatus() + ")");
+        }
+        TotalMismatchDetail detail;
+        try {
+            detail = objectMapper.readValue(conflict.getDetail(), TotalMismatchDetail.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Không đọc được conflict detail (TOTAL_MISMATCH): " + conflict.getDetail(), e);
+        }
+        // .getId() trên quan hệ LAZY an toàn (không cần init proxy) — cùng lý do đã ghi ở resolveConflict,
+        // KHÔNG gọi thêm getter nào khác trên conflict.getScanImage()/getScanBatch() ở method này.
+        UUID scanImageId = conflict.getScanImage().getId();
+        ScanBatch batch = getBatchOrThrow(conflict.getScanBatch().getId());
+
+        Map<String, BigDecimal> systemTotals = productionRecordItemRepository.sumKgByScanImage(scanImageId).stream()
+                .collect(Collectors.toMap(ImageLatexTotalRow::latexTypeCode, ImageLatexTotalRow::totalKg));
+        BigDecimal systemTotal = systemTotals.getOrDefault(detail.latexTypeCode(), BigDecimal.ZERO);
+
+        if (detail.ocrTotal().subtract(systemTotal).abs().compareTo(TOTAL_MISMATCH_TOLERANCE_KG) <= 0) {
+            conflictService.resolve(conflict, ConflictStatus.RESOLVED, "RECHECKED_MATCH", currentUser);
+        } else {
+            conflictService.updateDetail(conflict, Map.of(
+                    "latexTypeCode", detail.latexTypeCode(), "ocrTotal", detail.ocrTotal(), "systemTotal", systemTotal));
+        }
+        auditLogService.logByUser(batch, conflict.getScanImage(), "TOTAL_MISMATCH_RECHECKED", currentUser);
+        recomputeService.recompute(batch.getId());
+        return buildResponse(batch.getId());
+    }
+
     private void captureProductionRecordRows(JsonNode input, LocalDate effectiveDate, ScanBatch batch, ScanImage image, User currentUser) {
         List<Employee> candidates = employeeRepository.findByTeamIdAndStatus(batch.getTeam().getId(), EmployeeStatus.ACTIVE);
-        for (JsonNode row : input.path("rows")) {
+        JsonNode rows = input.path("rows");
+        for (int i = 0; i < rows.size(); i++) {
+            JsonNode row = rows.get(i);
+            // *2 để chừa 1 chỗ trống ngay sau cho vợ/chồng tách từ CÙNG dòng này (splitBetweenSpouses)
+            // — đủ để sort đúng thứ tự phiếu giấy mà không cần biết trước dòng blank của vợ/chồng có
+            // được OCR trả về hay không (Vấn đề 3, migration 013).
+            int rowIndex = i * 2;
             String rawName = row.path("employee_name_raw").asText(null);
             List<LatexItemRequest> items = itemParser.parseItems(row.path("items"));
             String notes = row.path("notes").asText(null);
@@ -308,16 +455,55 @@ public class ScanBatchService {
                 // splitBetweenSpouses bên dưới) hoặc đơn giản người này nghỉ hôm đó. Bỏ qua hoàn
                 // toàn: không tạo production_record rỗng vô nghĩa (port từ OcrCaptureService cũ —
                 // ADR-0021 addendum). Ghi audit hệ thống để Admin còn dấu vết đối chiếu khi cần.
-                auditLogService.log(batch, image, "ROW_SKIPPED_EMPTY_ITEMS", null, true, null, rawName, null, null);
+                // newValue map jsonb (ScanBatchAuditLog.newValue @JdbcTypeCode(SqlTypes.JSON)) — PHẢI
+                // là chuỗi JSON hợp lệ, không được truyền thẳng rawName dạng text thô (Postgres ném
+                // "invalid input syntax for type json" ngay khi tên không phải null — phát hiện khi
+                // test thật trên iPhone (2026-08-23), lộ ra ở bất kỳ phiếu nào có dòng tên bỏ trống số
+                // liệu, không riêng gì ngày 14/08).
+                auditLogService.log(batch, image, "ROW_SKIPPED_EMPTY_ITEMS", null, true, null,
+                        writeJsonOrNull(Map.of("employeeNameRaw", String.valueOf(rawName))), null, null);
+                // Nếu tên khớp 1 nhân viên CÓ vợ/chồng đang active — dòng trống này chính là dòng
+                // "đã gộp chung" (splitBetweenSpouses xử lý ở dòng của người kia), KHÔNG phải trường
+                // hợp mơ hồ "không cạo mủ". Không mở conflict cho case này nữa — báo "cần chú ý" ở
+                // đây là nhiễu, làm Admin tưởng lỗi trong khi hệ thống đã xử lý đúng (phát hiện khi
+                // test thật trên iPhone 2026-08-23). Chỉ mở conflict khi KHÔNG match được vợ/chồng —
+                // vẫn giữ tín hiệu cho trường hợp thật sự không có số liệu (nghỉ/không cạo mủ).
+                boolean explainedBySpouse = false;
+                if (rawName != null && !rawName.isBlank()) {
+                    Optional<Employee> maybeMatch = fuzzyMatcher.match(rawName, candidates);
+                    explainedBySpouse = maybeMatch.isPresent() && resolveActiveSpouse(maybeMatch.get()) != null;
+                }
+                if (rawName != null && !rawName.isBlank() && !explainedBySpouse) {
+                    conflictService.open(batch, image, null, null, ConflictType.EMPTY_ROW_SKIPPED, false,
+                            Map.of("employeeNameRaw", rawName, "rowIndex", rowIndex));
+                }
                 continue;
             }
 
             Optional<Employee> matched = fuzzyMatcher.match(rawName, candidates);
             if (matched.isEmpty()) {
+                // Xác nhận là format phiếu thật (không phải trường hợp hiếm) khi test trên iPhone
+                // (2026-08-22): 1 số tổ ghi thẳng "Tên chồng - Tên vợ" chung 1 dòng, KHÁC giả định cũ
+                // của splitBetweenSpouses (1 dòng chỉ 1 tên, hệ thống tự tra spouse_employee_id) —
+                // rawName dạng ghép luôn dài hơn hẳn bất kỳ tên đơn nào nên fuzzyMatcher.match() trên
+                // toàn chuỗi luôn dưới ngưỡng, rơi thẳng UNKNOWN_EMPLOYEE, tính năng chia đôi không có
+                // cơ hội chạy. Thử tách "-" trước khi bó tay báo lỗi.
+                Optional<Employee[]> pair = matchCoupleNamePair(rawName, candidates);
+                if (pair.isPresent()) {
+                    Employee first = pair.get()[0];
+                    Employee second = pair.get()[1];
+                    if (hasInvalidItem(items)) {
+                        conflictService.open(batch, image, null, null, ConflictType.INVALID_BUSINESS_VALUE, true,
+                                Map.of("employeeName", first.getFullName() + " / " + second.getFullName(),
+                                        "reason", "kg/DRC ngoài khoảng hợp lệ"));
+                    }
+                    splitBetweenSpouses(batch, image, effectiveDate, first, second, items, notes, rawName, lowConfidence, rowIndex, currentUser);
+                    continue;
+                }
                 // CLAUDE.md §9 — không tự đoán, lưu nguyên dữ liệu để Admin chọn thủ công qua
                 // resolve-conflict (action=ASSIGN_EMPLOYEE).
                 conflictService.open(batch, image, null, null, ConflictType.UNKNOWN_EMPLOYEE, true,
-                        new OcrUnmatchedLine(rawName, items, notes, lowConfidence));
+                        new OcrUnmatchedLine(rawName, items, notes, lowConfidence, rowIndex));
                 continue;
             }
             if (hasInvalidItem(items)) {
@@ -328,11 +514,32 @@ public class ScanBatchService {
             Employee employee = matched.get();
             Employee spouse = resolveActiveSpouse(employee);
             if (spouse == null) {
-                createProductionDraft(batch, image, effectiveDate, employee, items, notes, lowConfidence, currentUser);
+                createProductionDraft(batch, image, effectiveDate, employee, items, notes, lowConfidence, rowIndex, currentUser);
             } else {
-                splitBetweenSpouses(batch, image, effectiveDate, employee, spouse, items, notes, rawName, lowConfidence, currentUser);
+                splitBetweenSpouses(batch, image, effectiveDate, employee, spouse, items, notes, rawName, lowConfidence, rowIndex, currentUser);
             }
         }
+    }
+
+    // Phiếu ghi "Tên chồng - Tên vợ" chung 1 dòng (xem ghi chú ở captureProductionRecordRows) — tách
+    // theo dấu gạch ngang, chỉ chấp nhận khi tách được ĐÚNG 2 phần khác rỗng và CẢ 2 phần đều fuzzy-
+    // match ra 2 nhân viên KHÁC NHAU (tránh trường hợp tên có dấu "-" tự nhiên mà vô tình match trùng
+    // 1 người, hoặc chỉ 1 nửa đọc được). Không đòi hỏi cấu hình employees.spouse_employee_id — phiếu
+    // đã tự ghi rõ 2 người rồi, không cần tra cứu.
+    private Optional<Employee[]> matchCoupleNamePair(String rawName, List<Employee> candidates) {
+        if (rawName == null) {
+            return Optional.empty();
+        }
+        String[] parts = rawName.split("\\s*[-–—]\\s*");
+        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Employee> first = fuzzyMatcher.match(parts[0], candidates);
+        Optional<Employee> second = fuzzyMatcher.match(parts[1], candidates);
+        if (first.isEmpty() || second.isEmpty() || first.get().getId().equals(second.get().getId())) {
+            return Optional.empty();
+        }
+        return Optional.of(new Employee[] {first.get(), second.get()});
     }
 
     // Vợ/chồng cùng làm cạo mủ (CLAUDE.md §5, port từ OcrCaptureService cũ — xem ADR-0021 addendum) —
@@ -349,23 +556,31 @@ public class ScanBatchService {
     // dấu cột kg vào low_confidence_fields để Admin để ý, ghi chú rõ nguồn gốc để đối chiếu khi cần.
     private void splitBetweenSpouses(ScanBatch batch, ScanImage image, LocalDate effectiveDate, Employee employee,
             Employee spouse, List<LatexItemRequest> items, String notes, String rawName, List<String> lowConfidence,
-            User currentUser) {
+            int rowIndex, User currentUser) {
         List<String> splitLowConfidence = withKgFlagged(lowConfidence);
         String splitNote = appendSplitNote(notes, rawName);
 
+        // rowIndex/rowIndex+1 — cùng 1 dòng phiếu giấy, xếp liền kề nhau khi sort (Vấn đề 3).
         createProductionDraft(batch, image, effectiveDate, employee, halveItems(items, false), splitNote,
-                splitLowConfidence, currentUser);
+                splitLowConfidence, rowIndex, currentUser);
         createProductionDraft(batch, image, effectiveDate, spouse, halveItems(items, true), splitNote,
-                splitLowConfidence, currentUser);
+                splitLowConfidence, rowIndex + 1, currentUser);
     }
 
     private void createProductionDraft(ScanBatch batch, ScanImage image, LocalDate effectiveDate, Employee employee,
-            List<LatexItemRequest> items, String notes, List<String> lowConfidence, User currentUser) {
+            List<LatexItemRequest> items, String notes, List<String> lowConfidence, int rowIndex, User currentUser) {
         try {
             productionRecordService.createDraftFromOcr(effectiveDate, employee.getId(), notes, items,
-                    image.getOcrCallLog(), lowConfidence, image, currentUser);
-        } catch (DataIntegrityViolationException ex) {
+                    image.getOcrCallLog(), lowConfidence, image, rowIndex, currentUser);
+        } catch (DataIntegrityViolationException | ConflictException ex) {
             // RULE 12 — không tự xóa/bỏ dòng, chỉ flag để user review (giữ cả 2 hoặc bỏ dòng mới).
+            // Bắt cả ConflictException (không chỉ DataIntegrityViolationException): createDraftFromOcr
+            // tự pre-check trùng active record (checkNoActiveDuplicate) và throw ConflictException
+            // NGAY, không đợi tới ràng buộc DB — nếu chỉ bắt DataIntegrityViolationException, exception
+            // này lọt thẳng lên captureImage/processOcr → toàn bộ request 409, HỦY luôn việc xử lý các
+            // dòng khác trong cùng ảnh + không tạo được conflict để user review (vi phạm best-effort
+            // per-row, ADR-0007) — phát hiện khi test thật trên iPhone (2026-08-22), lỗi 409 sau khi
+            // OCR chạy xong ~12-25s vì đợi Claude Vision trả kết quả trước khi mới chạm tới check này.
             conflictService.open(batch, image, null, null, ConflictType.POTENTIAL_DUPLICATE_OCR_ROW, true,
                     Map.of("employeeName", employee.getFullName(),
                             "reason", "đã có bản ghi sản lượng active khác cho nhân viên/ngày này"));
@@ -538,7 +753,14 @@ public class ScanBatchService {
         if (conflict.getStatus() != ConflictStatus.OPEN) {
             throw new ConflictException("Conflict id=" + conflictId + " đã được xử lý trước đó (status=" + conflict.getStatus() + ")");
         }
-        ScanBatch batch = conflict.getScanBatch();
+        // getBatchOrThrow (không dùng thẳng conflict.getScanBatch()) — ScanBatchConflict.scanBatch là
+        // quan hệ LAZY, method này không có @Transactional (cùng lý do đã ghi ở javadoc class), nên
+        // proxy trả về từ conflict chưa init sẽ ném LazyInitializationException ngay khi đụng field bất
+        // kỳ (kể cả cột enum thường như documentType, không riêng gì quan hệ) — vd cancelDraftsForImage
+        // gọi batch.getDocumentType() bên dưới. getBatchOrThrow tự query lại bằng repository, không
+        // phụ thuộc session còn mở hay không — phát hiện lỗi 500 khi resolve conflict "DISCARD" test
+        // thật trên iPhone (2026-08-22).
+        ScanBatch batch = getBatchOrThrow(conflict.getScanBatch().getId());
 
         switch (request.action()) {
             case "OVERRIDE" -> conflictService.resolve(conflict, ConflictStatus.OVERRIDDEN, "OVERRIDE", currentUser);
@@ -558,7 +780,8 @@ public class ScanBatchService {
                 OcrUnmatchedLine detail = readUnmatchedLineDetail(conflict.getDetail());
                 ScanImage image = conflict.getScanImage();
                 productionRecordService.createDraftFromOcr(image.getEffectiveWorkDate(), request.employeeId(),
-                        detail.notes(), detail.items(), image.getOcrCallLog(), detail.lowConfidenceFields(), image, currentUser);
+                        detail.notes(), detail.items(), image.getOcrCallLog(), detail.lowConfidenceFields(), image,
+                        detail.rowIndex(), currentUser);
                 conflictService.resolve(conflict, ConflictStatus.RESOLVED, "ASSIGN_EMPLOYEE", currentUser);
             }
             default -> throw new InvalidRequestException("action không hợp lệ: " + request.action()
@@ -688,7 +911,7 @@ public class ScanBatchService {
     }
 
     private ScanBatch getBatchOrThrow(UUID batchId) {
-        return scanBatchRepository.findById(batchId)
+        return scanBatchRepository.findByIdWithTeam(batchId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_batch với id=" + batchId));
     }
 
@@ -714,12 +937,19 @@ public class ScanBatchService {
     }
 
     private ScanImageResponse toImageResponse(ScanImage image) {
+        // Ký URL tạm (bucket receipt-photos PRIVATE) — cùng lý do đã fix ở ProductionRecordService/
+        // LatexSaleService.toResponse(): storagePath là object path tương đối, frontend không tải
+        // thẳng được nếu không ký. toImageResponse() trước đây trả thẳng storagePath, khiến review
+        // screen không hiển thị được ảnh dù batch xử lý OK — phát hiện khi test thật trên iPhone
+        // (2026-08-22).
+        String photoUrl = storageService.createSignedReadUrl(image.getStoragePath(), PHOTO_READ_URL_TTL_SECONDS);
         return new ScanImageResponse(
-                image.getId(), image.getClientImageId(), image.getStoragePath(), image.getStatus().name(),
+                image.getId(), image.getClientImageId(), photoUrl, image.getStatus().name(),
                 image.getDateVerificationStatus() != null ? image.getDateVerificationStatus().name() : null,
                 image.getDateResolution() != null ? image.getDateResolution().name() : null,
                 image.getOcrDetectedDate(), image.getEffectiveWorkDate(),
-                image.getPendingMoveTargetBatchId(), image.getErrorMessage(), image.getCreatedAt());
+                image.getPendingMoveTargetBatchId(), image.getErrorMessage(), image.getCreatedAt(),
+                image.getOcrRowCount());
     }
 
     private ScanBatchConflictResponse toConflictResponse(ScanBatchConflict c) {
@@ -740,6 +970,21 @@ public class ScanBatchService {
         } catch (DateTimeParseException e) {
             log.warn("Không parse được record_date OCR trả về: '{}'", raw);
             return null;
+        }
+    }
+
+    // Serialize an toàn cho các cột jsonb map String + @JdbcTypeCode(SqlTypes.JSON) (vd
+    // ScanBatchAuditLog.oldValue/newValue) — các cột này nhận NGUYÊN VĂN string làm JSON, không tự
+    // quote hộ như driver JDBC thường làm với text thường; truyền thẳng text thô (không qua hàm này)
+    // sẽ khiến Postgres ném "invalid input syntax for type json" (xem ROW_SKIPPED_EMPTY_ITEMS).
+    private String writeJsonOrNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Không serialize được audit log value", e);
         }
     }
 

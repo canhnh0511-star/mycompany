@@ -44,4 +44,39 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
             """)
     List<DailyTotalRow> aggregateDailyTotals(
             @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+
+    // Official Production cho Sản lượng v2 (Phase 4, Spec 2 §3/§8) — CHỈ tính record status=APPROVED,
+    // giống hệt quy ước aggregateForReport (audit Phase 4 xác nhận filter đơn giản này ĐÃ đủ tránh
+    // double-count: record dưới ảnh PENDING_MOVE/batch CANCELLED/retry FAILED không bao giờ đạt
+    // APPROVED — xem docs/plans/0021-scan-batch-and-production-summary-plan.md phần audit). Group theo
+    // cả 3 chiều (team, employee, latexType) trong 1 query — ProductionSummaryService tự pivot tiếp cho
+    // summary/team-breakdown/employee-count, tránh 3 round-trip DB riêng cho 1 lần xem "Sản lượng".
+    @Query("""
+            SELECT new com.mycompany.api.repository.OfficialProductionRow(
+                pr.team.id, pr.team.name, pr.employee.id, pri.latexType.code, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.status = com.mycompany.api.entity.RecordStatus.APPROVED
+              AND pr.recordDate = :workDate
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+              AND (:latexTypeCode IS NULL OR pri.latexType.code = :latexTypeCode)
+            GROUP BY pr.team.id, pr.team.name, pr.employee.id, pri.latexType.code
+            """)
+    List<OfficialProductionRow> aggregateOfficialProduction(
+            @Param("workDate") LocalDate workDate, @Param("teamId") UUID teamId,
+            @Param("latexTypeCode") String latexTypeCode);
+
+    // Đối chiếu tổng cột OCR đọc từ dòng "Tổng cộng" trên phiếu giấy với tổng thực tế đã tạo record
+    // cho ĐÚNG 1 ảnh (0021-scan-batch-model, phát hiện khi test thật 2026-08-23 — OCR đọc nhầm cột Mủ
+    // dây thành Mủ đông dù cả 2 cột đều rõ ràng, không bị che khuất). KHÔNG lọc status CANCELLED —
+    // gọi ngay sau khi tạo xong record cho ảnh, record vừa tạo luôn ở draft/confirmed, chưa thể bị
+    // cancel giữa chừng trong cùng request.
+    @Query("""
+            SELECT new com.mycompany.api.repository.ImageLatexTotalRow(pri.latexType.code, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.scanImage.id = :scanImageId
+            GROUP BY pri.latexType.code
+            """)
+    List<ImageLatexTotalRow> sumKgByScanImage(@Param("scanImageId") UUID scanImageId);
 }

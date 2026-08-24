@@ -84,6 +84,10 @@ public class ProductionRecord {
     @JoinColumn(name = "scan_batch_id")
     private ScanBatch scanBatch;
 
+    // Thứ tự dòng gốc trên phiếu giấy — null cho record nhập tay (migration 013, xem javadoc cột DB).
+    @Column(name = "row_index")
+    private Integer rowIndex;
+
     // JSON thô (Jackson serialize ở service layer) — field nào OCR không chắc chắn, để frontend đọc
     // thẳng từ draft row mà highlight (CLAUDE.md §5), không phải state tạm ở client (ADR-0006).
     @JdbcTypeCode(SqlTypes.JSON)

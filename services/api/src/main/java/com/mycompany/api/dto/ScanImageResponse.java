@@ -18,5 +18,8 @@ public record ScanImageResponse(
         LocalDate effectiveWorkDate,
         UUID pendingMoveTargetBatchId,
         String errorMessage,
-        Instant createdAt) {
+        Instant createdAt,
+        // Số dòng OCR đọc được từ ảnh này (null nếu chưa xử lý xong OCR, hoặc LATEX_SALE không có
+        // khái niệm "rows") — Admin đối chiếu bằng mắt với số dòng thật trên phiếu giấy.
+        Integer ocrRowCount) {
 }
