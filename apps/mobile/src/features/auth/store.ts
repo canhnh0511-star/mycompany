@@ -13,7 +13,11 @@ interface AuthState {
   role: Role | null;
   /** Đọc token đã lưu (nếu có) lúc app khởi động — gọi 1 lần từ root layout. */
   hydrate: () => Promise<void>;
-  login: (credentials: LoginRequest) => Promise<void>;
+  /** `rememberPassword` — ghi (true) hoặc xóa (false) mật khẩu đã lưu trong SecureStore (checkbox "Ghi
+   * nhớ mật khẩu", login.tsx). Mặc định `false` khi không truyền (vd luồng khác gọi login() thẳng) —
+   * KHÔNG tự ý lưu mật khẩu nếu user chưa bật checkbox. `loginWithBiometrics` bên dưới luôn truyền
+   * `true` vì mật khẩu đó vốn đã được user đồng ý lưu ở lần đăng nhập trước. */
+  login: (credentials: LoginRequest, options?: { rememberPassword?: boolean }) => Promise<void>;
   /** Đăng nhập nhanh — Face ID/vân tay (native) mở khóa email+mật khẩu đã lưu, tự gọi lại `login()`
    * bên dưới. Ném lỗi rõ ràng nếu chưa từng lưu hoặc xác thực sinh trắc học không thành công. */
   loginWithBiometrics: () => Promise<void>;
@@ -44,7 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ accessToken: token, status: 'authenticated' });
   },
 
-  login: async ({ email, password }) => {
+  login: async ({ email, password }, options) => {
     set({ status: 'loading' });
     try {
       const res = await apiClient.post<LoginResponse>(
@@ -54,11 +58,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       await tokenStorage.set(res.accessToken);
       // Best-effort — lỗi ghi credentialStorage KHÔNG được làm hỏng luồng đăng nhập chính (vd
-      // SecureStore lỗi lạ trên 1 thiết bị cụ thể). Ghi cả 2: lastEmail (mọi platform, chỉ để tự điền
-      // field) và credentials đầy đủ (native, gate bằng Face ID/vân tay lúc ĐỌC LẠI — xem
-      // loginWithBiometrics bên dưới, không phải lúc ghi).
+      // SecureStore lỗi lạ trên 1 thiết bị cụ thể). lastEmail + lastFullName: mọi platform, chỉ để hiện
+      // lại "Chào + tên" / tự điền field (login.tsx), không nhạy cảm. credentials (mật khẩu) CHỈ ghi khi
+      // user chủ động bật checkbox "Ghi nhớ mật khẩu" (`rememberPassword`) — mặc định không lưu. Bỏ
+      // check KHÔNG tự xóa credentials đã lưu trước đó (vd Face ID đã bật) — muốn tắt hẳn phải bấm nút
+      // "Tắt đăng nhập bằng Face ID / vân tay" ở tab Hồ sơ, tránh xóa nhầm ngoài ý muốn.
       credentialStorage.saveLastEmail(email).catch(() => {});
-      credentialStorage.saveCredentials(email, password).catch(() => {});
+      credentialStorage.saveLastFullName(res.fullName).catch(() => {});
+      if (options?.rememberPassword) {
+        credentialStorage.saveCredentials(email, password).catch(() => {});
+      }
       set({
         accessToken: res.accessToken,
         userId: res.userId,
@@ -82,7 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Xác thực Face ID/vân tay không thành công.');
     }
     try {
-      await get().login(saved);
+      await get().login(saved, { rememberPassword: true });
     } catch (err) {
       // 401 nghĩa là mật khẩu đã lưu không còn đúng (đổi mật khẩu ở nơi khác) — xóa luôn, tránh Face
       // ID cứ mời đăng nhập lại bằng mật khẩu cũ đã biết chắc sai.
