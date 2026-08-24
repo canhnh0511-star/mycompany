@@ -59,7 +59,18 @@ export const queryKeys = {
       ['scan-batches', 'lookup', documentType, teamId, workDate] as const,
   },
   editHistory: (tableName: string, recordId: string) => ['edit-history', tableName, recordId] as const,
+  productionSummary: {
+    daily: (filters: Record<string, unknown>) => ['production-summary', 'daily', filters] as const,
+    teamBreakdown: (teamId: string, filters: Record<string, unknown>) =>
+      ['production-summary', 'team-breakdown', teamId, filters] as const,
+  },
   reports: {
+    // Prefix chung — dùng để invalidate CẢ 3 query report cùng lúc (TanStack Query match theo tiền tố
+    // mảng key) sau bất kỳ thao tác nào đổi status production_records/latex_sales (batch approve, sửa
+    // 1 dòng trong Batch Review, hủy record...). THIẾU bước này ở mọi call site trước đây (audit
+    // 2026-08-24) — report chỉ tự làm mới sau 30s staleTime hoặc khi refocus, khiến "Hôm nay"/"Ngày
+    // làm việc" (cùng đọc report) trông như "không cập nhật" ngay sau khi Admin vừa xác nhận phiếu.
+    all: ['reports'] as const,
     productionRecords: (filters: Record<string, unknown>) =>
       ['reports', 'production-records', filters] as const,
     productionDailyTrend: (filters: Record<string, unknown>) =>

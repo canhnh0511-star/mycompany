@@ -1,11 +1,12 @@
 # features/lookup
 
-Tab "Tra cứu" — layout dạng card (ADR-0019 mục 2). Gộp chung Sản lượng cá nhân + Bán mủ theo Tổ trong 1
-danh sách theo ngày (KHÔNG gộp attendance-records — wireframe chỉ có 2 loại phiếu ở đây).
+Trước đây là tab "Tra cứu" (browse phẳng production_records/latex_sales kể cả DRAFT, filter loại
+phiếu/Tổ/status/khoảng ngày). **`LookupScreen.tsx` đã bị XÓA (Phase 5, 2026-08-24)** — tab "Sản lượng"
+giờ dùng `features/production-summary/ProductionSummaryScreen.tsx` (dashboard tổng hợp Official
+Production theo Spec 2, docs/specs/spec-2-san-luong-v2.md), không còn cho browse DRAFT ở đây nữa (xem
+javadoc ProductionSummaryScreen — DRAFT giờ chỉ xem/sửa qua luồng "Phiếu"). 2 màn dưới đây vẫn còn dùng
+— `record-detail` là route CHUNG cho drill-down từ cả Batch Review lẫn Sản lượng v2:
 
-- [x] **LookupScreen.tsx** (2026-08-10) — filter loại phiếu (Tất cả/Sổ ghi mủ/Sổ bán mủ), Tổ, status
-  (Tất cả/Nháp/Đã xác nhận/Đã hủy — mặc định Tất cả, kể cả `DRAFT` theo CLAUDE.md §5), khoảng ngày (input
-  text `yyyy-mm-dd`, chưa có date picker library). Card tap → điều hướng `record-detail`.
 - [x] **ProductionRecordDetailScreen.tsx** + **LatexSaleDetailScreen.tsx** (2026-08-10) — route riêng
   full-screen (`app/record-detail/production/[id].tsx`, `app/record-detail/latex-sale/[id].tsx`): ảnh
   gốc (nếu có), bảng khối lượng theo loại mủ + tổng, ghi chú, Hủy bản ghi (2 bước xác nhận, không hard

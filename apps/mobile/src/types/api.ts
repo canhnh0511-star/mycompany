@@ -126,6 +126,11 @@ export interface ProductionRecordResponse {
   createdAt: string;
   status: RecordStatus;
   items: LatexItemResponse[];
+  /** null cho record nhập tay — chỉ có khi tạo qua luồng OCR (0021-scan-batch-model). */
+  scanImageId: string | null;
+  /** Thứ tự dòng gốc trên phiếu giấy — null cho record nhập tay hoặc tạo trước migration 013. Sort
+   * theo field này để hiện đúng thứ tự như ảnh gốc. */
+  rowIndex: number | null;
 }
 
 /** Khớp services/api dto/CreateLatexSaleRequest.java (nhập tay batch, ADR-0007) — không có employeeId. */
@@ -228,7 +233,9 @@ export type ConflictType =
   | 'INVALID_BUSINESS_VALUE'
   | 'POTENTIAL_DUPLICATE_OCR_ROW'
   | 'PENDING_MOVE'
-  | 'OTHER';
+  | 'OTHER'
+  | 'TOTAL_MISMATCH'
+  | 'EMPTY_ROW_SKIPPED';
 
 export type ConflictStatus = 'OPEN' | 'RESOLVED' | 'OVERRIDDEN';
 
@@ -257,6 +264,9 @@ export interface ScanImageResponse {
   pendingMoveTargetBatchId: string | null;
   errorMessage: string | null;
   createdAt: string;
+  /** Số dòng OCR đọc được từ ảnh này — null nếu chưa xử lý xong hoặc là ảnh Sổ bán mủ (không có
+   * khái niệm "rows"). Đối chiếu bằng mắt với số dòng thật trên phiếu giấy. */
+  ocrRowCount: number | null;
 }
 
 /** displayOrder tính sẵn ở backend (Spec 1 mục 6 "thứ tự hiển thị") — sort theo field này khi render,
@@ -517,4 +527,82 @@ export interface OcrCallLogStatsResponse {
   typeMismatchRate: number;
   totalEstimatedCostUsd: number;
   avgDurationMs: number | null;
+}
+
+// ============================================================= "Sản lượng v2" (Phase 4/5, Spec 2
+// docs/specs/spec-2-san-luong-v2.md) — khớp services/api dto/ProductionSummary*.java, DerivedTeamStatus.java
+
+/** Case A-G, Spec 2 §6 — khớp services/api dto/DerivedTeamStatus.java (Java enum, giữ nguyên tên). */
+export type DerivedTeamStatus =
+  | 'NO_DATA'
+  | 'PROCESSING'
+  | 'NEEDS_REVIEW'
+  | 'READY_TO_APPROVE'
+  | 'APPROVED'
+  | 'APPROVED_WITH_ACTIVE_SUPPLEMENT'
+  | 'FAILED';
+
+/** Khớp services/api dto/LatexTypeKg.java */
+export interface LatexTypeKg {
+  code: string;
+  label: string;
+  kg: number;
+}
+
+/** Khớp services/api dto/PendingMoveInfo.java — Spec 2 §25. */
+export interface PendingMoveInfo {
+  targetWorkDate: string;
+  imageCount: number;
+}
+
+/** Khớp services/api dto/ActiveSupplementInfo.java — chỉ có khi derivedStatus=APPROVED_WITH_ACTIVE_SUPPLEMENT. */
+export interface ActiveSupplementInfo {
+  batchId: string;
+  status: string;
+}
+
+/** Khớp services/api dto/TeamProductionSummary.java — 1 dòng "Theo tổ". */
+export interface TeamProductionSummary {
+  teamId: string;
+  teamName: string;
+  derivedStatus: DerivedTeamStatus;
+  primaryBatchId: string | null;
+  officialKg: number;
+  // Không kèm "/N" — Spec 2 §14 (không có expectedWorkersForDate trong domain).
+  employeesWithProduction: number;
+  pendingMoveInfo: PendingMoveInfo[];
+  activeSupplementInfo: ActiveSupplementInfo | null;
+}
+
+/** Khớp services/api dto/ProductionSummaryDailyResponse.java — GET /production-summary/daily. */
+export interface ProductionSummaryDailyResponse {
+  workDate: string;
+  totalKg: number;
+  byLatexType: LatexTypeKg[];
+  hasPendingIssues: boolean;
+  teams: TeamProductionSummary[];
+}
+
+/** Khớp services/api dto/EmployeeProductionRow.java — Spec 2 §17/§23. */
+export interface EmployeeProductionRow {
+  employeeId: string;
+  employeeName: string;
+  recordId: string;
+  byLatexType: LatexTypeKg[];
+  drcPercent: number | null;
+  totalKg: number;
+  captureMethod: 'OCR' | 'MANUAL';
+  originContext: 'PRIMARY' | 'SUPPLEMENT' | null;
+  photoUrl: string | null;
+  scanImageId: string | null;
+}
+
+/** Khớp services/api dto/TeamBreakdownResponse.java — GET /production-summary/team/{id}/breakdown. */
+export interface TeamBreakdownResponse {
+  teamId: string;
+  teamName: string;
+  workDate: string;
+  totalKg: number;
+  byLatexType: LatexTypeKg[];
+  employees: EmployeeProductionRow[];
 }

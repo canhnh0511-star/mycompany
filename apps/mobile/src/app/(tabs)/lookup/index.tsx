@@ -1,5 +1,5 @@
-import { LookupScreen } from '@/features/lookup/LookupScreen';
+import { ProductionSummaryScreen } from '@/features/production-summary/ProductionSummaryScreen';
 
 export default function LookupRoute() {
-  return <LookupScreen />;
+  return <ProductionSummaryScreen />;
 }

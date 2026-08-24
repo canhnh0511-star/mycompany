@@ -13,6 +13,14 @@ export function todayIsoDate(): string {
   return toIsoDate(new Date());
 }
 
+/** Cộng/trừ N ngày vào 1 ngày yyyy-MM-dd, trả về cùng định dạng — dùng cho nút Previous/Next day
+ * (Sản lượng v2, Spec 2 §8: "Không bắt mở date picker chỉ để chuyển ngày trước/sau"). */
+export function addDaysIso(isoDate: string, deltaDays: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const date = new Date(y, m - 1, d + deltaDays);
+  return toIsoDate(date);
+}
+
 export function defaultReportDateRange(): { fromDate: string; toDate: string } {
   const now = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
