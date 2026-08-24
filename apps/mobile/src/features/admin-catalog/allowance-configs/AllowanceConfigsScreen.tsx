@@ -6,6 +6,7 @@ import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
+import { AppDateInput } from '@/components/AppDateInput';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
@@ -149,19 +150,17 @@ export function AllowanceConfigsScreen() {
               />
               <HStack space="sm">
                 <Box className="flex-1">
-                  <AppInput
-                    label="Hiệu lực từ (yyyy-mm-dd)"
+                  <AppDateInput
+                    label="Hiệu lực từ"
                     value={fields.effectiveFrom}
                     onChangeText={(effectiveFrom) => setFields((f) => ({ ...f, effectiveFrom }))}
-                    placeholder="2026-01-01"
                   />
                 </Box>
                 <Box className="flex-1">
-                  <AppInput
+                  <AppDateInput
                     label="Đến (bỏ trống = vô hạn)"
                     value={fields.effectiveTo}
                     onChangeText={(effectiveTo) => setFields((f) => ({ ...f, effectiveTo }))}
-                    placeholder="Bỏ trống"
                   />
                 </Box>
               </HStack>

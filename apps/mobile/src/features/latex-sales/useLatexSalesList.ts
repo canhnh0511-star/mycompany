@@ -22,6 +22,9 @@ export function useCancelLatexSaleMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => latexSalesApi.cancel(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem useProductionRecordsBatch.ts
+    },
   });
 }

@@ -32,7 +32,15 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown; // object thường (đã JSON.stringify sẵn nếu là FormData/Blob thì tự truyền qua headers riêng)
   skipAuth?: boolean; // dùng cho POST /auth/login — chưa có token để gắn
+  /** ms trước khi tự abort — mặc định DEFAULT_TIMEOUT_MS. `fetch` KHÔNG có timeout mặc định, nên nếu
+   * kết nối mạng thực địa chập chờn (CLAUDE.md §9) khiến request treo, app chỉ thấy spinner quay mãi,
+   * không bao giờ tự thoát ra lỗi để cho phép thử lại — phát hiện khi test thật trên iPhone
+   * (2026-08-23). Override cao hơn cho endpoint biết trước có thể chạy lâu hợp lệ (vd captureImage —
+   * OCR backend giờ có ceiling riêng 120s, xem ClaudeOcrService). */
+  timeoutMs?: number;
 };
+
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 // Log request/response ra console — CHỈ dev build (`__DEV__`, biến global do Metro/RN tự inject, luôn
 // `false` trong production bundle nên tự loại bỏ khỏi build thật, không cần tắt tay). Không log
@@ -49,9 +57,17 @@ function logError(method: string, path: string, error: unknown, startedAt: numbe
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, skipAuth, headers, ...rest } = options;
+  const { body, skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = options;
   const method = rest.method ?? 'GET';
   const startedAt = Date.now();
+
+  // Tôn trọng signal caller truyền vào (nếu có) — nối với timeout tự tạo qua AbortSignal.any, không
+  // ghi đè mất khả năng caller tự hủy request.
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, timeoutController.signal])
+    : timeoutController.signal;
 
   const finalHeaders = new Headers(headers);
   let finalBody: BodyInit | undefined;
@@ -79,12 +95,19 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...rest,
       headers: finalHeaders,
       body: finalBody,
+      signal: combinedSignal,
     });
   } catch (err) {
     // Lỗi network trần (mất mạng, DNS, CORS...) — fetch không tự có status, log riêng để phân biệt với
-    // lỗi HTTP có status ở nhánh dưới (CLAUDE.md §9 rủi ro mất mạng thực địa).
+    // lỗi HTTP có status ở nhánh dưới (CLAUDE.md §9 rủi ro mất mạng thực địa). AbortError do timeout tự
+    // tạo ở trên đổi thành thông báo dễ hiểu thay vì để lộ "AbortError" kỹ thuật ra UI.
     logError(method, path, err, startedAt);
+    if (err instanceof Error && err.name === 'AbortError' && !signal?.aborted) {
+      throw new Error('Mất kết nối tới máy chủ — thử lại giúp tôi.');
+    }
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
   logResponse(method, path, response.status, startedAt);
 

@@ -29,12 +29,19 @@ export const scanBatchApi = {
     apiClient.get<ScanBatchLookupResponse>(
       `/api/v1/scan-batches/lookup?documentType=${documentType}&teamId=${teamId}&workDate=${workDate}`,
     ),
-  /** 1 request/1 ảnh — tạo/merge batch, OCR, verify ngày, detect conflict, tạo draft, recompute status. */
+  /** 1 request/1 ảnh — tạo/merge batch, OCR, verify ngày, detect conflict, tạo draft, recompute status.
+   * timeoutMs cao hơn default (30s) — backend gọi Claude Vision đồng bộ, ceiling riêng 120s
+   * (ClaudeOcrService), request client phải chờ được LÂU HƠN ceiling đó mới không tự abort sai khi
+   * backend vẫn đang xử lý hợp lệ. */
   captureImage: (body: CaptureImageRequest) =>
-    apiClient.post<ScanBatchResponse>('/api/v1/scan-batches/images', body),
+    apiClient.post<ScanBatchResponse>('/api/v1/scan-batches/images', body, { timeoutMs: 150_000 }),
   get: (batchId: string) => apiClient.get<ScanBatchResponse>(`/api/v1/scan-batches/${batchId}`),
   retryImage: (imageId: string) =>
     apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/images/${imageId}/retry`),
+  /** Xóa (soft) 1 ảnh chụp/chọn nhầm khỏi batch — chỉ áp dụng ảnh FAILED, xem javadoc
+   * ScanBatchService.removeImage(). */
+  removeImage: (imageId: string) =>
+    apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/images/${imageId}/remove`),
   /** Batch-level "Thử lại" trên banner FAILED — retry mọi ảnh FAILED trong batch cùng lúc. */
   retryBatch: (batchId: string) => apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/${batchId}/retry`),
   /** "Hủy phiên này" trên banner FAILED, hoặc reject 1 Supplement đang review (Spec 1 mục 5). */
@@ -44,6 +51,10 @@ export const scanBatchApi = {
   /** Theo conflictId (không phải imageId) — 1 ảnh có thể có nhiều conflict cùng lúc. */
   resolveConflict: (conflictId: string, body: ResolveConflictRequest) =>
     apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/conflicts/${conflictId}/resolve`, body),
+  /** Gọi SAU khi Admin sửa xong 1 dòng thuộc ảnh đang có TOTAL_MISMATCH open — khớp lại thì tự đóng
+   * cảnh báo, còn lệch thì cập nhật số lệch mới nhất. */
+  recheckTotal: (conflictId: string) =>
+    apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/conflicts/${conflictId}/recheck-total`),
   approve: (batchId: string) => apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/${batchId}/approve`),
   auditLog: (batchId: string) =>
     apiClient.get<ScanBatchAuditLogResponse[]>(`/api/v1/scan-batches/${batchId}/audit-log`),
@@ -54,14 +65,33 @@ export const scanBatchApi = {
  * KHÔNG qua `apiClient` (không cần/không nên gắn JWT của backend vào request này, và base URL khác
  * hẳn — xem SupabaseStorageService.createSignedUploadUrl ở backend).
  */
+// fetch trần không có timeout mặc định — mạng thực địa chập chờn (CLAUDE.md §9) có thể khiến PUT treo
+// vô thời hạn, app chỉ thấy spinner "Đang tải lên..." mãi không bao giờ báo lỗi để thử lại (phát hiện
+// khi test thật trên iPhone, cùng lớp lỗi với apiClient — xem lib/api/client.ts). 60s đủ rộng cho ảnh
+// chụp phiếu qua mạng di động chậm.
+const UPLOAD_TIMEOUT_MS = 60_000;
+
 export async function uploadPhotoToSupabase(uploadUrl: string, contentType: UploadContentType, fileUri: string) {
   const fileResponse = await fetch(fileUri);
   const blob = await fileResponse.blob();
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: blob,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: blob,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Mất kết nối khi tải ảnh lên — thử lại giúp tôi.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     throw new Error(`Tải ảnh lên thất bại (HTTP ${res.status})`);
   }

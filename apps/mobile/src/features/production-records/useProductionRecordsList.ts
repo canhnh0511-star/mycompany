@@ -22,6 +22,9 @@ export function useCancelProductionRecordMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => productionRecordsApi.cancel(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem useProductionRecordsBatch.ts
+    },
   });
 }

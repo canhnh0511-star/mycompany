@@ -6,6 +6,10 @@ export function useLatexSalesBatchMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: latexSalesApi.createBatch,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all });
+      // Xem comment tương ứng ở useProductionRecordsBatch.ts — reports là namespace riêng.
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    },
   });
 }

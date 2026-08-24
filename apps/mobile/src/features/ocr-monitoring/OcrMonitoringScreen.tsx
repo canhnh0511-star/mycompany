@@ -4,7 +4,7 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
-import { AppInput } from '@/components/AppInput';
+import { AppDateInput } from '@/components/AppDateInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppCard } from '@/components/AppCard';
 import { AppText } from '@/components/AppText';
@@ -52,10 +52,10 @@ export function OcrMonitoringScreen() {
 
         <HStack space="sm" className="flex-wrap items-end">
           <Box className="w-40">
-            <AppInput label="Từ ngày" value={fromDate} onChangeText={setFromDate} placeholder="yyyy-mm-dd" />
+            <AppDateInput label="Từ ngày" value={fromDate} onChangeText={setFromDate} />
           </Box>
           <Box className="w-40">
-            <AppInput label="Đến ngày" value={toDate} onChangeText={setToDate} placeholder="yyyy-mm-dd" />
+            <AppDateInput label="Đến ngày" value={toDate} onChangeText={setToDate} />
           </Box>
           <Box className="w-48">
             <AppSelect label="Loại phiếu" value={targetType || null} options={TARGET_TYPE_OPTIONS} onChange={(v) => setTargetType(v)} />

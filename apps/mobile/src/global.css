@@ -9,15 +9,16 @@
                            Appearance.getColorScheme() on native.
    3. :root.dark / :root.light — higher specificity for web class toggle.
 
-   Bảng màu (2026-08-13, Phase 1 module-1-1_upgrade_UI_UX.md): primary đổi từ đen trung tính sang
-   "deep teal-green" (#1E6B57) theo Claude Design (project 55a7676b, "Nông trường cao su - Mobile.dc.html")
+   Bảng màu (2026-08-13, Phase 1 module-1-1_upgrade_UI_UX.md; hex sửa lại 2026-08-23 cho khớp CHÍNH XÁC
+   artboard 01/02 — #1E6B57 trước đó là số liệu lấy lệch): primary đổi từ đen trung tính sang
+   "deep teal-green" (#1F5A45) theo Claude Design (project 55a7676b, "Nông trường cao su - Mobile.dc.html")
    — khớp UI_UX_GUIDE_RUBBER_FARM.md §12/§26 ("trầm, chuyên nghiệp, không neon"). Thêm 3 token semantic
    còn thiếu (--success/--warning/--info, dùng cho StatusBadge/OCR confidence state — CLAUDE.md §5,
    UI_UX_GUIDE §19/§21/§22): dùng NGUYÊN VẸN như solid color, áp opacity qua Tailwind (`text-warning`,
    `bg-warning/10`, `border-warning/40`...) — cùng cách --destructive đã dùng ở AppInput/AppSelect. */
 @layer theme {
   :root {
-    --primary: 30 107 87;
+    --primary: 31 90 69;
     --primary-foreground: 250 250 250;
     --card: 255 255 255;
     --secondary: 245 245 245;
@@ -37,7 +38,7 @@
     --foreground: 10 10 10;
     --border: 229 229 229;
     --input: 229 229 229;
-    --ring: 30 107 87;
+    --ring: 31 90 69;
     --accent: 247 247 247;
     --accent-foreground: 52 52 52;
   }
@@ -97,7 +98,7 @@
   }
 
   :root.light {
-    --primary: 30 107 87;
+    --primary: 31 90 69;
     --primary-foreground: 250 250 250;
     --card: 255 255 255;
     --secondary: 245 245 245;
@@ -117,7 +118,7 @@
     --foreground: 10 10 10;
     --border: 229 229 229;
     --input: 229 229 229;
-    --ring: 30 107 87;
+    --ring: 31 90 69;
     --accent: 247 247 247;
     --accent-foreground: 52 52 52;
   }

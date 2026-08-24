@@ -16,7 +16,11 @@ export const biometrics = {
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: 'Xác thực để đăng nhập',
       cancelLabel: 'Hủy',
-      disableDeviceFallback: false, // cho phép PIN/mật khẩu thiết bị làm phương án dự phòng của hệ điều hành
+      // true — CHỈ Face ID/vân tay, không rơi về màn hình nhập mã PIN/mật khẩu điện thoại. Trước đó
+      // để false (cho phép fallback) khiến hệ điều hành bắt gõ mật khẩu thiết bị thay vì quét khuôn
+      // mặt — sai tinh thần "Đăng nhập bằng khuôn mặt" của chính nút này (đã có nút "Đăng nhập" gõ
+      // tay riêng ngay bên dưới cho trường hợp sinh trắc học không dùng được, không cần OS tự fallback).
+      disableDeviceFallback: true,
     });
     return result.success;
   },
