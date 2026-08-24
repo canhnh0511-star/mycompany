@@ -10,6 +10,7 @@ import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.repository.ScanBatchRepository;
 import com.mycompany.api.repository.TeamRepository;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -35,9 +36,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class ScanBatchCreationService {
 
     // Spec 1 mục 3.2 — status còn được coi là "Supplement đang active" (loại APPROVED/CANCELLED).
-    private static final List<BatchStatus> ACTIVE_SUPPLEMENT_STATUSES = List.of(
-            BatchStatus.DRAFT, BatchStatus.UPLOADING, BatchStatus.PROCESSING, BatchStatus.NEED_REVIEW,
-            BatchStatus.READY_TO_APPROVE, BatchStatus.PARTIAL_FAILED, BatchStatus.FAILED);
+    // Nguồn sự thật ở BatchStatus.isActiveSupplement() (dùng chung với ProductionSummaryService, Phase
+    // 4) — list cụ thể lấy từ đó thay vì khai lại, tránh lệch nhau khi sửa 1 chỗ quên chỗ kia.
+    private static final List<BatchStatus> ACTIVE_SUPPLEMENT_STATUSES =
+            Arrays.stream(BatchStatus.values()).filter(BatchStatus::isActiveSupplement).toList();
 
     private final ScanBatchRepository scanBatchRepository;
     private final TeamRepository teamRepository;

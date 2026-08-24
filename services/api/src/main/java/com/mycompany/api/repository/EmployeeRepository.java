@@ -5,10 +5,24 @@ import com.mycompany.api.entity.EmployeeStatus;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     List<Employee> findByTeamId(UUID teamId);
+
+    // Sản lượng v2, Spec 2 §38 (SHOULD) — search theo tên, chỉ ACTIVE (nhân viên inactive không còn
+    // phát sinh sản lượng mới, không cần lộ ra ở đây). Không search theo mã nhân viên — domain hiện
+    // không có cột này (audit Phase 4).
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE e.status = com.mycompany.api.entity.EmployeeStatus.ACTIVE
+              AND LOWER(e.fullName) LIKE LOWER(CONCAT('%', :query, '%'))
+              AND (:teamId IS NULL OR e.team.id = :teamId)
+            ORDER BY e.fullName
+            """)
+    List<Employee> searchActiveByFullName(@Param("query") String query, @Param("teamId") UUID teamId);
 
     List<Employee> findByStatus(EmployeeStatus status);
 
