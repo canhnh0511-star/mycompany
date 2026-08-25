@@ -25,6 +25,9 @@ export function useCancelProductionRecordMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem useProductionRecordsBatch.ts
+      // Record bị hủy có thể thuộc 1 scan batch OCR — hủy có thể đổi derived status của batch đó (vd
+      // hết dòng cần xử lý). Cùng lý do đã sửa ở BatchReviewScreen.applyResponse (2026-08-25).
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount });
     },
   });
 }

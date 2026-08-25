@@ -347,6 +347,12 @@ export function BatchReviewScreen({ batchId }: { batchId: string }) {
     // (queryKeys.reports.*, namespace RIÊNG, không nằm dưới productionRecords/latexSales) nên approve
     // xong vẫn hiện số cũ cho tới khi staleTime 30s trôi qua hoặc màn hình refocus.
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    // Cùng lớp bug với dòng trên, tái phát 2026-08-25: Home "Chờ kiểm tra" đọc
+    // queryKeys.scanBatches.pendingCount (namespace RIÊNG, mới thêm — không nằm dưới productionRecords/
+    // latexSales/reports) — xóa ảnh/retry/hủy/duyệt phiên đều đổi status batch (có thể đổi số đang
+    // "chờ xử lý"), nhưng thiếu dòng này thì Home vẫn hiện số cũ cho tới khi staleTime trôi qua. User
+    // báo cáo trực tiếp: xóa 2 ảnh 1 phiên nhưng "Chờ kiểm tra" không đổi.
+    queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount });
   }
 
   function handleActionError(err: unknown, fallbackTitle: string) {
@@ -899,6 +905,7 @@ function ProductionRecordsTable({
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem javadoc applyResponse
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount }); // xem javadoc applyResponse
       setActiveEditKey(null);
       showToast({ title: 'Đã lưu', variant: 'success' });
       // Vấn đề 2 — kiểm tra lại NGAY các TOTAL_MISMATCH đang mở của đúng ảnh chứa dòng vừa sửa: khớp
@@ -1144,6 +1151,7 @@ function LatexSalesTable({ batchId }: { batchId: string }) {
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem javadoc applyResponse
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount }); // xem javadoc applyResponse
       setActiveEditKey(null);
       showToast({ title: 'Đã lưu', variant: 'success' });
     } catch (err) {
