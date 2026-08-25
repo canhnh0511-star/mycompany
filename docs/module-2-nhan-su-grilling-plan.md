@@ -1,5 +1,10 @@
 # Module 2 — Nhân sự — Grilling Plan
 
+> **TẠM HOÃN (2026-08-25)** — Admin xác nhận thời điểm hiện tại CHƯA cần quản lý hồ sơ nhân viên sâu; ưu
+> tiên thật sự là các tính năng hỗ trợ Admin vận hành (xem hướng mới đang bàn ở phiên làm việc). File này
+> giữ lại làm tài liệu tham khảo cho lúc nhu cầu hồ sơ nhân sự thật sự phát sinh, KHÔNG phải việc đang
+> làm — không tách ADR, không code theo nội dung dưới đây cho tới khi có quyết định mở lại.
+
 > "Grilling" = buổi truy vấn/phản biện có chủ đích TRƯỚC khi viết dòng code đầu tiên, để lộ ra hết các
 > giả định ngầm, quyết định còn treo, và rủi ro kỹ thuật — cùng tinh thần
 > `docs/frontend-grilling-plan.md` đã làm cho Module 1. Format mỗi mục: **câu hỏi** → **đề xuất** (mặc
