@@ -25,6 +25,7 @@ import com.mycompany.api.repository.LatexTypeRepository;
 import com.mycompany.api.repository.TeamRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -88,7 +89,12 @@ public class LatexSaleService {
             RecordStatus status, UUID scanBatchId, Pageable pageable) {
         Specification<LatexSale> spec =
                 LatexSaleSpecifications.withFilters(teamId, fromDate, toDate, status, scanBatchId);
-        return latexSaleRepository.findAll(spec, pageable).map(this::toResponse);
+        Page<LatexSale> page = latexSaleRepository.findAll(spec, pageable);
+        // Cache signed URL theo objectPath trong phạm vi 1 lần gọi list() — cùng lý do đã sửa ở
+        // ProductionRecordService.list() (2026-08-25, điều tra Home load chậm): nhiều dòng cùng photoUrl
+        // trước đây ký URL trùng lặp N lần, gây chậm GET /latex-sales?scanBatchId=...
+        Map<String, String> signedUrlCache = new HashMap<>();
+        return page.map(sale -> toResponse(sale, signedUrlCache));
     }
 
     @Transactional
@@ -317,6 +323,11 @@ public class LatexSaleService {
     }
 
     private LatexSaleResponse toResponse(LatexSale sale) {
+        return toResponse(sale, new HashMap<>());
+    }
+
+    // signedUrlCache: dùng chung giữa nhiều sale trong CÙNG 1 lần gọi list() — xem ghi chú ở list().
+    private LatexSaleResponse toResponse(LatexSale sale, Map<String, String> signedUrlCache) {
         List<LatexItemResponse> items = sale.getItems().stream()
                 .map(item -> new LatexItemResponse(
                         item.getLatexType().getId(), item.getLatexType().getCode(), item.getKg(), item.getDrcPercent()))
@@ -329,7 +340,8 @@ public class LatexSaleService {
                 sale.getBuyerName(),
                 sale.getSellerSignedBy(),
                 sale.getNotes(),
-                storageService.createSignedReadUrl(sale.getPhotoUrl(), PHOTO_READ_URL_TTL_SECONDS),
+                signedUrlCache.computeIfAbsent(
+                        sale.getPhotoUrl(), path -> storageService.createSignedReadUrl(path, PHOTO_READ_URL_TTL_SECONDS)),
                 sale.getOcrCallLog() == null ? null : sale.getOcrCallLog().getId(),
                 sale.getLowConfidenceFields(),
                 sale.getCreatedBy().getId(),

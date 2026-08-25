@@ -26,6 +26,7 @@ import com.mycompany.api.repository.LatexTypeRepository;
 import com.mycompany.api.repository.ProductionRecordRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -94,7 +95,15 @@ public class ProductionRecordService {
             LocalDate toDate, RecordStatus status, UUID scanBatchId, Pageable pageable) {
         Specification<ProductionRecord> spec =
                 ProductionRecordSpecifications.withFilters(teamId, employeeId, fromDate, toDate, status, scanBatchId);
-        return productionRecordRepository.findAll(spec, pageable).map(this::toResponse);
+        Page<ProductionRecord> page = productionRecordRepository.findAll(spec, pageable);
+        // Cache signed URL theo objectPath TRONG PHẠM VI 1 lần gọi list() — phát hiện lúc điều tra Home
+        // load chậm (2026-08-25): nhiều dòng CÙNG photoUrl (1 ảnh phiếu → nhiều nhân viên, CLAUDE.md §5)
+        // trước đây mỗi dòng tự gọi createSignedReadUrl() RIÊNG (1 HTTP call ký URL tới Supabase Storage
+        // mỗi lần) — 1 batch 23 dòng cùng ảnh = 23 lần ký TRÙNG NHAU, chính là nguyên nhân
+        // GET /production-records?scanBatchId=... mất 1-3s dù dữ liệu rất ít. Không cache Ở NGOÀI method
+        // này (vd field/bean-level) vì URL ký có TTL, cache lâu dài sẽ trả URL hết hạn.
+        Map<String, String> signedUrlCache = new HashMap<>();
+        return page.map(record -> toResponse(record, signedUrlCache));
     }
 
     @Transactional
@@ -362,6 +371,13 @@ public class ProductionRecordService {
     }
 
     private ProductionRecordResponse toResponse(ProductionRecord record) {
+        return toResponse(record, new HashMap<>());
+    }
+
+    // signedUrlCache: dùng chung giữa nhiều record trong CÙNG 1 lần gọi list() — nhiều dòng có thể trỏ
+    // cùng 1 photoUrl (1 ảnh phiếu → nhiều nhân viên, CLAUDE.md §5), tránh ký URL trùng lặp nhiều lần
+    // (xem ghi chú ở list()). Không cache ngoài phạm vi 1 request vì URL ký có TTL.
+    private ProductionRecordResponse toResponse(ProductionRecord record, Map<String, String> signedUrlCache) {
         List<LatexItemResponse> items = record.getItems().stream()
                 .map(item -> new LatexItemResponse(
                         item.getLatexType().getId(), item.getLatexType().getCode(), item.getKg(), item.getDrcPercent()))
@@ -375,7 +391,8 @@ public class ProductionRecordService {
                 record.getTeam().getName(),
                 record.getNotes(),
                 record.getSource().name(),
-                storageService.createSignedReadUrl(record.getPhotoUrl(), PHOTO_READ_URL_TTL_SECONDS),
+                signedUrlCache.computeIfAbsent(
+                        record.getPhotoUrl(), path -> storageService.createSignedReadUrl(path, PHOTO_READ_URL_TTL_SECONDS)),
                 record.getOcrCallLog() == null ? null : record.getOcrCallLog().getId(),
                 record.getLowConfidenceFields(),
                 record.getCreatedBy().getId(),
