@@ -8,6 +8,7 @@ import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { useAppToast } from '@/components/useAppToast';
+import { biometrics } from '@/lib/auth/biometrics';
 import { credentialStorage } from '@/lib/auth/credentialStorage';
 import { clearCache, formatBytes, getCacheSizeBytes } from '@/lib/settings/cacheCleanup';
 import { useSettingsStore } from '@/features/settings/store';
@@ -23,6 +24,17 @@ const THEME_LABEL: Record<ModeType, string> = { light: 'Sáng', dark: 'Tối', s
  * Nhóm "BẢO MẬT" (Face ID/vân tay) KHÔNG có trong mockup gốc — đây là tính năng đã tồn tại từ trước khi
  * redesign (wireframe `ProfileScreen` cũ có nút "Tắt đăng nhập bằng Face ID / vân tay"), chuyển xuống
  * đây thay vì xóa mất khi thay UI, vì không có màn nào khác trong 8 màn mới thay thế đúng chức năng này.
+ *
+ * BUG THẬT sửa 2026-08-25 (user báo cáo): nhãn "Tắt đăng nhập bằng Face ID / vân tay" hiện ra chỉ dựa
+ * vào `credentialStorage.hasSavedCredentials()` — CHƯA kiểm tra `biometrics.isAvailable()` (cần cả
+ * `hasHardwareAsync()` VÀ `isEnrolledAsync()`, xem `lib/auth/biometrics.ts`). `hasSavedCredentials()`
+ * đúng cả khi mật khẩu chỉ được lưu qua checkbox "Ghi nhớ mật khẩu" ở màn đăng nhập (KHÔNG liên quan
+ * Face ID) — trên máy/emulator không có cảm biến sinh trắc học (hoặc chưa đăng ký vân tay/khuôn mặt),
+ * màn Đăng nhập (`login.tsx`, `canUseBiometric = biometrics.isAvailable() && hasSavedCredentials()`)
+ * đúng đắn KHÔNG hiện nút sinh trắc học, nhưng màn Thiết lập vẫn hiện nhãn "Face ID/vân tay" gây hiểu
+ * lầm nút này tồn tại. Sửa: đọc thêm `biometrics.isAvailable()`, đổi nhãn theo đúng thực tế — còn
+ * sinh trắc học thật thì giữ nhãn cũ, không thì đổi thành "Xóa mật khẩu đã ghi nhớ" (đúng bản chất dữ
+ * liệu đang xóa).
  */
 export function AppSettingsScreen() {
   const router = useRouter();
@@ -33,10 +45,12 @@ export function AppSettingsScreen() {
   const [cacheBytes, setCacheBytes] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
   const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
+  const [canUseBiometric, setCanUseBiometric] = useState(false);
 
   useEffect(() => {
     getCacheSizeBytes().then(setCacheBytes);
     credentialStorage.hasSavedCredentials().then(setHasSavedCredentials);
+    biometrics.isAvailable().then(setCanUseBiometric);
   }, []);
 
   async function handleClearCache() {
@@ -82,7 +96,8 @@ export function AppSettingsScreen() {
           </Box>
         </SettingsGroup>
 
-        {/* Xem javadoc đầu file — không thuộc mockup gốc, giữ lại chức năng cũ. */}
+        {/* Xem javadoc đầu file (mục "BUG THẬT sửa 2026-08-25") — nhãn đổi theo đúng thực tế thiết bị,
+            không gắn cứng "Face ID/vân tay" khi máy không có/chưa đăng ký cảm biến. */}
         {Platform.OS !== 'web' && hasSavedCredentials ? (
           <SettingsGroup title="Bảo mật">
             <Box className="px-4 py-3">
@@ -90,10 +105,15 @@ export function AppSettingsScreen() {
                 onPress={async () => {
                   await credentialStorage.clearCredentials();
                   setHasSavedCredentials(false);
-                  showToast({ title: 'Đã tắt đăng nhập bằng Face ID / vân tay', variant: 'success' });
+                  showToast({
+                    title: canUseBiometric ? 'Đã tắt đăng nhập bằng Face ID / vân tay' : 'Đã xóa mật khẩu đã ghi nhớ',
+                    variant: 'success',
+                  });
                 }}
               >
-                <AppText className="text-destructive">Tắt đăng nhập bằng Face ID / vân tay</AppText>
+                <AppText className="text-destructive">
+                  {canUseBiometric ? 'Tắt đăng nhập bằng Face ID / vân tay' : 'Xóa mật khẩu đã ghi nhớ'}
+                </AppText>
               </Pressable>
             </Box>
           </SettingsGroup>
