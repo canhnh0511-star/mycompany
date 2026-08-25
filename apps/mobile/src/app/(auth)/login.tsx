@@ -19,21 +19,29 @@ import { ApiError } from '@/lib/api/client';
 import { biometrics } from '@/lib/auth/biometrics';
 import { credentialStorage } from '@/lib/auth/credentialStorage';
 
-// GAP đã biết (xác nhận qua audit code thật, 2026-08-24): backend `LoginRequest.email`
-// (services/api/src/main/java/com/mycompany/api/dto/LoginRequest.java) bắt buộc `@Email` — chỉ nhận
-// định danh dạng email, KHÔNG có cột/luồng tra cứu theo số điện thoại (`User` entity không có field
-// phone, `AuthController.login` chỉ `userRepository.findByEmail`). Theo yêu cầu đổi UI sang Số điện
-// thoại, field này TẠM THỜI vẫn gửi lên backend qua đúng key `email` của LoginRequest (không tự chế API
-// mới ở đây) — nghĩa là đăng nhập BẰNG SỐ ĐIỆN THOẠI THẬT SẼ LUÔN 400 (backend validate `@Email`) cho
-// tới khi có API backend nhận diện theo SĐT (đã ghi vào mục "API còn thiếu" của plan Hồ sơ). Admin seed
-// hiện tại vẫn phải gõ đúng email seed sẵn (docs/adr/0004) để đăng nhập được ở v1.
-const phoneSchema = z
+// (2026-08-25, đã đóng GAP ghi ở đây trước đó) backend `LoginRequest.email`
+// (services/api/src/main/java/com/mycompany/api/dto/LoginRequest.java) giữ nguyên TÊN field `email`
+// nhưng không còn `@Email` — `AuthController.login` thử `findByEmail` trước, không thấy thử `findByPhone`
+// (migration 014). Field này ở frontend vẫn gửi SĐT qua đúng key `email` như cũ, giờ backend đã nhận
+// diện đúng — đăng nhập bằng SĐT hoạt động thật cho user có SĐT (đặt qua PATCH /users/me, màn Hồ sơ).
+// Admin seed (docs/adr/0004) hiện chưa có SĐT (chỉ email) nên vẫn phải gõ email seed ở v1 cho tới khi
+// tự cập nhật SĐT qua màn Chỉnh sửa hồ sơ.
+// BUG THẬT tìm thấy lúc test trên emulator (2026-08-25): validate CHỈ chấp nhận định dạng SĐT sẽ CHẶN
+// CỨNG luôn cả đăng nhập bằng email — trong khi Admin seed (docs/adr/0004) KHÔNG có SĐT, chỉ có email.
+// Nếu chỉ validate SĐT, Admin gõ đúng email+mật khẩu vẫn bị lỗi "Số điện thoại không hợp lệ" ngay ở
+// client, không bao giờ tới được backend — khóa cứng, không đăng nhập lại được (trừ khi đã lưu sẵn qua
+// Face ID/"Ghi nhớ mật khẩu" từ trước). Chấp nhận CẢ 2 định dạng — không đổi tên field/label (vẫn "Số
+// điện thoại" theo design) vì SĐT vẫn là input chính cho v1 sau (release Tổ trưởng), chỉ nới validate.
+const identifierSchema = z
   .string()
-  .min(1, 'Bắt buộc nhập số điện thoại')
-  .regex(/^(0|\+84)\d{9,10}$/, 'Số điện thoại không hợp lệ');
+  .min(1, 'Bắt buộc nhập số điện thoại hoặc email')
+  .refine(
+    (v) => /^(0|\+84)\d{9,10}$/.test(v) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+    'Số điện thoại hoặc email không hợp lệ',
+  );
 
 const loginSchema = z.object({
-  phone: phoneSchema,
+  phone: identifierSchema,
   password: z.string().min(1, 'Bắt buộc nhập mật khẩu'),
 });
 
@@ -44,8 +52,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
  * được seed sẵn qua migration (ADR-0004). Đổi mật khẩu làm ở tab Hồ sơ sau khi đăng nhập.
  *
  * Đăng nhập nhanh (2026-08-24, theo yêu cầu đổi field + "Ghi nhớ mật khẩu" + chào lại người dùng cũ):
- * - Field định danh đổi từ Email sang Số điện thoại (label/keyboardType/validation) — xem GAP ở khối
- *   comment trên `phoneSchema`, backend hiện chưa hỗ trợ thật.
+ * - Field định danh đổi từ Email sang Số điện thoại (label/keyboardType/validation) — backend đã hỗ trợ
+ *   thật từ 2026-08-25, xem comment trên `phoneSchema`.
  * - Checkbox "Ghi nhớ mật khẩu" (mặc định TẮT) — bật thì lưu mật khẩu vào SecureStore
  *   (`credentialStorage.saveCredentials`, cùng chỗ lưu cho Face ID) để lần sau khỏi gõ lại; KHÔNG bật
  *   thì không lưu, không đụng gì tới mật khẩu đã lưu từ trước (vd Face ID vẫn hoạt động nếu đã bật).
@@ -122,8 +130,8 @@ export default function LoginScreen() {
   async function onSubmit(values: LoginFormValues) {
     setFormError(null);
     try {
-      // Backend chỉ có field `email` (xem GAP đầu file) — gửi giá trị SĐT gõ được qua đúng key đó,
-      // KHÔNG tự đổi tên field phía backend.
+      // Backend giữ tên field `email` (xem comment đầu file) nhưng nhận cả SĐT — gửi giá trị SĐT gõ
+      // được qua đúng key đó, KHÔNG tự đổi tên field phía backend.
       await login({ email: values.phone, password: values.password }, { rememberPassword });
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Không đăng nhập được, thử lại sau.');
@@ -198,7 +206,7 @@ export default function LoginScreen() {
               render={({ field }) => (
                 <VStack space="xs">
                   <AppText size="sm" className="text-muted-foreground">
-                    Số điện thoại
+                    Số điện thoại hoặc email
                   </AppText>
                   <Input isInvalid={!!errors.phone} style={{ height: 52, borderRadius: 10 }}>
                     <InputField
@@ -206,7 +214,10 @@ export default function LoginScreen() {
                       onChangeText={field.onChange}
                       onBlur={field.onBlur}
                       autoCapitalize="none"
-                      keyboardType="phone-pad"
+                      // "default" (không phải "phone-pad") — bàn phím phone-pad khóa cứng chỉ hiện số,
+                      // không gõ được "@"/chữ cho email (xem comment identifierSchema — Admin seed chỉ
+                      // đăng nhập được bằng email, "phone-pad" sẽ chặn luôn cả gõ tay lẫn validate).
+                      keyboardType="default"
                     />
                   </Input>
                   {errors.phone?.message ? (

@@ -32,6 +32,13 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown; // object thường (đã JSON.stringify sẵn nếu là FormData/Blob thì tự truyền qua headers riêng)
   skipAuth?: boolean; // dùng cho POST /auth/login — chưa có token để gắn
+  /** 401 ở endpoint này KHÔNG có nghĩa "hết phiên đăng nhập" — vd PATCH /users/me/password trả 401 khi
+   * gõ sai MẬT KHẨU HIỆN TẠI (BadCredentialsException, vẫn dùng chung access token hợp lệ), không phải
+   * token hết hạn/không hợp lệ. Nếu thiếu cờ này, `request()` sẽ tự logout + điều hướng login (đúng cho
+   * MỌI endpoint khác) — sai hoàn toàn ở đây (bug tìm thấy lúc test trên emulator 2026-08-25: gõ sai mật
+   * khẩu hiện tại làm user bị đăng xuất luôn với thông báo "Phiên đăng nhập hết hạn", thay vì báo lỗi
+   * tại chỗ). Đặt `true` để 401 chỉ ném `ApiError` bình thường, không chạm token/điều hướng. */
+  skipUnauthorizedHandler?: boolean;
   /** ms trước khi tự abort — mặc định DEFAULT_TIMEOUT_MS. `fetch` KHÔNG có timeout mặc định, nên nếu
    * kết nối mạng thực địa chập chờn (CLAUDE.md §9) khiến request treo, app chỉ thấy spinner quay mãi,
    * không bao giờ tự thoát ra lỗi để cho phép thử lại — phát hiện khi test thật trên iPhone
@@ -57,7 +64,15 @@ function logError(method: string, path: string, error: unknown, startedAt: numbe
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = options;
+  const {
+    body,
+    skipAuth,
+    skipUnauthorizedHandler,
+    headers,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    signal,
+    ...rest
+  } = options;
   const method = rest.method ?? 'GET';
   const startedAt = Date.now();
 
@@ -111,7 +126,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
   logResponse(method, path, response.status, startedAt);
 
-  if (response.status === 401 && !skipAuth) {
+  if (response.status === 401 && !skipAuth && !skipUnauthorizedHandler) {
     await tokenStorage.clear();
     onUnauthorized?.();
     throw new ApiError(401, 'Phiên đăng nhập hết hạn');
