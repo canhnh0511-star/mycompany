@@ -20,6 +20,13 @@ import { HomeHeader } from './HomeHeader';
 import { ProductionSummaryCard } from './ProductionSummaryCard';
 import { ClipboardCheckIcon, DocumentIcon, PeopleIcon, TagIcon } from './HomeIcons';
 
+// "Chờ kiểm tra" — accent lilac/tím nhạt (§15), KHÔNG dùng token `info` (xanh dương) như bản trước —
+// project chưa có token màu tím, dùng hex y hệt user chỉ định (cùng nguyên tắc hardcode hex mockup gốc
+// khi chưa có token, xem BrandMark.tsx/_layout.tsx tab bar).
+const LILAC_ACCENT = '#8B5CF6';
+const LILAC_BG = '#F7F3FC';
+const LILAC_BORDER = '#E6DCF5';
+
 type ChartFilter = 'total' | 'water' | 'cup' | 'other';
 const CHART_FILTERS: { key: ChartFilter; label: string }[] = [
   { key: 'total', label: 'Tổng' },
@@ -200,7 +207,8 @@ export function HomeScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
-      <VStack space="lg">
+      {/* gap 22 — trong khoảng 20-24px yêu cầu §25 "section → section" (space="lg" mặc định chỉ 16px) */}
+      <VStack style={{ gap: 22 }}>
         <HomeHeader dateLabel={formatTodayLabel()} onCapture={() => router.push('/(tabs)/capture')} />
 
         {isLoading ? <LoadingState label="Đang tải tình hình hôm nay..." /> : null}
@@ -245,7 +253,7 @@ export function HomeScreen() {
                     subtitle="Phiếu"
                   />
                   <TodayMetricCard
-                    icon={<ClipboardCheckIcon color="#1D6FBE" />}
+                    icon={<ClipboardCheckIcon color={LILAC_ACCENT} />}
                     title="Chờ kiểm tra"
                     value={String(dangChoReview)}
                     subtitle="Phiếu"
@@ -268,7 +276,9 @@ export function HomeScreen() {
                     </AppText>
                   </Pressable>
                 </HStack>
-                {/* Chip/card gọn ngang, cuộn ngang khi nhiều Tổ (mục 6 yêu cầu — không wrap nhiều hàng). */}
+                {/* Chip/card gọn ngang, cuộn ngang khi nhiều Tổ (mục 18 yêu cầu — width 135-160px để lộ 1
+                    phần card kế tiếp làm affordance, không wrap nhiều hàng). Có icon nhóm ở đầu card
+                    (mục 17 — trước đây chỉ có text, "quá phẳng"). */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <HStack space="sm">
                     {teamSummaries.map(({ team, status }) => {
@@ -276,10 +286,13 @@ export function HomeScreen() {
                       const label = status === 'done' ? 'Đã ghi nhận' : status === 'partial' ? 'Đang xử lý' : 'Chưa ghi nhận';
                       const dot = status === 'none' ? '○' : '●';
                       return (
-                        <Box key={team.id} className="rounded-xl border border-border bg-card px-4 py-3" style={{ minWidth: 128 }}>
-                          <AppText size="sm" className="font-medium">
-                            {team.name}
-                          </AppText>
+                        <Box key={team.id} className="rounded-xl border border-border bg-card px-4 py-3" style={{ width: 148 }}>
+                          <HStack space="xs" className="items-center">
+                            <PeopleIcon size={16} />
+                            <AppText size="sm" className="font-medium">
+                              {team.name}
+                            </AppText>
+                          </HStack>
                           <AppText size="xs" className={`mt-1 ${tone}`}>
                             {`${dot} ${label}`}
                           </AppText>
@@ -300,10 +313,12 @@ export function HomeScreen() {
                   const selected = chartFilter === f.key;
                   return (
                     <Pressable key={f.key} onPress={() => setChartFilter(f.key)}>
+                      {/* height 34 — trong khoảng 32-36px yêu cầu §21 (py-1.5 trước đây chỉ ra ~28px) */}
                       <Box
-                        className={`rounded-full px-3 py-1.5 border ${
+                        className={`rounded-full px-3.5 border items-center justify-center ${
                           selected ? 'bg-primary border-primary' : 'bg-background border-border'
                         }`}
+                        style={{ height: 34 }}
                       >
                         <AppText size="xs" className={selected ? 'font-semibold text-primary-foreground' : 'text-muted-foreground'}>
                           {f.label}
@@ -398,7 +413,8 @@ function TodayMetricCard({
 }) {
   const content = (
     <Box
-      className={`flex-1 rounded-2xl border p-4 ${accent ? 'bg-info/10 border-info/30' : 'bg-card border-border'}`}
+      className={`flex-1 rounded-2xl border p-4 ${accent ? '' : 'bg-card border-border'}`}
+      style={accent ? { backgroundColor: LILAC_BG, borderColor: LILAC_BORDER } : undefined}
     >
       <HStack className="items-center justify-between">
         <HStack space="xs" className="items-center">
@@ -408,7 +424,7 @@ function TodayMetricCard({
           </AppText>
         </HStack>
         {accent ? (
-          <AppText size="sm" className="text-info">
+          <AppText size="sm" style={{ color: LILAC_ACCENT }}>
             ›
           </AppText>
         ) : null}

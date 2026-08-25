@@ -8,18 +8,36 @@ import { LATEX_TYPE_ICONS } from './HomeIcons';
 import type { LatexTypeKg } from '@/types/api';
 
 // Ngưỡng bề ngang chuyển layout 2 cột — dưới ngưỡng này (điện thoại nhỏ, iPhone SE/Android compact)
-// xếp dọc để tránh "kg xuống dòng một mình"/text bị bóp (mục 11 yêu cầu — Responsive).
+// xếp dọc để tránh "kg xuống dòng một mình"/text bị bóp (mục 31 yêu cầu — Responsive).
 const TWO_COLUMN_MIN_WIDTH = 380;
 
+// 4 loại mủ CỐ ĐỊNH (CLAUDE.md §4 — danh mục mở nhưng 4 loại này luôn tồn tại từ đầu) — dùng làm khung
+// hiển thị, ghép dữ liệu thật từ `byLatexType` theo code, KHÔNG hardcode SỐ (kg) — chỉ hardcode nhãn +
+// thứ tự hiển thị khi API không trả dòng đó (vd hôm nay total=0 → API trả `byLatexType: []` rỗng hoàn
+// toàn), để breakdown vẫn hiện đủ 4 dòng với 0kg thay vì trống trơn (yêu cầu §11 "Data state khi bằng
+// 0" — sửa đúng bug lần trước: card cũ chỉ `.map()` thẳng `byLatexType`, rỗng thì không render gì).
+const LATEX_TYPE_ORDER = ['water', 'cup', 'strip', 'coagulated'] as const;
+const LATEX_TYPE_FALLBACK_LABEL: Record<string, string> = {
+  water: 'Mủ nước',
+  cup: 'Mủ chén',
+  strip: 'Mủ dây',
+  coagulated: 'Mủ đông',
+};
+
 /**
- * Card "Sản lượng ghi nhận" — tổng + trend + breakdown theo loại mủ (Đợt 4 Home redesign, 2026-08-25).
- * Nguồn dữ liệu breakdown: `GET /production-summary/daily` (`byLatexType`, đã có sẵn từ Phase 4/5 Spec
- * 2 — KHÔNG cần API mới). Tổng/trend VẪN lấy từ nguồn cũ (`productionReport`/`dailyTrend` report API,
- * xem HomeScreen.tsx) — không đổi để giữ đúng hành vi/số liệu hiện có, chỉ ghép thêm breakdown bên cạnh.
+ * Card "Sản lượng ghi nhận" — SỬA LẦN 2 (2026-08-25) theo góp ý "còn khoảng trắng lớn bên phải, chưa
+ * phải breakdown thật sự". 2 thay đổi thật sự (không chỉ đổi màu/spacing):
+ * 1. Breakdown giờ LUÔN đủ 4 dòng (kể cả 0kg) — ghép theo `LATEX_TYPE_ORDER` cố định thay vì map thẳng
+ *    mảng API (mảng rỗng khi total=0 trước đây khiến cả cột phải trống trơn, đúng bug user chỉ ra).
+ * 2. Thêm dòng "DRC TB" LỒNG NGAY DƯỚI "Mủ nước" (không phải 1 loại mủ ngang hàng — đúng §10) —
+ *    **API GAP**: không có endpoint tổng hợp nào trả DRC trung bình toàn công ty/ngày (chỉ có DRC từng
+ *    dòng nhân viên riêng lẻ trong `TeamBreakdownResponse`, xem `services/api/dto/EmployeeProductionRow`).
+ *    TODO(backend): cần thêm `averageDrc` vào `ProductionSummaryDailyResponse` nếu muốn số thật — hiện
+ *    hiện "—" (không phải "0%", tránh ngụ ý đã đo được DRC=0 — 2 ý nghĩa khác nhau), KHÔNG hardcode số.
  *
- * DRC trung bình KHÔNG hiển thị — không có ở bất kỳ endpoint tổng hợp nào (chỉ có DRC từng dòng nhân
- * viên trong TeamBreakdownResponse, không phải số tổng hợp toàn công ty/ngày); user xác nhận 2026-08-25
- * bỏ qua thay vì thêm field backend mới ở lần sửa này.
+ * Nguồn dữ liệu breakdown: `GET /production-summary/daily` (`byLatexType`, có sẵn từ Phase 4/5 Spec 2).
+ * Tổng/trend vẫn lấy từ nguồn cũ (`productionReport`/`dailyTrend`, xem HomeScreen.tsx) — không đổi hành
+ * vi/số liệu hiện có.
  */
 export function ProductionSummaryCard({
   totalKg,
@@ -33,13 +51,20 @@ export function ProductionSummaryCard({
   const { width } = useWindowDimensions();
   const isTwoColumn = width >= TWO_COLUMN_MIN_WIDTH;
 
+  const byCode = new Map(byLatexType.map((item) => [item.code, item]));
+  const rows = LATEX_TYPE_ORDER.map((code) => ({
+    code,
+    label: byCode.get(code)?.label ?? LATEX_TYPE_FALLBACK_LABEL[code],
+    kg: byCode.get(code)?.kg ?? 0,
+  }));
+
   const totalBlock = (
-    <VStack space="xs" style={isTwoColumn ? { flex: 1, paddingRight: 12 } : undefined}>
+    <VStack space="xs" style={isTwoColumn ? { flex: 0.42, paddingRight: 12 } : undefined}>
       <AppText size="sm" className="text-muted-foreground">
         Sản lượng ghi nhận
       </AppText>
       <HStack className="items-baseline" space="xs">
-        <AppText size="2xl" className="font-semibold font-mono">
+        <AppText size="3xl" className="font-semibold font-mono">
           {totalKg.toLocaleString('vi-VN')}
         </AppText>
         <AppText className="text-muted-foreground">kg</AppText>
@@ -57,19 +82,32 @@ export function ProductionSummaryCard({
   );
 
   const breakdownBlock = (
-    <VStack space="sm" style={isTwoColumn ? { flex: 1, paddingLeft: 12 } : undefined}>
-      {byLatexType.map((item) => {
-        const Icon = LATEX_TYPE_ICONS[item.code];
+    <VStack space="sm" style={isTwoColumn ? { flex: 0.58, paddingLeft: 12 } : undefined}>
+      {rows.map((row) => {
+        const Icon = LATEX_TYPE_ICONS[row.code];
         return (
-          <HStack key={item.code} className="items-center justify-between">
-            <HStack space="xs" className="items-center">
-              {Icon ? <Icon /> : null}
-              <AppText size="sm">{item.label}</AppText>
+          <VStack key={row.code} space="xs">
+            <HStack className="items-center justify-between">
+              <HStack space="xs" className="items-center">
+                {Icon ? <Icon /> : null}
+                <AppText size="sm">{row.label}</AppText>
+              </HStack>
+              <AppText size="sm" className="font-mono font-medium">
+                {`${row.kg.toLocaleString('vi-VN')} kg`}
+              </AppText>
             </HStack>
-            <AppText size="sm" className="font-mono font-medium">
-              {`${item.kg.toLocaleString('vi-VN')} kg`}
-            </AppText>
-          </HStack>
+            {/* DRC TB — CHỈ dưới "Mủ nước", lồng thụt vào (không phải 1 loại mủ ngang hàng, đúng §10). */}
+            {row.code === 'water' ? (
+              <HStack className="items-center justify-between" style={{ paddingLeft: 22 }}>
+                <AppText size="xs" className="text-muted-foreground">
+                  DRC TB
+                </AppText>
+                <AppText size="xs" className="font-mono text-muted-foreground">
+                  —
+                </AppText>
+              </HStack>
+            ) : null}
+          </VStack>
         );
       })}
     </VStack>

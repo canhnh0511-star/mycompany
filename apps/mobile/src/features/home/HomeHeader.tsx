@@ -1,5 +1,5 @@
-import { useWindowDimensions, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { Image, useWindowDimensions, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Pressable } from '@/components/ui/pressable';
 import { VStack } from '@/components/ui/vstack';
 import { AppHeading } from '@/components/AppHeading';
@@ -7,113 +7,121 @@ import { AppText } from '@/components/AppText';
 import { CameraIcon } from './HomeIcons';
 
 const HEADER_HEIGHT = 176;
-// Hex --primary (global.css, rgb "31 90 69") pha loãng cho gradient nền — KHÔNG dùng token trực tiếp vì
-// SVG cần giá trị màu cụ thể (không nhận className/CSS var), cùng cách đã làm ở tab bar (_layout.tsx).
-const GRADIENT_FROM = '#E7F1EB';
-const GRADIENT_TO = '#FFFFFF';
-const ILLUSTRATION_COLOR = '#1F5A45';
+const GRADIENT_TOP_RIGHT = '#EDF6EF';
+const GRADIENT_LEFT = '#F5FAF6';
+const GRADIENT_BOTTOM = '#FFFFFF';
+const CTA_GREEN = '#1F5A45';
+// Ảnh chiếm 35-45% bề ngang header (yêu cầu §4) — 40% ở giữa khoảng đó.
+const IMAGE_WIDTH_RATIO = 0.4;
 
 /**
- * Minh họa "thân cây cao su đang cạo mủ + chén hứng mủ" — line-art đơn giản vẽ tay bằng
- * `react-native-svg` (KHÔNG dùng ảnh chụp thật — repo không có asset ảnh nông trường, không tự tải ảnh
- * ngoài internet vào sản phẩm vì không rõ nguồn gốc/bản quyền, đã xác nhận hướng này với user 2026-08-25
- * thay cho `ImageBackground` theo đúng yêu cầu gốc). Opacity thấp, đặt lệch phải, không đè lên vùng chữ.
- */
-function RubberTreeIllustration({ width, height }: { width: number; height: number }) {
-  return (
-    <Svg width={width} height={height} viewBox="0 0 160 176" style={{ position: 'absolute', right: 0, top: 0 }}>
-      {/* Thân cây nghiêng nhẹ + 2 vết cạo hình xương cá */}
-      <Path
-        d="M118 0 L100 176"
-        stroke={ILLUSTRATION_COLOR}
-        strokeWidth={14}
-        strokeLinecap="round"
-        opacity={0.12}
-      />
-      <Path
-        d="M96 60 Q108 66 118 60 M92 84 Q106 92 120 84"
-        stroke={ILLUSTRATION_COLOR}
-        strokeWidth={2}
-        strokeLinecap="round"
-        fill="none"
-        opacity={0.22}
-      />
-      {/* Rãnh cạo dẫn xuống chén */}
-      <Path d="M112 90 Q108 108 104 118" stroke={ILLUSTRATION_COLOR} strokeWidth={2} fill="none" opacity={0.22} />
-      {/* Giọt mủ */}
-      <Path
-        d="M103 118 c-3 4 -3 8 0 11 c3 -3 3 -7 0 -11z"
-        fill={ILLUSTRATION_COLOR}
-        opacity={0.28}
-      />
-      {/* Chén hứng mủ */}
-      <Path
-        d="M84 132 h38 l-4 22 a6 6 0 0 1 -6 5 H94 a6 6 0 0 1 -6 -5 z"
-        stroke={ILLUSTRATION_COLOR}
-        strokeWidth={2.2}
-        fill="none"
-        opacity={0.26}
-      />
-      <Path d="M88 132 q15 8 30 0" stroke={ILLUSTRATION_COLOR} strokeWidth={2} fill="none" opacity={0.26} />
-      {/* Vài chiếc lá phía trên gợi hàng cây */}
-      <Path
-        d="M40 20 q10 -14 24 -6 q-4 16 -20 16 q-8 -2 -4 -10z M20 40 q10 -12 22 -6 q-2 15 -18 14 q-8 -1 -4 -8z"
-        fill={ILLUSTRATION_COLOR}
-        opacity={0.1}
-      />
-    </Svg>
-  );
-}
-
-/**
- * Header Home — nền gradient xanh lá rất nhạt → trắng + minh họa cây cao su/chén mủ mờ phía phải, tiêu
- * đề "Hôm nay"/ngày, CTA chính "Ghi nhận hôm nay". Đặt TRONG cùng padding 16px của ScrollView (không
- * full-bleed sát mép màn hình như ảnh tham chiếu) — giữ nguyên cấu trúc `p-4` hiện có của HomeScreen
- * thay vì tái cấu trúc lại toàn bộ padding model chỉ để làm 1 banner tràn viền, đúng ưu tiên "giữ gần
- * layout/hierarchy hiện có" hơn khớp pixel-perfect ảnh tham chiếu.
+ * Header Home — SỬA LẦN 2 (2026-08-25, sau góp ý "background quá abstract, không nhận ra cây cao
+ * su/chén mủ"): thay hẳn minh họa SVG line-art bằng ẢNH THẬT crop từ chính artboard reference
+ * (`images/home_screen.jjpg.jpg` — ảnh mockup do user cung cấp, ĐÃ có sẵn cảnh cạo mủ+chén hứng thật
+ * trong header của nó) → lưu `assets/images/rubber-header.png` (yêu cầu §28-29: không base64/URL ngoài,
+ * đặt trong assets/images/). Không tự tải ảnh rời từ internet — đây là asset trích xuất từ chính tài
+ * liệu thiết kế user đưa, được yêu cầu tường minh dùng làm ảnh thật ("Nếu sử dụng làm asset thật: crop
+ * sạch...").
  *
- * CTA dựng thủ công bằng Pressable (không dùng `AppButton`) vì `AppButtonProps.children` chỉ nhận
- * `string` (không ghép được icon+chữ) — không mở rộng `AppButton` dùng chung cho 1 chỗ dùng duy nhất,
- * cùng lý do `login.tsx` từng dựng riêng field mật khẩu thay vì sửa `AppInput`. Vẫn giữ visual solid
- * primary/rounded/min-height khớp `AppButton size="lg"` để đồng bộ style nút CTA toàn app.
+ * Layer order đúng yêu cầu §29: nền gradient (dưới cùng) → ảnh → gradient/fade overlay (đè lên ảnh,
+ * fade trắng từ trái + fade trắng ở đáy) → text/CTA (trên cùng).
+ *
+ * KHÔNG còn bọc trong `View` bo góc lớn + `overflow:hidden` như bản trước (tạo cảm giác "floating
+ * card" — đúng góp ý §5 "header phải hòa vào body, không được trông như 1 card riêng"). Bỏ hẳn
+ * borderRadius ở container ngoài; ScrollView cha vẫn giữ `p-4` (không full-bleed sát mép — xem lý do ở
+ * bản trước, chưa đổi lần này vì không nằm trong 5 phần được yêu cầu sửa).
  */
 export function HomeHeader({ dateLabel, onCapture }: { dateLabel: string; onCapture: () => void }) {
   const { width: windowWidth } = useWindowDimensions();
-  // ScrollView cha có p-4 (16px mỗi bên) — trừ ra để minh họa/gradient khớp đúng bề ngang card thật.
   const contentWidth = windowWidth - 32;
+  const imageWidth = contentWidth * IMAGE_WIDTH_RATIO;
+  // Vị trí điểm nối gradient↔ảnh, tính theo tỉ lệ trên contentWidth — dùng làm tâm cho dải fade "bắc
+  // cầu" ở layer 3a bên dưới.
+  const seamFraction = 1 - IMAGE_WIDTH_RATIO;
 
   return (
-    <View style={{ borderRadius: 20, overflow: 'hidden' }}>
+    <View style={{ height: HEADER_HEIGHT, overflow: 'hidden' }}>
+      {/* 1. Nền gradient — góc trên-phải/trái xanh rất nhạt, đáy trắng (đúng 3 điểm dừng §5). */}
       <Svg width={contentWidth} height={HEADER_HEIGHT} style={{ position: 'absolute', left: 0, top: 0 }}>
         <Defs>
-          <LinearGradient id="homeHeaderGradient" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={GRADIENT_FROM} stopOpacity={1} />
-            <Stop offset="0.85" stopColor={GRADIENT_TO} stopOpacity={1} />
+          <LinearGradient id="homeHeaderBase" x1="0" y1="0" x2="0.7" y2="1">
+            <Stop offset="0" stopColor={GRADIENT_LEFT} stopOpacity={1} />
+            <Stop offset="0.55" stopColor={GRADIENT_TOP_RIGHT} stopOpacity={1} />
+            <Stop offset="1" stopColor={GRADIENT_BOTTOM} stopOpacity={1} />
           </LinearGradient>
         </Defs>
-        <Rect width={contentWidth} height={HEADER_HEIGHT} fill="url(#homeHeaderGradient)" />
+        <Rect width={contentWidth} height={HEADER_HEIGHT} fill="url(#homeHeaderBase)" />
       </Svg>
-      <RubberTreeIllustration width={160} height={HEADER_HEIGHT} />
 
+      {/* 2. Ảnh thật — bên phải, 40% bề ngang, cover hết chiều cao header. */}
+      <Image
+        source={require('../../../assets/images/rubber-header.png')}
+        resizeMode="cover"
+        style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          width: imageWidth,
+          height: HEADER_HEIGHT,
+          opacity: 0.85,
+        }}
+      />
+
+      {/* 3a. Fade "bắc cầu" qua đúng đường nối gradient↔ảnh — BUG tìm thấy khi test trên emulator: fade
+          cũ chỉ phủ trong phạm vi ảnh (bắt đầu ngay tại mép ảnh), khiến điểm nối giữa màu gradient (nền)
+          và trắng-gần-đặc (đầu overlay) tạo 1 đường biên cứng nhìn thấy rõ — không phải "chưa đủ mờ" mà
+          là 2 vùng màu khác nhau chạm thẳng nhau. Sửa: overlay này rộng bằng CẢ header (contentWidth,
+          không phải imageWidth), dải mờ đặt LỆCH TÂM đúng ngay điểm nối (imageStartFraction) — trong
+          suốt trước điểm nối (không đụng gradient), phồng lên trắng đục NGAY TẠI điểm nối (che seam),
+          rồi tan dần vào giữa ảnh — liền mạch cả 2 phía thay vì 2 mảng tự fade riêng rẽ không khớp nhau. */}
+      <Svg width={contentWidth} height={HEADER_HEIGHT} style={{ position: 'absolute', left: 0, top: 0 }}>
+        <Defs>
+          <LinearGradient id="homeHeaderSeamBridge" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset={Math.max(seamFraction - 0.25, 0)} stopColor="#FFFFFF" stopOpacity={0} />
+            <Stop offset={seamFraction + 0.03} stopColor="#FFFFFF" stopOpacity={1} />
+            <Stop offset={Math.min(seamFraction + 0.4, 1)} stopColor="#FFFFFF" stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect width={contentWidth} height={HEADER_HEIGHT} fill="url(#homeHeaderSeamBridge)" />
+      </Svg>
+
+      {/* 3b. Fade trắng dọc ở đáy ảnh — hòa xuống "Tình hình hôm nay" bên dưới. */}
+      <Svg
+        width={imageWidth}
+        height={HEADER_HEIGHT}
+        style={{ position: 'absolute', right: 0, top: 0 }}
+      >
+        <Defs>
+          <LinearGradient id="homeHeaderImageBottomFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0.55" stopColor="#FFFFFF" stopOpacity={0} />
+            <Stop offset="1" stopColor="#FFFFFF" stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect width={imageWidth} height={HEADER_HEIGHT} fill="url(#homeHeaderImageBottomFade)" />
+      </Svg>
+
+      {/* 4. Text/CTA — trên cùng. */}
       <VStack space="md" style={{ padding: 16 }}>
         <VStack space="xs">
           <AppHeading size="2xl">Hôm nay</AppHeading>
           <AppText className="text-muted-foreground">{dateLabel}</AppText>
         </VStack>
 
+        {/* CTA — dựng thủ công bằng Pressable (AppButtonProps.children chỉ nhận string, không ghép được
+            icon+chữ) — height 52/radius 11 trong khoảng §7 yêu cầu (50-54px/10-12px), không shadow mạnh. */}
         <Pressable
           onPress={onCapture}
           style={{
-            minHeight: 54,
-            borderRadius: 10,
-            backgroundColor: '#1F5A45',
+            height: 52,
+            borderRadius: 11,
+            backgroundColor: CTA_GREEN,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
           }}
         >
-          <CameraIcon />
+          <CameraIcon size={19} />
           <AppText className="font-semibold text-white">Ghi nhận hôm nay</AppText>
         </Pressable>
       </VStack>
