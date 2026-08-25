@@ -39,4 +39,11 @@ public interface ScanBatchRepository extends JpaRepository<ScanBatch, UUID> {
     // ra vì batch mới tạo có team được gán trực tiếp từ object đã load, không qua proxy).
     @Query("select b from ScanBatch b join fetch b.team where b.id = :id")
     Optional<ScanBatch> findByIdWithTeam(UUID id);
+
+    // Đếm batch "chờ xử lý" (BatchStatus.isPendingHumanAction()) — Home "Chờ kiểm tra"
+    // (docs/module-1-1-frontend-redesign-progress.md, 2026-08-25). Đếm THEO BATCH, không theo số dòng
+    // draft phát sinh — 1 batch NEED_REVIEW có thể có nhiều dòng production_records/latex_sales draft,
+    // đếm theo dòng (cách cũ) sẽ ra số lớn hơn thực tế, không phản ánh đúng "còn bao nhiêu PHIẾU (ảnh)
+    // cần xử lý".
+    long countByStatusIn(Collection<BatchStatus> statuses);
 }

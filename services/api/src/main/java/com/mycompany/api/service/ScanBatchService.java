@@ -48,6 +48,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -897,6 +898,13 @@ public class ScanBatchService {
 
     public ScanBatchResponse get(UUID batchId) {
         return buildResponse(batchId);
+    }
+
+    /** Home "Chờ kiểm tra" (2026-08-25) — số batch đang chờ Admin thao tác tay (xem lại/sửa/duyệt, hoặc
+     * Thử lại/Hủy nếu lỗi), xem BatchStatus.isPendingHumanAction(). */
+    public long pendingReviewCount() {
+        return scanBatchRepository.countByStatusIn(
+                Arrays.stream(BatchStatus.values()).filter(BatchStatus::isPendingHumanAction).toList());
     }
 
     public List<ScanBatchAuditLogResponse> auditLog(UUID batchId) {

@@ -41,8 +41,21 @@ public enum BatchStatus {
         return this == APPROVED || this == CANCELLED;
     }
 
+    // "Chờ xử lý" — hệ thống đã làm xong phần của mình (OCR/merge), giờ đang chờ Admin thao tác tay
+    // (xem lại/sửa/duyệt, hoặc Thử lại/Hủy nếu lỗi). LOẠI TRỪ DRAFT/UPLOADING/PROCESSING (còn đang tự
+    // động xử lý, chưa cần người) và APPROVED/CANCELLED (đã xong hẳn) — dùng cho Home "Chờ kiểm tra"
+    // (docs/module-1-1-frontend-redesign-progress.md, 2026-08-25 — trước đó đếm nhầm theo DRAFT của
+    // production_records/latex_sales, không phải theo batch, nên không phản ánh đúng "batch scan chưa
+    // xử lý" khi 1 batch phát sinh nhiều dòng draft).
+    private static final java.util.Set<BatchStatus> PENDING_HUMAN_ACTION =
+            java.util.EnumSet.of(NEED_REVIEW, READY_TO_APPROVE, PARTIAL_FAILED, FAILED);
+
     /** Supplement ở status này được coi là "đang active" — tối đa 1 cái/PRIMARY (Spec 1 mục 3.2). */
     public boolean isActiveSupplement() {
         return ACTIVE_SUPPLEMENT.contains(this);
+    }
+
+    public boolean isPendingHumanAction() {
+        return PENDING_HUMAN_ACTION.contains(this);
     }
 }
