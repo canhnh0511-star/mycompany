@@ -9,7 +9,7 @@ import { VStack } from '@/components/ui/vstack';
 import { AppCard } from '@/components/AppCard';
 import { AppText } from '@/components/AppText';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { HomeSkeleton, SkeletonChart } from '@/components/Skeleton';
 import { useEmployeesLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { useProductionRecordsListQuery } from '@/features/production-records/useProductionRecordsList';
 import { useLatexSalesListQuery } from '@/features/latex-sales/useLatexSalesList';
@@ -258,7 +258,7 @@ export function HomeScreen() {
       <VStack style={{ gap: 22 }}>
         <HomeHeader dateLabel={formatTodayLabel()} onCapture={() => router.push('/(tabs)/capture')} />
 
-        {isLoading ? <LoadingState label="Đang tải tình hình hôm nay..." /> : null}
+        {isLoading ? <HomeSkeleton /> : null}
         {isError ? (
           <ErrorState message="Không tải được tình hình hôm nay." detail={getErrorMessage(firstError)} />
         ) : null}
@@ -377,7 +377,7 @@ export function HomeScreen() {
               </HStack>
               <AppCard>
                 {chartLoading ? (
-                  <LoadingState label="Đang tải biểu đồ..." />
+                  <SkeletonChart />
                 ) : chartDays.length > 1 ? (
                   <>
                     {/* "(kg)" — nhãn đơn vị trục Y, đúng ảnh tham chiếu (bản trước không có trục Y). */}

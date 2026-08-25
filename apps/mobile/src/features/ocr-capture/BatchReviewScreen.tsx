@@ -14,7 +14,7 @@ import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { StatusBadge, type StatusTone } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { ZoomableImageModal } from '@/components/ZoomableImageModal';
@@ -385,7 +385,7 @@ export function BatchReviewScreen({ batchId }: { batchId: string }) {
         {isError ? (
           <ErrorState message="Không tải được phiên quét." detail={getErrorMessage(error)} onRetry={refetch} />
         ) : (
-          <LoadingState />
+          <SkeletonList rows={6} trailing={false} />
         )}
       </ScrollView>
     );

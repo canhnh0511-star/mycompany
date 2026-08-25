@@ -13,7 +13,7 @@ import { AppHeading } from '@/components/AppHeading';
 import { AppInput } from '@/components/AppInput';
 import { AppText } from '@/components/AppText';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonDetail } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { useMeQuery } from '@/features/auth/api';
 import { useAuth } from '@/features/auth/useAuth';
@@ -144,7 +144,7 @@ export function EditProfileScreen() {
         </Pressable>
         <AppHeading size="xl">Chỉnh sửa hồ sơ</AppHeading>
 
-        {query.isLoading ? <LoadingState label="Đang tải thông tin hồ sơ..." /> : null}
+        {query.isLoading ? <SkeletonDetail lines={4} /> : null}
         {query.isError ? (
           <ErrorState message="Không thể tải thông tin hồ sơ." detail={getErrorMessage(query.error)} onRetry={() => query.refetch()} />
         ) : null}

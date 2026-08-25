@@ -12,7 +12,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { useLatexTypesLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { ApiError } from '@/lib/api/client';
@@ -150,7 +150,7 @@ export function RateConfigsScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
         {!isLoading && rateConfigs?.length === 0 ? <EmptyState message="Chưa có đơn giá nào." /> : null}
 

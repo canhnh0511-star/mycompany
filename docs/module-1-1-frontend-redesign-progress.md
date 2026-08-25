@@ -547,3 +547,31 @@ Tổng/Mủ nước/Mủ chén/Khác. Không thêm icon-library/chart-library m�
 
 Đã test trên Android Emulator + backend local: header/breakdown/grid/chip trạng thái/chart filter đều
 đúng dữ liệu thật, "Chờ kiểm tra" điều hướng đúng sang tab Sản lượng, không lỗi runtime mới.
+
+## Đợt 6 (2026-08-25, cùng ngày) — Shimmer loading + sửa N+1 signed URL
+
+User yêu cầu 2 việc: "them shimmer loading cho cac man hinh" + điều tra Home load chậm dù data test rất
+ít.
+
+**Điều tra Home chậm**: độ chậm nghiêm trọng (7-27s, log cũ) hoá ra ĐÃ được sửa gián tiếp ở Đợt 5 (đổi
+"Chờ kiểm tra" sang đếm theo batch — bỏ hẳn query `production-records?status=DRAFT` không giới hạn ngày
+gây chậm trước đó); test lại sạch: Home hiện load 540-764ms. Nhưng phát hiện bug hiệu năng RIÊNG, chưa
+từng sửa: `ProductionRecordService`/`LatexSaleService.toResponse()` gọi `createSignedReadUrl()` (HTTP
+thật tới Supabase Storage) CHO TỪNG DÒNG trong `.map()`, dù nhiều dòng cùng `photoUrl` (1 ảnh phiếu →
+nhiều nhân viên, CLAUDE.md §5) — 1 batch 21 dòng ký URL trùng lặp 21 lần thay vì 1-2 lần, khiến
+`GET .../production-records?scanBatchId=...` mất 1-3.5s. Sửa: `Map<String,String> signedUrlCache`
+computed 1 lần/`list()` call, share qua `computeIfAbsent()` — verify curl: 21 dòng từ ~1-3.5s xuống
+~140-180ms; 2 dòng cùng ảnh trả cùng 1 signed URL (cùng token), xác nhận không đổi hành vi.
+
+**Shimmer loading**: `components/Skeleton.tsx` (mới) — primitive `Skeleton` (opacity pulse loop qua
+`react-native-reanimated`, ĐÃ có sẵn dependency, không thêm mới) + `SkeletonText`/`SkeletonList`
+(danh sách dạng AppCard, dùng cho hầu hết màn liệt kê)/`SkeletonDetail` (form/chi tiết)/`SkeletonChart`
+(placeholder biểu đồ cột)/`SkeletonProfile` (avatar+menu)/`HomeSkeleton` (bespoke, khớp shape Home: card
+sản lượng + grid 2×2 + chip Tổ + chart). Thay thế `LoadingState` (spinner+text) ở TẤT CẢ 18 màn đang
+dùng nó — chọn skeleton shape khớp nội dung từng màn (list/detail/profile/chart) thay vì 1 shape chung
+chung. Xoá hẳn `components/LoadingState.tsx` (không còn nơi nào import).
+
+Verify: `tsc --noEmit` + `eslint` sạch (0 lỗi mới) trên toàn bộ file đã sửa. Test emulator: app chạy
+bình thường qua các tab Hôm nay/Sản lượng/Hồ sơ/Thiết lập, không crash — do backend giờ rất nhanh (kết
+quả trực tiếp từ 2 việc sửa ở trên) nên khung skeleton hiện quá nhanh để chụp màn hình bắt kịp bằng tay;
+đã xác nhận đúng đắn qua code review + type-check thay vì ảnh chụp trực tiếp khung shimmer.

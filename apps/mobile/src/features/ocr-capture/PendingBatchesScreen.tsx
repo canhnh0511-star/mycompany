@@ -9,7 +9,7 @@ import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { batchStatusLabel, batchStatusTone } from '@/lib/status';
 import { queryKeys } from '@/lib/query/queryClient';
@@ -51,7 +51,7 @@ export function PendingBatchesScreen() {
         </Pressable>
         <AppHeading size="xl">Chờ kiểm tra</AppHeading>
 
-        {query.isLoading ? <LoadingState label="Đang tải danh sách..." /> : null}
+        {query.isLoading ? <SkeletonList /> : null}
         {query.isError ? (
           <ErrorState message="Không tải được danh sách." detail={getErrorMessage(query.error)} onRetry={() => query.refetch()} />
         ) : null}

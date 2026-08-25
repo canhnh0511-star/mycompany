@@ -10,7 +10,7 @@ import { AppCard } from '@/components/AppCard';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { Skeleton, SkeletonList } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { OcrTargetType } from '@/types/api';
 import { useOcrCallLogsQuery, useOcrCallLogStatsQuery } from './useOcrCallLogs';
@@ -72,7 +72,7 @@ export function OcrMonitoringScreen() {
           stats={statsQuery.data}
         />
 
-        {listQuery.isLoading ? <LoadingState /> : null}
+        {listQuery.isLoading ? <SkeletonList /> : null}
         {listQuery.isError ? (
           <ErrorState message="Không tải được danh sách." detail={getErrorMessage(listQuery.error)} />
         ) : null}
@@ -146,7 +146,15 @@ function StatsPanel({
   error: unknown;
   stats: ReturnType<typeof useOcrCallLogStatsQuery>['data'];
 }) {
-  if (isLoading) return <LoadingState label="Đang tải thống kê..." />;
+  if (isLoading) {
+    return (
+      <HStack space="sm" className="flex-wrap">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} width={144} height={56} radius={12} />
+        ))}
+      </HStack>
+    );
+  }
   if (isError) {
     return <ErrorState message="Không tải được thống kê." detail={getErrorMessage(error)} />;
   }

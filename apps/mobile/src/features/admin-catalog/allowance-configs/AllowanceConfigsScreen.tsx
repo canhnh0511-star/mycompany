@@ -12,7 +12,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { AllowanceConfigResponse, CalcType } from '@/types/api';
@@ -190,7 +190,7 @@ export function AllowanceConfigsScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
         {!isLoading && allowanceConfigs?.length === 0 ? <EmptyState message="Chưa có phụ cấp nào." /> : null}
 

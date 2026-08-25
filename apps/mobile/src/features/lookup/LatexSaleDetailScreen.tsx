@@ -9,7 +9,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonDetail } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { diffSnapshots } from '@/features/edit-history/diff';
@@ -47,7 +47,7 @@ export function LatexSaleDetailScreen({ id }: { id: string }) {
   if (isLoading || !record) {
     return (
       <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
-        <LoadingState />
+        <SkeletonDetail lines={6} />
       </ScrollView>
     );
   }

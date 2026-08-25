@@ -10,7 +10,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { ErrorState } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonProfile } from '@/components/Skeleton';
 import { useAuth } from '@/features/auth/useAuth';
 import { useMeQuery } from '@/features/auth/api';
 import { ApiError } from '@/lib/api/client';
@@ -50,7 +50,7 @@ export function ProfileScreen() {
           </Box>
         ) : null}
 
-        {query.isLoading ? <LoadingState label="Đang tải thông tin hồ sơ..." /> : null}
+        {query.isLoading ? <SkeletonProfile /> : null}
         {query.isError && !isOffline ? (
           <ErrorState
             message="Không thể tải thông tin hồ sơ."

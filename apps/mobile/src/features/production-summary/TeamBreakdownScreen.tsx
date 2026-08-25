@@ -9,7 +9,7 @@ import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useTeamBreakdownQuery } from './useProductionSummary';
 import type { EmployeeProductionRow } from '@/types/api';
 
@@ -49,7 +49,7 @@ export function TeamBreakdownScreen({
           </AppText>
         </Pressable>
 
-        {query.isLoading ? <LoadingState label="Đang tải chi tiết Tổ..." /> : null}
+        {query.isLoading ? <SkeletonList /> : null}
         {query.isError ? (
           <ErrorState
             message="Không thể tải chi tiết Tổ."

@@ -9,7 +9,7 @@ import { AppInput } from '@/components/AppInput';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { TeamResponse } from '@/types/api';
@@ -108,7 +108,7 @@ export function TeamsScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách Tổ." detail={getErrorMessage(error)} /> : null}
         {!isLoading && teams?.length === 0 ? <EmptyState message="Chưa có Tổ nào." /> : null}
 

@@ -12,7 +12,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useTeamsLookupQuery, useLatexTypesLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
 import { addDaysIso, todayIsoDate } from '@/features/reports/dateRange';
@@ -105,7 +105,7 @@ export function ProductionSummaryScreen() {
           </Box>
         </HStack>
 
-        {query.isLoading ? <LoadingState label="Đang tải sản lượng..." /> : null}
+        {query.isLoading ? <SkeletonList /> : null}
         {query.isError ? (
           <ErrorState
             message="Không thể tải dữ liệu sản lượng."

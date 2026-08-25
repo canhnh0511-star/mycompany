@@ -10,7 +10,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
@@ -137,7 +137,7 @@ export function EmployeesScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
         {!isLoading && employees?.length === 0 ? <EmptyState message="Chưa có nhân viên nào." /> : null}
 

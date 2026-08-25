@@ -9,7 +9,7 @@ import { AppInput } from '@/components/AppInput';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { LatexTypeResponse } from '@/types/api';
@@ -149,7 +149,7 @@ export function LatexTypesScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
         {!isLoading && latexTypes?.length === 0 ? <EmptyState message="Chưa có loại mủ nào." /> : null}
 

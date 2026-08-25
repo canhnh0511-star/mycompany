@@ -10,7 +10,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
@@ -94,7 +94,7 @@ export function LatexSaleReportScreen() {
           </AppButton>
         </HStack>
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được báo cáo." detail={getErrorMessage(error)} /> : null}
         {report ? <LatexSaleReportTable report={report} /> : null}
       </VStack>
