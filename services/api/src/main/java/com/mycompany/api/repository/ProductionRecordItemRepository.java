@@ -33,6 +33,10 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
     // Tổng kg / ngày trong 1 khoảng ngày (docs/module-1-1-frontend-redesign-progress.md — Home "Sản
     // lượng 7 ngày" + trend "so với TB 7 ngày"). CHỈ APPROVED, cùng quy ước aggregateForReport. Chỉ trả
     // về NGÀY CÓ dữ liệu — ReportService tự điền 0 cho ngày trống khi ghép thành dải liên tục.
+    // latexTypeCode optional (Đợt 4 Home redesign, 2026-08-25) — lọc chart "Sản lượng 7 ngày" theo 1
+    // loại mủ cụ thể (vd "water"/"cup"); NULL = tổng tất cả loại (hành vi cũ, không đổi khi không truyền).
+    // "Khác" (mủ dây + mủ đông) KHÔNG special-case ở query này — frontend tự gọi 2 lần (strip/coagulated)
+    // rồi cộng dồn client-side, tránh phải thêm cú pháp IN(...) cho 1 trường hợp lọc gộp duy nhất.
     @Query("""
             SELECT new com.mycompany.api.repository.DailyTotalRow(pr.recordDate, SUM(pri.kg))
             FROM ProductionRecordItem pri
@@ -40,10 +44,12 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
             WHERE pr.status = com.mycompany.api.entity.RecordStatus.APPROVED
               AND pr.recordDate BETWEEN :fromDate AND :toDate
               AND (:teamId IS NULL OR pr.team.id = :teamId)
+              AND (:latexTypeCode IS NULL OR pri.latexType.code = :latexTypeCode)
             GROUP BY pr.recordDate
             """)
     List<DailyTotalRow> aggregateDailyTotals(
-            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId,
+            @Param("latexTypeCode") String latexTypeCode);
 
     // Official Production cho Sản lượng v2 (Phase 4, Spec 2 §3/§8) — CHỈ tính record status=APPROVED,
     // giống hệt quy ước aggregateForReport (audit Phase 4 xác nhận filter đơn giản này ĐÃ đủ tránh
