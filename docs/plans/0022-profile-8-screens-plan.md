@@ -6,6 +6,19 @@
 đoán. `support.js` chỉ là runtime hiển thị chung của design tool (dc-runtime), không có logic nghiệp vụ
 riêng cho app này.
 
+**Ảnh tham chiếu đã cắt sẵn (2026-08-24)** — export từng artboard qua Edge headless screenshot (đúng
+markup/style gốc từ design, KHÔNG vẽ lại tay), lưu ở `images/` gốc repo, dùng đối chiếu pixel khi code:
+```
+images/profile-10-ho-so.png
+images/profile-11-chinh-sua-ho-so.png
+images/profile-12-anh-dai-dien.png
+images/profile-13-doi-mat-khau.png
+images/profile-14-thiet-lap-ung-dung.png
+images/profile-15-thong-tin-ung-dung.png
+images/profile-16-xac-nhan-dang-xuat.png
+images/profile-17-trang-thai-tai-loi-offline.png
+```
+
 Ghi chú gốc của designer ở cuối section (giữ nguyên để đối chiếu quyết định bên dưới):
 > "(1) tên account mẫu — dùng 'Lê Văn Hải' để không hardcode tên thương hiệu thành tên user; (2) backend
 > hiện có field email & đổi mật khẩu chưa — nếu chưa thì ẩn 2 mục đó; (3) 'Cỡ chữ' và 'Chỉ gửi khi có
@@ -113,58 +126,112 @@ Phiên bản/Build đọc từ `app.json`/`expo-constants`; "Thiết bị" đọ
    diện/Ngôn ngữ/Xóa dữ liệu tạm), `AboutScreen.tsx` (15), `LogoutConfirmDialog` (16, component overlay
    dùng trong 10). Route: `app/(tabs)/profile/index.tsx` (10), `app/profile/edit.tsx` (11),
    `app/profile/change-password.tsx` (13), `app/profile/settings.tsx` (14), `app/profile/about.tsx` (15).
-3. **Frontend — state loading/error/offline (màn 17)**: áp skeleton + ErrorState (đã có component dùng
-   chung `LoadingState`/`ErrorState`) vào màn 10; banner offline dùng `NetInfo` (kiểm tra đã có dependency
-   chưa, nếu chưa thêm `@react-native-community/netinfo`).
+3. **Frontend — state loading/error/offline (màn 17)**: áp `LoadingState`/`ErrorState` (đã có component
+   dùng chung) vào màn 10. ĐÃ ĐỔI khi code thật: không thêm `@react-native-community/netinfo` (chưa có
+   dependency này trong repo, thêm mới kéo theo native module + rebuild dev-client) — banner offline dựng
+   từ tín hiệu đã có sẵn: `apiClient` (lib/api/client.ts) ném `Error` thường (không phải `ApiError`) khi
+   fetch lỗi network trần, `ProfileScreen` phân biệt 2 loại lỗi này để quyết định hiện banner nhẹ hay
+   `ErrorState` đầy đủ — không cần polling trạng thái mạng chủ động.
 4. **SHOULD (sau khi 1-3 ổn định)**: Cỡ chữ (context scale), Chất lượng ảnh gửi lên (nén trước upload).
 
 ## Checklist tiến độ
 
 ### Backend
-- [ ] Migration `014_add_user_phone.sql`
-- [ ] `entity/User.java` — field `phone`
-- [ ] `repository/UserRepository.java` — `findByPhone`
-- [ ] `dto/LoginRequest.java` — đổi sang identifier chung (email HOẶC phone)
-- [ ] `controller/AuthController.java` — thử email rồi phone
-- [ ] `dto/UserProfileResponse.java` + `UpdateProfileRequest.java` — thêm `phone`
-- [ ] `UserController.updateMe()` — validate + set `phone`, bắt trùng → 409
-- [ ] Test: login email cũ vẫn qua, login phone mới qua, update phone trùng → 409
+- [x] Migration `014_add_user_phone.sql`
+- [x] `entity/User.java` — field `phone`
+- [x] `repository/UserRepository.java` — `findByPhone`
+- [x] `dto/LoginRequest.java` — field `email` giữ tên cũ (tương thích ngược với frontend đang gửi SĐT qua
+      key này) nhưng bỏ `@Email`, ý nghĩa mở rộng thành identifier chung (email HOẶC phone)
+- [x] `controller/AuthController.java` — thử `findByEmail` rồi `findByPhone`
+- [x] `dto/UserProfileResponse.java` + `UpdateProfileRequest.java` — thêm `phone` (có `@Pattern` khớp
+      `phoneSchema` ở `login.tsx`)
+- [x] `UserController.updateMe()` — set `phone`, `saveAndFlush` để bắt trùng ngay → 409 (global handler
+      có sẵn cho `DataIntegrityViolationException`)
+- [x] Test: `AuthIntegrationTest` (login email cũ vẫn qua, login phone mới qua, 401 khi không khớp),
+      `UserIntegrationTest` (set phone OK, trùng phone → 409, sai format → 400) — 6/6 pass
 
 ### Frontend — màn 10 Hồ sơ
-- [ ] `features/profile/ProfileScreen.tsx` — thay `app/(tabs)/profile/index.tsx`
-- [ ] Avatar tròn fallback initials (giống pattern `BrandMark`/avatar Batch Review đã có)
-- [ ] Nhóm TÀI KHOẢN (Thông tin cá nhân → mở màn 11; Đổi mật khẩu → mở màn 13)
-- [ ] Nhóm ỨNG DỤNG & HỖ TRỢ (Thiết lập, Thông tin ứng dụng, Trợ giúp*, Điều khoản*) — *Trợ giúp/Điều
-      khoản: nội dung tĩnh tối thiểu (chưa có yêu cầu nội dung cụ thể, để placeholder + TODO rõ ràng)
-- [ ] Nút Đăng xuất → mở modal 16 (không đăng xuất ngay khi bấm 1 lần)
-- [ ] Footer brand + version (đọc `expo-constants`)
-- [ ] Skeleton loading + ErrorState + offline banner (màn 17)
+- [x] `features/profile/ProfileScreen.tsx` — thay `app/(tabs)/profile/index.tsx`
+- [x] Avatar tròn fallback initials — `components/AppAvatar.tsx` (mới, dùng chung cả 8 màn)
+- [x] Nhóm TÀI KHOẢN (Thông tin cá nhân → mở màn 11; Đổi mật khẩu → mở màn 13)
+- [x] Nhóm ỨNG DỤNG & HỖ TRỢ (Thiết lập, Thông tin ứng dụng, Trợ giúp*, Điều khoản*) — *Trợ giúp/Điều
+      khoản: TẠM điều hướng về màn Thông tin ứng dụng (chưa có nội dung/route riêng, đã ghi TODO trong code)
+- [x] Nút Đăng xuất → mở modal 16 (không đăng xuất ngay khi bấm 1 lần)
+- [x] Footer brand + version (đọc `expo-constants`)
+- [x] Loading/ErrorState (offline banner đơn giản hoá — phân biệt lỗi network trần vs `ApiError`, xem
+      comment `ProfileScreen.tsx`, KHÔNG thêm dependency NetInfo mới)
 
 ### Frontend — màn 11+12 Chỉnh sửa hồ sơ + Ảnh đại diện
-- [ ] Form Họ tên/SĐT (email/vai trò read-only)
-- [ ] Validate SĐT 10 số, lỗi hiện dưới field
-- [ ] Nút Lưu disable tới khi hợp lệ + có thay đổi (dirty-check)
-- [ ] Action sheet Ảnh đại diện (Chụp/Chọn thư viện/Xóa/Hủy)
-- [ ] Upload qua `/ocr/upload-url` (tái dùng) → `PATCH /users/me`
-- [ ] Snackbar "Đã cập nhật hồ sơ" sau khi lưu (không modal chặn)
+- [x] Form Họ tên/SĐT (email/vai trò read-only) — `EditProfileScreen.tsx`
+- [x] Validate SĐT (cùng regex `phoneSchema` với login.tsx), lỗi hiện dưới field
+- [x] Nút Lưu disable tới khi hợp lệ + có thay đổi (react-hook-form `isDirty`/`isValid`)
+- [x] Action sheet Ảnh đại diện (Chụp/Chọn thư viện/Xóa/Hủy) — `AvatarActionSheet.tsx`
+- [x] Upload qua `/ocr/upload-url` (tái dùng) → `PATCH /users/me` — phát hiện thêm 1 gap lúc code: backend
+      trả thẳng `avatarUrl` là objectPath thô (bucket private), phải ký signed URL mới hiển thị được
+      (giống `photoUrl` các entity khác) — đã vá trong `UserController` (xem mục Backend)
+- [x] Snackbar "Đã cập nhật hồ sơ" sau khi lưu (không modal chặn) — lưu avatar riêng, không đợi nút "Lưu
+      thay đổi" chung của form (đúng UX màn 12 phản hồi ngay)
 
 ### Frontend — màn 13 Đổi mật khẩu
-- [ ] Form 3 field, toggle hiện/ẩn riêng từng field
-- [ ] Validate mật khẩu mới ≥8 ký tự có chữ+số, khớp nhập lại
-- [ ] Gọi `PATCH /users/me/password`, xử lý lỗi "mật khẩu hiện tại không đúng"
-- [ ] Ghi chú "máy khác phải đăng nhập lại"
+- [x] Form 3 field, toggle hiện/ẩn riêng từng field — `ChangePasswordScreen.tsx`
+- [x] Validate mật khẩu mới ≥8 ký tự có chữ+số, khớp nhập lại (zod `refine`)
+- [x] Gọi `PATCH /users/me/password`, xử lý lỗi "mật khẩu hiện tại không đúng"
+- [x] Ghi chú "máy khác phải đăng nhập lại"
 
 ### Frontend — màn 14+15 Thiết lập + Thông tin ứng dụng
-- [ ] Giao diện (sáng/tối/hệ thống) — lưu local, áp dụng `GluestackUIProvider mode`
-- [ ] Ngôn ngữ (chỉ tiếng Việt ở v1 — hiện field, chưa cần chọn được nếu chỉ 1 lựa chọn)
-- [ ] Xóa dữ liệu tạm — dọn cache ảnh crop tạm (expo-file-system), hiện dung lượng
-- [ ] Màn Thông tin ứng dụng — version/build/thiết bị + link tĩnh
-- [ ] (SHOULD) Cỡ chữ
-- [ ] (SHOULD) Chất lượng ảnh gửi lên
+- [x] Giao diện (sáng/tối/hệ thống) — `features/settings/store.ts` (mới) + `GluestackUIProvider mode`
+      (trước đây hardcode `"system"` ở `app/_layout.tsx`)
+- [x] Ngôn ngữ (chỉ tiếng Việt ở v1 — hiện field tĩnh, không cho chọn vì chỉ 1 lựa chọn)
+- [x] Xóa dữ liệu tạm — `lib/settings/cacheCleanup.ts` (mới, dọn `cacheDirectory` qua
+      `expo-file-system/legacy`), hiện dung lượng thật
+- [x] Màn Thông tin ứng dụng — version/build/thiết bị (`expo-constants`/`expo-device`) + link tĩnh
+- [x] Bổ sung ngoài mockup: nhóm "Bảo mật" giữ lại nút tắt Face ID/vân tay (chức năng có sẵn từ trước
+      redesign, không có màn nào trong 8 màn mới thay thế đúng — xem javadoc `AppSettingsScreen.tsx`)
+- [ ] (SHOULD, chưa làm — đúng phase 4 kế hoạch) Cỡ chữ
+- [ ] (SHOULD, chưa làm — đúng phase 4 kế hoạch) Chất lượng ảnh gửi lên
 
 ### Frontend — màn 16 Xác nhận đăng xuất
-- [ ] Modal overlay đúng design (nút Đăng xuất màu error, câu trấn an phiếu chưa gửi)
+- [x] Modal overlay đúng design (nút Đăng xuất màu error, câu trấn an phiếu chưa gửi) —
+      `LogoutConfirmDialog.tsx`
 
 ### Chung
-- [ ] `npx tsc --noEmit` sạch sau mỗi phase
-- [ ] Cập nhật `CLAUDE.md`/README feature nếu route tab đổi hành vi
+- [x] `npx tsc --noEmit` sạch sau Phase 1 (backend) + Phase 2 (frontend màn 10-15)
+- [ ] Cập nhật `CLAUDE.md`/README feature nếu route tab đổi hành vi — chưa cần, route tab `profile` giữ
+      nguyên path, chỉ đổi nội dung màn con
+
+---
+
+## Ghi chú riêng — Chỉnh sửa Footer/Tab bar (KHÔNG thuộc 8 màn Hồ sơ, chỉ ghi note theo yêu cầu)
+
+Ảnh tham chiếu do user cung cấp sẵn: `images/footer_design.png`. Đây là ảnh chụp từ 1 artboard khác
+(hiện chưa xác định rõ nằm ở turn/section nào trong project design — CHƯA đọc lại qua `claude_design`
+MCP để đối chiếu nguồn gốc, chỉ audit bằng mắt so với code hiện tại). Ghi lại làm việc CẦN LÀM sau,
+KHÔNG code ở phase này.
+
+**So sánh nhanh (ảnh design vs `apps/mobile/src/app/(tabs)/_layout.tsx` hiện tại):**
+
+| | Design (`footer_design.png`) | Hiện tại (`CustomTabBar`) |
+|---|---|---|
+| Nút "Chụp phiếu" | **Nổi (FAB)** — hình tròn xanh đậm, đè lên phía trên thanh tab (có shadow), icon camera trắng, label "Chụp phiếu" nằm NGOÀI vòng tròn (dưới), cùng hàng với 4 tab còn lại | Nằm PHẲNG trong hàng tab (`Box w-16 h-[52px] rounded-xl`), không nổi, label "Chụp" nằm TRONG khối |
+| Icon 4 tab còn lại | Icon glyph thật (nhà/tài liệu/kính lúp/người) | Khối vuông bo góc placeholder (code tự nhận đây là placeholder, chưa có icon set thật — xem comment `TabIcon`) |
+| Tên tab thứ 4 | **"Tra cứu"** | **"Sản lượng"** (đã đổi tên có chủ đích ở Phase 5, xem `docs/plans/0021...` — thay hẳn nội dung màn từ browse phẳng sang dashboard Official Production) |
+| Số lượng tab | 5 (Hôm nay/Phiếu/Chụp phiếu/Tra cứu/Hồ sơ) | 5 (Hôm nay/Phiếu/Chụp/Sản lượng/Hồ sơ) — khớp số lượng |
+
+**Việc cần làm khi triển khai (sau khi xong 8 màn Hồ sơ):**
+1. Đọc lại đúng artboard này qua `claude_design` MCP trước khi code (giống quy trình đã áp dụng cho 8
+   màn Hồ sơ) — `footer_design.png` chỉ là ảnh JPG/PNG tĩnh, KHÔNG có markup/style gốc để copy chính
+   xác màu/kích thước/font như đã làm được với HTML design ở trên. Nếu không tìm thấy trong project
+   hiện tại, hỏi lại user nguồn.
+2. Cần bộ icon set thật (hiện chưa có — dự án đang dùng placeholder cố ý, xem comment trong code) —
+   xác định thư viện icon nào (vd `lucide-react-native`, đã có sẵn dependency chưa cần kiểm tra) trước
+   khi vẽ lại 4 icon nhà/tài liệu/kính lúp/người.
+3. Nút "Chụp phiếu" chuyển từ phẳng sang FAB nổi — cần tính lại layout (`position: absolute`, offset âm
+   lên trên thanh tab, shadow, z-index) — lưu ý đây là nút thật (không phải tab route), vẫn giữ hành vi
+   điều hướng `router.push('/(tabs)/capture')` như hiện tại, chỉ đổi UI.
+4. **Cần hỏi lại user trước khi đổi**: tên "Tra cứu" trong ảnh design này có phải bản CŨ (trước khi đổi
+   tên thành "Sản lượng" ở Phase 5) hay là ý muốn đổi TÊN TAB lần nữa? Không tự ý đổi lại tên tab dựa
+   theo ảnh này — có thể đây chỉ là ảnh chụp cũ chưa cập nhật theo tên mới, không phải yêu cầu revert.
+- [ ] (Chưa làm) Đọc lại nguồn gốc artboard `footer_design.png` qua claude_design MCP
+- [ ] (Chưa làm) Xác nhận lại tên tab thứ 4 với user (Tra cứu vs Sản lượng)
+- [ ] (Chưa làm) Chọn icon set + implement 4 icon thật
+- [ ] (Chưa làm) Implement FAB nổi cho nút Chụp phiếu
