@@ -1,5 +1,19 @@
 # Cập nhật chức năng Hồ sơ — 8 màn hình (theo design Claude Design)
 
+> **TRẠNG THÁI (2026-08-25): TẠM DỪNG — MUST đã xong hoàn toàn.** Backend SĐT (Phase 1) + 8 màn Hồ sơ
+> (Phase 2) + footer/tab-bar redesign "Vòm cong" đều đã code, test trên Android Emulator, và commit. Chi
+> tiết đầy đủ + tóm tắt lịch sử: `docs/module-1-1-frontend-redesign-progress.md` mục "Đợt 4".
+>
+> **Còn lại CHƯA làm** — cả 2 đều SHOULD, không chặn MVP, chủ động dừng lại chờ quyết định làm tiếp hay
+> không (không phải quên):
+> - **Cỡ chữ** (mục "Thiết lập ứng dụng") — cần dựng context scale xuyên `AppText`/`AppHeading` toàn app,
+>   hiện CHƯA có cơ chế này ở đâu trong `components/ui`. Rủi ro: chạm 2 component dùng chung ở mọi màn
+>   hình, chưa có test coverage UI riêng.
+> - **Chất lượng ảnh gửi lên** (mục "Thiết lập ứng dụng") — nén ảnh trước khi upload (phiếu/avatar),
+>   phạm vi hẹp hơn Cỡ chữ, chỉ ảnh hưởng luồng upload.
+>
+> Muốn làm tiếp thì bắt đầu từ mục "Implementation phases" bước 4 bên dưới.
+
 ## Nguồn design
 Đọc trực tiếp qua `claude_design` MCP (project `55a7676b-68b2-4a14-a355-f2ec6a0394d1`, file
 `Nông trường cao su - Mobile.dc.html`, section "Turn 2 — Hồ sơ, 8 màn, brand David Dũng"), KHÔNG suy
