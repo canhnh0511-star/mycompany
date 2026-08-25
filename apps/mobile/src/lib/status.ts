@@ -1,4 +1,4 @@
-import type { AttendanceRecordStatus, DerivedTeamStatus, RecordStatus } from '@/types/api';
+import type { AttendanceRecordStatus, BatchStatus, DerivedTeamStatus, RecordStatus } from '@/types/api';
 import type { StatusTone } from '@/components/StatusBadge';
 
 /**
@@ -93,4 +93,49 @@ export function derivedTeamStatusNeedsAction(status: DerivedTeamStatus): boolean
     status === 'APPROVED_WITH_ACTIVE_SUPPLEMENT' ||
     status === 'FAILED'
   );
+}
+
+/**
+ * `BatchStatus` (0021-scan-batch-model, services/api entity/BatchStatus.java) — vòng đời 1 ScanBatch
+ * (pipeline OCR: upload→xử lý→kiểm tra→duyệt), KHÁC `RecordStatus`/`DerivedTeamStatus` ở trên. Chuyển
+ * từ `BatchReviewScreen.tsx` ra đây (2026-08-25) để dùng chung với màn danh sách "Chờ kiểm tra" mới
+ * (Home) — tránh lệch nhãn nếu mỗi màn tự viết switch riêng.
+ */
+export function batchStatusLabel(status: BatchStatus): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'Mới tạo';
+    case 'UPLOADING':
+      return 'Đang tải ảnh…';
+    case 'PROCESSING':
+      return 'Đang đọc ảnh…';
+    case 'NEED_REVIEW':
+      return 'Cần kiểm tra';
+    case 'READY_TO_APPROVE':
+      return 'Sẵn sàng xác nhận';
+    case 'PARTIAL_FAILED':
+      return 'Một số ảnh lỗi';
+    case 'FAILED':
+      return 'Lỗi toàn bộ';
+    case 'APPROVED':
+      return 'Đã xác nhận';
+    case 'CANCELLED':
+      return 'Đã hủy';
+  }
+}
+
+export function batchStatusTone(status: BatchStatus): StatusTone {
+  switch (status) {
+    case 'APPROVED':
+      return 'success';
+    case 'FAILED':
+      return 'error';
+    case 'PARTIAL_FAILED':
+    case 'NEED_REVIEW':
+      return 'warning';
+    case 'CANCELLED':
+      return 'neutral';
+    default:
+      return 'info';
+  }
 }

@@ -27,7 +27,7 @@ export function useCancelLatexSaleMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem useProductionRecordsBatch.ts
       // Cùng lý do đã sửa ở BatchReviewScreen.applyResponse (2026-08-25) — record hủy có thể thuộc 1
       // scan batch OCR, đổi derived status của batch đó.
-      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pending });
     },
   });
 }

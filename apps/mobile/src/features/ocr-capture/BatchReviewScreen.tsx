@@ -25,8 +25,8 @@ import { productionRecordsApi } from '@/features/production-records/api';
 import { useProductionRecordsListQuery } from '@/features/production-records/useProductionRecordsList';
 import { ApiError } from '@/lib/api/client';
 import { queryKeys } from '@/lib/query/queryClient';
+import { batchStatusLabel, batchStatusTone } from '@/lib/status';
 import type {
-  BatchStatus,
   ConflictType,
   ImageStatus,
   LatexItemResponse,
@@ -38,45 +38,6 @@ import type {
   ScanImageResponse,
 } from '@/types/api';
 import { scanBatchApi } from './api';
-
-function batchStatusLabel(status: BatchStatus): string {
-  switch (status) {
-    case 'DRAFT':
-      return 'Mới tạo';
-    case 'UPLOADING':
-      return 'Đang tải ảnh…';
-    case 'PROCESSING':
-      return 'Đang đọc ảnh…';
-    case 'NEED_REVIEW':
-      return 'Cần kiểm tra';
-    case 'READY_TO_APPROVE':
-      return 'Sẵn sàng xác nhận';
-    case 'PARTIAL_FAILED':
-      return 'Một số ảnh lỗi';
-    case 'FAILED':
-      return 'Lỗi toàn bộ';
-    case 'APPROVED':
-      return 'Đã xác nhận';
-    case 'CANCELLED':
-      return 'Đã hủy';
-  }
-}
-
-function batchStatusTone(status: BatchStatus): StatusTone {
-  switch (status) {
-    case 'APPROVED':
-      return 'success';
-    case 'FAILED':
-      return 'error';
-    case 'PARTIAL_FAILED':
-    case 'NEED_REVIEW':
-      return 'warning';
-    case 'CANCELLED':
-      return 'neutral';
-    default:
-      return 'info';
-  }
-}
 
 function imageStatusLabel(status: ImageStatus): string {
   switch (status) {
@@ -348,11 +309,11 @@ export function BatchReviewScreen({ batchId }: { batchId: string }) {
     // xong vẫn hiện số cũ cho tới khi staleTime 30s trôi qua hoặc màn hình refocus.
     queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
     // Cùng lớp bug với dòng trên, tái phát 2026-08-25: Home "Chờ kiểm tra" đọc
-    // queryKeys.scanBatches.pendingCount (namespace RIÊNG, mới thêm — không nằm dưới productionRecords/
+    // queryKeys.scanBatches.pending (namespace RIÊNG, mới thêm — không nằm dưới productionRecords/
     // latexSales/reports) — xóa ảnh/retry/hủy/duyệt phiên đều đổi status batch (có thể đổi số đang
     // "chờ xử lý"), nhưng thiếu dòng này thì Home vẫn hiện số cũ cho tới khi staleTime trôi qua. User
     // báo cáo trực tiếp: xóa 2 ảnh 1 phiên nhưng "Chờ kiểm tra" không đổi.
-    queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount });
+    queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pending });
   }
 
   function handleActionError(err: unknown, fallbackTitle: string) {
@@ -905,7 +866,7 @@ function ProductionRecordsTable({
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem javadoc applyResponse
-      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount }); // xem javadoc applyResponse
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pending }); // xem javadoc applyResponse
       setActiveEditKey(null);
       showToast({ title: 'Đã lưu', variant: 'success' });
       // Vấn đề 2 — kiểm tra lại NGAY các TOTAL_MISMATCH đang mở của đúng ảnh chứa dòng vừa sửa: khớp
@@ -1151,7 +1112,7 @@ function LatexSalesTable({ batchId }: { batchId: string }) {
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.latexSales.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); // xem javadoc applyResponse
-      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pendingCount }); // xem javadoc applyResponse
+      queryClient.invalidateQueries({ queryKey: queryKeys.scanBatches.pending }); // xem javadoc applyResponse
       setActiveEditKey(null);
       showToast({ title: 'Đã lưu', variant: 'success' });
     } catch (err) {

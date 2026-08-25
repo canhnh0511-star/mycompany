@@ -6,7 +6,7 @@ import type {
   ResolveDateRequest,
   ScanBatchAuditLogResponse,
   ScanBatchLookupResponse,
-  ScanBatchPendingCountResponse,
+  ScanBatchPendingItem,
   ScanBatchResponse,
   SignedUploadUrlResponse,
   UploadContentType,
@@ -59,9 +59,9 @@ export const scanBatchApi = {
   approve: (batchId: string) => apiClient.post<ScanBatchResponse>(`/api/v1/scan-batches/${batchId}/approve`),
   auditLog: (batchId: string) =>
     apiClient.get<ScanBatchAuditLogResponse[]>(`/api/v1/scan-batches/${batchId}/audit-log`),
-  /** Home "Chờ kiểm tra" (2026-08-25) — số batch đang chờ xử lý, đếm THEO BATCH (không phải theo số
-   * dòng draft production_records/latex_sales phát sinh — 1 batch có thể tạo nhiều dòng). */
-  pendingCount: () => apiClient.get<ScanBatchPendingCountResponse>('/api/v1/scan-batches/pending-count'),
+  /** Home "Chờ kiểm tra" (2026-08-25, sửa lần 2) — DANH SÁCH batch đang chờ xử lý (không chỉ đếm số) —
+   * frontend tự suy count = list.length, và biết đích xác batch nào để mở thẳng/liệt kê. */
+  pending: () => apiClient.get<ScanBatchPendingItem[]>('/api/v1/scan-batches/pending'),
 };
 
 /**

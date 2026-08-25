@@ -112,15 +112,17 @@ export function HomeScreen() {
   const latexSaleReport = useLatexSaleReportQuery({ fromDate: today, toDate: today });
   const productionToday = useProductionRecordsListQuery({ fromDate: today, toDate: today });
   const latexSaleToday = useLatexSalesListQuery({ fromDate: today, toDate: today });
-  // "Chờ kiểm tra" — SỬA 2026-08-25 (user hỏi "count như nào" → phát hiện đếm sai đối tượng): trước đây
-  // đếm số DÒNG production_records/latex_sales có status=DRAFT (không lọc ngày, cộng dồn mọi ngày quá
-  // khứ) — 1 batch scan NEED_REVIEW/READY_TO_APPROVE có thể tạo NHIỀU dòng draft cùng lúc (1 phiếu
-  // nhiều nhân viên), nên số đó luôn lớn hơn hẳn số "phiếu (ảnh) thật sự cần Admin mở ra xử lý". Đổi
-  // sang đếm THEO BATCH qua API mới `GET /scan-batches/pending-count` (BatchStatus.isPendingHumanAction
-  // — NEED_REVIEW/READY_TO_APPROVE/PARTIAL_FAILED/FAILED, xem BatchStatus.java).
-  const pendingBatchCount = useQuery({
-    queryKey: queryKeys.scanBatches.pendingCount,
-    queryFn: () => scanBatchApi.pendingCount(),
+  // "Chờ kiểm tra" — SỬA 2026-08-25 (user hỏi "count như nào" → phát hiện đếm sai đối tượng, rồi hỏi
+  // tiếp "bấm vào thì sao" → phát hiện thêm UX gap): đếm THEO BATCH (không phải theo dòng draft
+  // production_records/latex_sales — 1 batch có thể tạo nhiều dòng, xem BatchStatus.isPendingHumanAction).
+  // Đổi từ endpoint chỉ trả SỐ sang trả DANH SÁCH — bấm vào card trước đây luôn mở tab Sản lượng của
+  // ĐÚNG HÔM NAY, trong khi batch tồn đọng thường KHÔNG phải hôm nay (test thật: 3 batch tồn đọng đều
+  // từ các ngày trước, tab Sản lượng hôm nay chẳng có gì để xử lý, Admin phải tự dò từng ngày). Giờ:
+  // biết đích xác batch nào để mở thẳng (1 batch) hoặc liệt kê cho chọn (nhiều batch) — xem onPress bên
+  // dưới.
+  const pendingBatches = useQuery({
+    queryKey: queryKeys.scanBatches.pending,
+    queryFn: () => scanBatchApi.pending(),
   });
   const activeEmployees = useEmployeesLookupQuery({ status: 'ACTIVE' });
   const { summaries: teamSummaries, isLoading: teamSummariesLoading, isError: teamSummariesIsError, error: teamSummariesError } =
@@ -133,7 +135,7 @@ export function HomeScreen() {
     latexSaleReport.isLoading ||
     productionToday.isLoading ||
     latexSaleToday.isLoading ||
-    pendingBatchCount.isLoading ||
+    pendingBatches.isLoading ||
     activeEmployees.isLoading ||
     teamSummariesLoading;
 
@@ -144,7 +146,7 @@ export function HomeScreen() {
     latexSaleReport.isError ||
     productionToday.isError ||
     latexSaleToday.isError ||
-    pendingBatchCount.isError ||
+    pendingBatches.isError ||
     activeEmployees.isError ||
     teamSummariesIsError;
 
@@ -155,12 +157,12 @@ export function HomeScreen() {
     latexSaleReport.error ??
     productionToday.error ??
     latexSaleToday.error ??
-    pendingBatchCount.error ??
+    pendingBatches.error ??
     activeEmployees.error ??
     teamSummariesError;
 
   const phieuHomNay = (productionToday.data?.totalElements ?? 0) + (latexSaleToday.data?.totalElements ?? 0);
-  const dangChoReview = pendingBatchCount.data?.count ?? 0;
+  const dangChoReview = pendingBatches.data?.length ?? 0;
 
   const employeeIdsWithData = useMemo(
     () => new Set((productionReport.data?.rows ?? []).map((r) => r.employeeId)),
@@ -220,6 +222,18 @@ export function HomeScreen() {
     [chartAxisMax],
   );
 
+  // 1 batch → mở thẳng vào Batch Review (đúng batch đó); nhiều batch → mở màn danh sách để chọn; 0
+  // batch → không có gì để làm, không điều hướng (nút vẫn hiện nhưng bấm không có tác dụng — hợp lý vì
+  // giá trị hiển thị lúc đó là "0", không hứa hẹn có gì để mở).
+  function handlePendingBatchesPress() {
+    const items = pendingBatches.data ?? [];
+    if (items.length === 1) {
+      router.push(`/scan-batch-review/${items[0].id}`);
+    } else if (items.length > 1) {
+      router.push('/pending-batches');
+    }
+  }
+
   const attentionItems: { key: string; label: string; actionLabel: string; onPress: () => void }[] = [];
   for (const team of teamsWithoutDataToday) {
     attentionItems.push({
@@ -234,7 +248,7 @@ export function HomeScreen() {
       key: 'draft',
       label: `⚠ ${dangChoReview} phiếu cần kiểm tra`,
       actionLabel: 'Kiểm tra',
-      onPress: () => router.push('/(tabs)/lookup'),
+      onPress: handlePendingBatchesPress,
     });
   }
 
@@ -291,7 +305,7 @@ export function HomeScreen() {
                     value={String(dangChoReview)}
                     subtitle="Phiếu"
                     accent
-                    onPress={() => router.push('/(tabs)/lookup')}
+                    onPress={handlePendingBatchesPress}
                   />
                 </HStack>
               </VStack>

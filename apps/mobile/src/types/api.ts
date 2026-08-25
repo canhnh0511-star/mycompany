@@ -358,11 +358,18 @@ export interface ScanBatchAuditLogResponse {
   targetBatchId: string | null;
 }
 
-/** Khớp services/api dto/ScanBatchPendingCountResponse.java — số batch đang "chờ xử lý"
- * (BatchStatus.isPendingHumanAction(): NEED_REVIEW/READY_TO_APPROVE/PARTIAL_FAILED/FAILED). Đếm THEO
- * BATCH, không phải theo số dòng draft production_records/latex_sales — dùng cho Home "Chờ kiểm tra". */
-export interface ScanBatchPendingCountResponse {
-  count: number;
+/** Khớp services/api dto/ScanBatchPendingItem.java — 1 batch đang "chờ xử lý"
+ * (BatchStatus.isPendingHumanAction(): NEED_REVIEW/READY_TO_APPROVE/PARTIAL_FAILED/FAILED). Dùng cho
+ * Home "Chờ kiểm tra" — SỬA 2026-08-25 (2): đổi từ chỉ đếm số sang trả danh sách để biết đích xác batch
+ * nào/ngày nào (bấm vào card cũ chỉ mở tab Sản lượng của HÔM NAY, không thấy được batch tồn đọng từ
+ * ngày khác — trải nghiệm chưa tối ưu, user báo cáo trực tiếp). Sắp ngày cũ nhất lên đầu (backend). */
+export interface ScanBatchPendingItem {
+  id: string;
+  teamId: string;
+  teamName: string;
+  documentType: OcrTargetType;
+  workDate: string;
+  status: BatchStatus;
 }
 
 /** Khớp services/api dto/RateConfigResponse.java — đơn giá theo latex_type_id, có hiệu lực theo thời
