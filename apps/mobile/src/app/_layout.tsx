@@ -13,6 +13,7 @@ import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { queryClient } from '@/lib/query/queryClient';
 import { setUnauthorizedHandler } from '@/lib/api/client';
 import { useAuthStore } from '@/features/auth/store';
+import { useSettingsStore } from '@/features/settings/store';
 import '@/global.css';
 
 SplashScreen.preventAutoHideAsync();
@@ -92,6 +93,14 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
   });
+  // Màn 14 "Thiết lập ứng dụng" — mục "Giao diện" (features/settings/store.ts). Hydrate song song với
+  // font, không chặn splash lâu hơn (đã có sẵn AuthGate.hydrate() chạy song song riêng).
+  const theme = useSettingsStore((s) => s.theme);
+  const hydrateTheme = useSettingsStore((s) => s.hydrate);
+
+  useEffect(() => {
+    hydrateTheme();
+  }, [hydrateTheme]);
 
   if (!fontsLoaded && !fontError) {
     return null;
@@ -121,7 +130,7 @@ export default function RootLayout() {
           hưởng iOS (status bar iOS vốn đã luôn translucent, prop này bị bỏ qua). */}
       <StatusBar translucent backgroundColor="transparent" style={Platform.OS === 'android' ? 'dark' : 'auto'} />
       <SafeAreaProvider>
-        <GluestackUIProvider mode="system">
+        <GluestackUIProvider mode={theme}>
           <QueryClientProvider client={queryClient}>
             <AuthGate>
               <SafeAreaView edges={['top']} style={{ flex: 1 }}>

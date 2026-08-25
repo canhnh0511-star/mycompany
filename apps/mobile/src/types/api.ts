@@ -5,7 +5,10 @@
  * đối chiếu lại DTO backend mỗi khi thêm — đừng đoán field name.
  */
 
-export type Role = 'admin' | 'team_lead';
+// UserRole.name() ở backend (entity/UserRole.java: TEAM_LEAD, ADMIN) trả nguyên dạng UPPERCASE qua JSON
+// (LoginResponse.role, UserProfileResponse.role) — bug thật tìm thấy lúc test trên emulator 2026-08-25
+// (role trước đây khai 'admin'|'team_lead' lowercase, so sánh luôn sai, ROLE_LABEL không bao giờ khớp).
+export type Role = 'ADMIN' | 'TEAM_LEAD';
 
 export interface LoginRequest {
   email: string;
@@ -25,9 +28,27 @@ export interface UserProfileResponse {
   id: string;
   fullName: string;
   email: string;
+  phone: string | null;
   role: Role;
+  /** Đã là URL đã ký (signed read URL, TTL 1h) — không phải objectPath thô, xem UserController#toResponse. */
   avatarUrl: string | null;
   position: string | null;
+}
+
+/** Khớp services/api dto/UpdateProfileRequest.java. `avatarUrl` khi gửi LÊN lại là objectPath thô (từ
+ * SignedUploadUrlResponse.photoPath) — KHÔNG phải URL đã ký nhận về từ UserProfileResponse, cùng convention
+ * 2 chiều path/URL như các entity ảnh khác (ScanImage/ProductionRecord/LatexSale). */
+export interface UpdateProfileRequest {
+  fullName: string;
+  avatarUrl: string | null;
+  position: string | null;
+  phone: string | null;
+}
+
+/** Khớp services/api dto/ChangePasswordRequest.java */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 /** Hình dạng chung ProblemDetail (RFC 7807) mà GlobalExceptionHandler backend trả về (CLAUDE.md §7). */
