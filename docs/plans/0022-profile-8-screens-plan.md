@@ -201,37 +201,33 @@ Phiên bản/Build đọc từ `app.json`/`expo-constants`; "Thiết bị" đọ
 
 ---
 
-## Ghi chú riêng — Chỉnh sửa Footer/Tab bar (KHÔNG thuộc 8 màn Hồ sơ, chỉ ghi note theo yêu cầu)
+## Ghi chú riêng — Chỉnh sửa Footer/Tab bar (KHÔNG thuộc 8 màn Hồ sơ) — ĐÃ LÀM XONG 2026-08-25
 
-Ảnh tham chiếu do user cung cấp sẵn: `images/footer_design.png`. Đây là ảnh chụp từ 1 artboard khác
-(hiện chưa xác định rõ nằm ở turn/section nào trong project design — CHƯA đọc lại qua `claude_design`
-MCP để đối chiếu nguồn gốc, chỉ audit bằng mắt so với code hiện tại). Ghi lại làm việc CẦN LÀM sau,
-KHÔNG code ở phase này.
+Đọc lại đúng nguồn gốc `footer_design.png` qua `claude_design` MCP (project
+`55a7676b-68b2-4a14-a355-f2ec6a0394d1`, file `Nông trường cao su - Mobile.dc.html`, **Turn 3 "Thanh điều
+hướng dưới — 3 hướng cải tiến"**) — đây là 1 turn RIÊNG, KHÔNG cùng turn với 8 màn Hồ sơ (Turn 2). Turn 3
+có 3 option: **3a** "Thanh nổi" (pill trắng tách khỏi đáy), **3b** "Vòm cong" (thanh dính đáy, đỉnh vòm
+cong đỡ nút Chụp — gần app ngân hàng nhất), **3c** "Pill trượt" (chỉ tab đang chọn có chữ). `footer_design.png`
+khớp chính xác **3b** — cũng là hướng chính designer tự đề xuất trong ghi chú cuối turn ("giữ được cảm
+giác bo cong và nút giữa nổi như app ngân hàng, nhưng mọi tab vẫn có nhãn chữ — quan trọng khi người
+dùng chính là quản lý làm việc ngoài nắng").
 
-**So sánh nhanh (ảnh design vs `apps/mobile/src/app/(tabs)/_layout.tsx` hiện tại):**
+**2 câu hỏi mở đã xác nhận với user (2026-08-25):**
+1. Hướng thiết kế → chọn **3b** (Recommended, khớp ảnh + đề xuất designer).
+2. Tên tab thứ 3 (giữa Phiếu/Hồ sơ) → **giữ "Sản lượng"** (mockup Turn 3 ghi "Tra cứu" trong tab bar
+   nhưng ghi chú cuối turn của chính designer lại dùng "Sản lượng" — mâu thuẫn ngay trong design gốc,
+   xác nhận đây không phải yêu cầu revert, tên "Sản lượng" vẫn là quyết định có chủ đích của Phase 5).
 
-| | Design (`footer_design.png`) | Hiện tại (`CustomTabBar`) |
-|---|---|---|
-| Nút "Chụp phiếu" | **Nổi (FAB)** — hình tròn xanh đậm, đè lên phía trên thanh tab (có shadow), icon camera trắng, label "Chụp phiếu" nằm NGOÀI vòng tròn (dưới), cùng hàng với 4 tab còn lại | Nằm PHẲNG trong hàng tab (`Box w-16 h-[52px] rounded-xl`), không nổi, label "Chụp" nằm TRONG khối |
-| Icon 4 tab còn lại | Icon glyph thật (nhà/tài liệu/kính lúp/người) | Khối vuông bo góc placeholder (code tự nhận đây là placeholder, chưa có icon set thật — xem comment `TabIcon`) |
-| Tên tab thứ 4 | **"Tra cứu"** | **"Sản lượng"** (đã đổi tên có chủ đích ở Phase 5, xem `docs/plans/0021...` — thay hẳn nội dung màn từ browse phẳng sang dashboard Official Production) |
-| Số lượng tab | 5 (Hôm nay/Phiếu/Chụp phiếu/Tra cứu/Hồ sơ) | 5 (Hôm nay/Phiếu/Chụp/Sản lượng/Hồ sơ) — khớp số lượng |
-
-**Việc cần làm khi triển khai (sau khi xong 8 màn Hồ sơ):**
-1. Đọc lại đúng artboard này qua `claude_design` MCP trước khi code (giống quy trình đã áp dụng cho 8
-   màn Hồ sơ) — `footer_design.png` chỉ là ảnh JPG/PNG tĩnh, KHÔNG có markup/style gốc để copy chính
-   xác màu/kích thước/font như đã làm được với HTML design ở trên. Nếu không tìm thấy trong project
-   hiện tại, hỏi lại user nguồn.
-2. Cần bộ icon set thật (hiện chưa có — dự án đang dùng placeholder cố ý, xem comment trong code) —
-   xác định thư viện icon nào (vd `lucide-react-native`, đã có sẵn dependency chưa cần kiểm tra) trước
-   khi vẽ lại 4 icon nhà/tài liệu/kính lúp/người.
-3. Nút "Chụp phiếu" chuyển từ phẳng sang FAB nổi — cần tính lại layout (`position: absolute`, offset âm
-   lên trên thanh tab, shadow, z-index) — lưu ý đây là nút thật (không phải tab route), vẫn giữ hành vi
-   điều hướng `router.push('/(tabs)/capture')` như hiện tại, chỉ đổi UI.
-4. **Cần hỏi lại user trước khi đổi**: tên "Tra cứu" trong ảnh design này có phải bản CŨ (trước khi đổi
-   tên thành "Sản lượng" ở Phase 5) hay là ý muốn đổi TÊN TAB lần nữa? Không tự ý đổi lại tên tab dựa
-   theo ảnh này — có thể đây chỉ là ảnh chụp cũ chưa cập nhật theo tên mới, không phải yêu cầu revert.
-- [ ] (Chưa làm) Đọc lại nguồn gốc artboard `footer_design.png` qua claude_design MCP
-- [ ] (Chưa làm) Xác nhận lại tên tab thứ 4 với user (Tra cứu vs Sản lượng)
-- [ ] (Chưa làm) Chọn icon set + implement 4 icon thật
-- [ ] (Chưa làm) Implement FAB nổi cho nút Chụp phiếu
+**Đã implement** (`apps/mobile/src/app/(tabs)/_layout.tsx`, viết lại hoàn toàn):
+- [x] Thanh vòm cong dính đáy (`borderTopLeftRadius`/`borderTopRightRadius` 24px) + mảnh vòm nhỏ 92px đỡ
+      nút Chụp, đúng kích thước px từ mockup (ánh xạ 1:1 sang RN dp, cùng cách các màn khác trong app).
+- [x] Icon SVG thật — port trực tiếp path từ chính mockup (`react-native-svg`, đã có sẵn dependency,
+      cùng cách `BrandMark.tsx`) — nhà/tài liệu/kính lúp/người, KHÔNG cần thêm thư viện icon ngoài
+      (mockup tự cho path, không phải chọn thư viện như dự tính ban đầu).
+- [x] Nút "Chụp phiếu" chuyển từ phẳng sang FAB nổi (`position:absolute`, shadow, 60×60, bg primary),
+      nhãn "Chụp phiếu" nằm NGOÀI vòng tròn (dưới) đúng mockup — vẫn giữ hành vi điều hướng
+      `router.push('/(tabs)/capture')` như cũ, chỉ đổi UI.
+- [x] Trạng thái active: icon+chữ đổi màu xanh + gạch chỉ 16×3px dưới nhãn (đúng mockup 3b, khác 3a
+      dùng nền bo tròn phía sau icon).
+- [x] Test trực tiếp trên Android Emulator — chuyển qua cả 4 tab (Hôm nay/Sản lượng/Hồ sơ đã chụp ảnh
+      xác nhận), active state đổi đúng, không đè/vỡ layout nội dung màn bên trên.
