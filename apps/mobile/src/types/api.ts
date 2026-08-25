@@ -358,6 +358,13 @@ export interface ScanBatchAuditLogResponse {
   targetBatchId: string | null;
 }
 
+/** Khớp services/api dto/ScanBatchPendingCountResponse.java — số batch đang "chờ xử lý"
+ * (BatchStatus.isPendingHumanAction(): NEED_REVIEW/READY_TO_APPROVE/PARTIAL_FAILED/FAILED). Đếm THEO
+ * BATCH, không phải theo số dòng draft production_records/latex_sales — dùng cho Home "Chờ kiểm tra". */
+export interface ScanBatchPendingCountResponse {
+  count: number;
+}
+
 /** Khớp services/api dto/RateConfigResponse.java — đơn giá theo latex_type_id, có hiệu lực theo thời
  * gian (effectiveTo=null = đang hiệu lực, CLAUDE.md §4). */
 export interface RateConfigResponse {

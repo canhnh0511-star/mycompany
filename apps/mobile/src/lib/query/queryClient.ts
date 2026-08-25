@@ -57,6 +57,7 @@ export const queryKeys = {
     detail: (id: string) => ['scan-batches', 'detail', id] as const,
     lookup: (documentType: string, teamId: string, workDate: string) =>
       ['scan-batches', 'lookup', documentType, teamId, workDate] as const,
+    pendingCount: ['scan-batches', 'pending-count'] as const,
   },
   editHistory: (tableName: string, recordId: string) => ['edit-history', tableName, recordId] as const,
   productionSummary: {

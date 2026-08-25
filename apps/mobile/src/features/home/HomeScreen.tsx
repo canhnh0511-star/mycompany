@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import { Pressable } from '@/components/ui/pressable';
@@ -14,6 +15,8 @@ import { useProductionRecordsListQuery } from '@/features/production-records/use
 import { useLatexSalesListQuery } from '@/features/latex-sales/useLatexSalesList';
 import { useProductionReportQuery, useLatexSaleReportQuery, useProductionDailyTrendQuery } from '@/features/reports/useReports';
 import { useProductionSummaryDailyQuery } from '@/features/production-summary/useProductionSummary';
+import { scanBatchApi } from '@/features/ocr-capture/api';
+import { queryKeys } from '@/lib/query/queryClient';
 import { todayIsoDate, last7DaysRange } from '@/features/reports/dateRange';
 import { useTeamDailySummaries } from './useTeamDailySummaries';
 import { HomeHeader } from './HomeHeader';
@@ -109,8 +112,16 @@ export function HomeScreen() {
   const latexSaleReport = useLatexSaleReportQuery({ fromDate: today, toDate: today });
   const productionToday = useProductionRecordsListQuery({ fromDate: today, toDate: today });
   const latexSaleToday = useLatexSalesListQuery({ fromDate: today, toDate: today });
-  const draftProduction = useProductionRecordsListQuery({ status: 'DRAFT' });
-  const draftLatexSale = useLatexSalesListQuery({ status: 'DRAFT' });
+  // "Chờ kiểm tra" — SỬA 2026-08-25 (user hỏi "count như nào" → phát hiện đếm sai đối tượng): trước đây
+  // đếm số DÒNG production_records/latex_sales có status=DRAFT (không lọc ngày, cộng dồn mọi ngày quá
+  // khứ) — 1 batch scan NEED_REVIEW/READY_TO_APPROVE có thể tạo NHIỀU dòng draft cùng lúc (1 phiếu
+  // nhiều nhân viên), nên số đó luôn lớn hơn hẳn số "phiếu (ảnh) thật sự cần Admin mở ra xử lý". Đổi
+  // sang đếm THEO BATCH qua API mới `GET /scan-batches/pending-count` (BatchStatus.isPendingHumanAction
+  // — NEED_REVIEW/READY_TO_APPROVE/PARTIAL_FAILED/FAILED, xem BatchStatus.java).
+  const pendingBatchCount = useQuery({
+    queryKey: queryKeys.scanBatches.pendingCount,
+    queryFn: () => scanBatchApi.pendingCount(),
+  });
   const activeEmployees = useEmployeesLookupQuery({ status: 'ACTIVE' });
   const { summaries: teamSummaries, isLoading: teamSummariesLoading, isError: teamSummariesIsError, error: teamSummariesError } =
     useTeamDailySummaries(today);
@@ -122,8 +133,7 @@ export function HomeScreen() {
     latexSaleReport.isLoading ||
     productionToday.isLoading ||
     latexSaleToday.isLoading ||
-    draftProduction.isLoading ||
-    draftLatexSale.isLoading ||
+    pendingBatchCount.isLoading ||
     activeEmployees.isLoading ||
     teamSummariesLoading;
 
@@ -134,8 +144,7 @@ export function HomeScreen() {
     latexSaleReport.isError ||
     productionToday.isError ||
     latexSaleToday.isError ||
-    draftProduction.isError ||
-    draftLatexSale.isError ||
+    pendingBatchCount.isError ||
     activeEmployees.isError ||
     teamSummariesIsError;
 
@@ -146,13 +155,12 @@ export function HomeScreen() {
     latexSaleReport.error ??
     productionToday.error ??
     latexSaleToday.error ??
-    draftProduction.error ??
-    draftLatexSale.error ??
+    pendingBatchCount.error ??
     activeEmployees.error ??
     teamSummariesError;
 
   const phieuHomNay = (productionToday.data?.totalElements ?? 0) + (latexSaleToday.data?.totalElements ?? 0);
-  const dangChoReview = (draftProduction.data?.totalElements ?? 0) + (draftLatexSale.data?.totalElements ?? 0);
+  const dangChoReview = pendingBatchCount.data?.count ?? 0;
 
   const employeeIdsWithData = useMemo(
     () => new Set((productionReport.data?.rows ?? []).map((r) => r.employeeId)),
