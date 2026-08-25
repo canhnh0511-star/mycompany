@@ -13,6 +13,9 @@ export interface ProductionDailyTrendFilters {
   fromDate: string;
   toDate: string;
   teamId?: string;
+  /** Lọc theo 1 loại mủ (vd "water"/"cup") — Home "Sản lượng 7 ngày" filter. Không truyền = tổng tất cả
+   * loại (hành vi cũ). "Khác" (mủ dây+đông) KHÔNG lọc được ở đây — gọi 2 lần rồi cộng dồn phía client. */
+  latexTypeCode?: string;
 }
 
 export interface LatexSaleReportFilters {

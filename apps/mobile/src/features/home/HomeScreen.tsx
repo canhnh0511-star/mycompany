@@ -1,13 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import { Pressable } from '@/components/ui/pressable';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
-import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
-import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
@@ -15,8 +13,20 @@ import { useEmployeesLookupQuery } from '@/features/admin-catalog/useCatalogLook
 import { useProductionRecordsListQuery } from '@/features/production-records/useProductionRecordsList';
 import { useLatexSalesListQuery } from '@/features/latex-sales/useLatexSalesList';
 import { useProductionReportQuery, useLatexSaleReportQuery, useProductionDailyTrendQuery } from '@/features/reports/useReports';
+import { useProductionSummaryDailyQuery } from '@/features/production-summary/useProductionSummary';
 import { todayIsoDate, last7DaysRange } from '@/features/reports/dateRange';
 import { useTeamDailySummaries } from './useTeamDailySummaries';
+import { HomeHeader } from './HomeHeader';
+import { ProductionSummaryCard } from './ProductionSummaryCard';
+import { ClipboardCheckIcon, DocumentIcon, PeopleIcon, TagIcon } from './HomeIcons';
+
+type ChartFilter = 'total' | 'water' | 'cup' | 'other';
+const CHART_FILTERS: { key: ChartFilter; label: string }[] = [
+  { key: 'total', label: 'Tổng' },
+  { key: 'water', label: 'Mủ nước' },
+  { key: 'cup', label: 'Mủ chén' },
+  { key: 'other', label: 'Khác' },
+];
 
 const WEEKDAY_LABELS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 
@@ -47,8 +57,31 @@ export function HomeScreen() {
   const today = todayIsoDate();
   const sevenDayRange = last7DaysRange();
 
+  const [chartFilter, setChartFilter] = useState<ChartFilter>('total');
+
   const productionReport = useProductionReportQuery({ fromDate: today, toDate: today });
   const dailyTrend = useProductionDailyTrendQuery(sevenDayRange);
+  // Breakdown theo loại mủ cho card "Sản lượng ghi nhận" — cùng nguồn `/production-summary/daily` đã
+  // dùng ở tab "Sản lượng" (Phase 4/5 Spec 2), KHÔNG teamId = tổng hợp toàn công ty trong ngày.
+  const productionSummaryDaily = useProductionSummaryDailyQuery({ workDate: today });
+  // 3 query "Sản lượng 7 ngày" theo loại mủ — chỉ bật đúng 1-2 cái khớp filter đang chọn (xem
+  // useProductionDailyTrendQuery `options.enabled`), tránh bắn thừa request lúc mount màn.
+  const dailyTrendWater = useProductionDailyTrendQuery(
+    { ...sevenDayRange, latexTypeCode: 'water' },
+    { enabled: chartFilter === 'water' },
+  );
+  const dailyTrendCup = useProductionDailyTrendQuery(
+    { ...sevenDayRange, latexTypeCode: 'cup' },
+    { enabled: chartFilter === 'cup' },
+  );
+  const dailyTrendStrip = useProductionDailyTrendQuery(
+    { ...sevenDayRange, latexTypeCode: 'strip' },
+    { enabled: chartFilter === 'other' },
+  );
+  const dailyTrendCoagulated = useProductionDailyTrendQuery(
+    { ...sevenDayRange, latexTypeCode: 'coagulated' },
+    { enabled: chartFilter === 'other' },
+  );
   const latexSaleReport = useLatexSaleReportQuery({ fromDate: today, toDate: today });
   const productionToday = useProductionRecordsListQuery({ fromDate: today, toDate: today });
   const latexSaleToday = useLatexSalesListQuery({ fromDate: today, toDate: today });
@@ -61,6 +94,7 @@ export function HomeScreen() {
   const isLoading =
     productionReport.isLoading ||
     dailyTrend.isLoading ||
+    productionSummaryDaily.isLoading ||
     latexSaleReport.isLoading ||
     productionToday.isLoading ||
     latexSaleToday.isLoading ||
@@ -72,6 +106,7 @@ export function HomeScreen() {
   const isError =
     productionReport.isError ||
     dailyTrend.isError ||
+    productionSummaryDaily.isError ||
     latexSaleReport.isError ||
     productionToday.isError ||
     latexSaleToday.isError ||
@@ -83,6 +118,7 @@ export function HomeScreen() {
   const firstError =
     productionReport.error ??
     dailyTrend.error ??
+    productionSummaryDaily.error ??
     latexSaleReport.error ??
     productionToday.error ??
     latexSaleToday.error ??
@@ -118,10 +154,31 @@ export function HomeScreen() {
     return { percent };
   }, [dailyTrend.data]);
 
-  const chartMaxKg = useMemo(
-    () => Math.max(...(dailyTrend.data?.days ?? []).map((d) => d.totalKg), 1),
-    [dailyTrend.data],
-  );
+  // Data cho biểu đồ "Sản lượng 7 ngày" theo filter đang chọn — "Khác" (mủ dây+đông) không có sẵn ở
+  // backend theo 1 query duy nhất (cố ý, xem comment `aggregateDailyTotals` phía backend), cộng dồn 2
+  // query strip+coagulated ở đây thay vì special-case query cho 1 trường hợp lọc gộp duy nhất.
+  const chartDays = useMemo(() => {
+    if (chartFilter === 'water') return dailyTrendWater.data?.days ?? [];
+    if (chartFilter === 'cup') return dailyTrendCup.data?.days ?? [];
+    if (chartFilter === 'other') {
+      const strip = dailyTrendStrip.data?.days ?? [];
+      const coagulated = dailyTrendCoagulated.data?.days ?? [];
+      if (strip.length === 0 || strip.length !== coagulated.length) return [];
+      return strip.map((d, i) => ({ recordDate: d.recordDate, totalKg: d.totalKg + (coagulated[i]?.totalKg ?? 0) }));
+    }
+    return dailyTrend.data?.days ?? [];
+  }, [chartFilter, dailyTrend.data, dailyTrendWater.data, dailyTrendCup.data, dailyTrendStrip.data, dailyTrendCoagulated.data]);
+
+  const chartLoading =
+    chartFilter === 'water'
+      ? dailyTrendWater.isLoading
+      : chartFilter === 'cup'
+        ? dailyTrendCup.isLoading
+        : chartFilter === 'other'
+          ? dailyTrendStrip.isLoading || dailyTrendCoagulated.isLoading
+          : dailyTrend.isLoading;
+
+  const chartMaxKg = useMemo(() => Math.max(...chartDays.map((d) => d.totalKg), 1), [chartDays]);
 
   const attentionItems: { key: string; label: string; actionLabel: string; onPress: () => void }[] = [];
   for (const team of teamsWithoutDataToday) {
@@ -144,14 +201,7 @@ export function HomeScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
       <VStack space="lg">
-        <VStack space="xs">
-          <AppHeading size="2xl">Hôm nay</AppHeading>
-          <AppText className="text-muted-foreground">{formatTodayLabel()}</AppText>
-        </VStack>
-
-        <AppButton size="lg" onPress={() => router.push('/(tabs)/capture')}>
-          Chụp phiếu
-        </AppButton>
+        <HomeHeader dateLabel={formatTodayLabel()} onCapture={() => router.push('/(tabs)/capture')} />
 
         {isLoading ? <LoadingState label="Đang tải tình hình hôm nay..." /> : null}
         {isError ? (
@@ -164,64 +214,46 @@ export function HomeScreen() {
               <AppText className="font-semibold" size="lg">
                 Tình hình hôm nay
               </AppText>
-              <AppCard>
-                <AppText size="sm" className="text-muted-foreground">
-                  Sản lượng ghi nhận
-                </AppText>
-                <HStack className="items-baseline mt-1" space="xs">
-                  <AppText size="2xl" className="font-semibold font-mono">
-                    {(productionReport.data?.grandTotalKg ?? 0).toLocaleString('vi-VN')}
-                  </AppText>
-                  <AppText className="text-muted-foreground">kg</AppText>
-                </HStack>
-                {trend ? (
-                  <AppText size="sm" className={`mt-1 ${trend.percent >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    {`${trend.percent >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(trend.percent))}% so với TB 7 ngày`}
-                  </AppText>
-                ) : null}
-              </AppCard>
+              <ProductionSummaryCard
+                totalKg={productionReport.data?.grandTotalKg ?? 0}
+                trendPercent={trend?.percent ?? null}
+                byLatexType={productionSummaryDaily.data?.byLatexType ?? []}
+              />
 
-              <AppCard>
-                <HStack>
-                  <VStack className="flex-1 pr-3">
-                    <AppText size="sm" className="text-muted-foreground">
-                      Nhân công
-                    </AppText>
-                    <AppText size="xl" className="font-semibold font-mono mt-1">
-                      {`${employeeIdsWithData.size} / ${totalActiveEmployees}`}
-                    </AppText>
-                  </VStack>
-                  <VStack className="flex-1 pl-3 border-l border-border">
-                    <AppText size="sm" className="text-muted-foreground">
-                      Đã bán
-                    </AppText>
-                    <AppText size="xl" className="font-semibold font-mono mt-1">
-                      {`${(latexSaleReport.data?.grandTotalKg ?? 0).toLocaleString('vi-VN')} kg`}
-                    </AppText>
-                  </VStack>
+              {/* Grid 2×2 — 4 card độc lập thay vì 2 AppCard gộp đôi trước đây, để "Chờ kiểm tra" tách
+                  riêng bấm được + accent riêng (mục 5 yêu cầu). */}
+              <VStack space="sm">
+                <HStack space="sm">
+                  <TodayMetricCard
+                    icon={<PeopleIcon />}
+                    title="Nhân công"
+                    value={`${employeeIdsWithData.size} / ${totalActiveEmployees}`}
+                    subtitle="Đã làm / Tổng"
+                  />
+                  <TodayMetricCard
+                    icon={<TagIcon />}
+                    title="Đã bán"
+                    value={`${(latexSaleReport.data?.grandTotalKg ?? 0).toLocaleString('vi-VN')} kg`}
+                    subtitle="Hôm nay"
+                  />
                 </HStack>
-              </AppCard>
-
-              <AppCard>
-                <HStack>
-                  <VStack className="flex-1 pr-3">
-                    <AppText size="sm" className="text-muted-foreground">
-                      Phiếu hôm nay
-                    </AppText>
-                    <AppText size="xl" className="font-semibold font-mono mt-1">
-                      {phieuHomNay}
-                    </AppText>
-                  </VStack>
-                  <VStack className="flex-1 pl-3 border-l border-border">
-                    <AppText size="sm" className="text-muted-foreground">
-                      Đang chờ review
-                    </AppText>
-                    <AppText size="xl" className="font-semibold font-mono mt-1">
-                      {dangChoReview}
-                    </AppText>
-                  </VStack>
+                <HStack space="sm">
+                  <TodayMetricCard
+                    icon={<DocumentIcon />}
+                    title="Phiếu hôm nay"
+                    value={String(phieuHomNay)}
+                    subtitle="Phiếu"
+                  />
+                  <TodayMetricCard
+                    icon={<ClipboardCheckIcon color="#1D6FBE" />}
+                    title="Chờ kiểm tra"
+                    value={String(dangChoReview)}
+                    subtitle="Phiếu"
+                    accent
+                    onPress={() => router.push('/(tabs)/lookup')}
+                  />
                 </HStack>
-              </AppCard>
+              </VStack>
             </VStack>
 
             {teamSummaries.length > 0 ? (
@@ -236,68 +268,81 @@ export function HomeScreen() {
                     </AppText>
                   </Pressable>
                 </HStack>
-                {/* Lưới ngang khớp Claude Design 1a (4 Tổ cùng 1 hàng) — bọc ScrollView ngang để không vỡ
-                    layout khi số Tổ thực tế nhiều hơn 4-5 (design giả định cố định 4 Tổ). */}
+                {/* Chip/card gọn ngang, cuộn ngang khi nhiều Tổ (mục 6 yêu cầu — không wrap nhiều hàng). */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <AppCard className="p-0 overflow-hidden flex-row">
-                    {teamSummaries.map(({ team, status }, i) => (
-                      <VStack
-                        key={team.id}
-                        space="xs"
-                        className={`items-center py-3 px-4 ${i > 0 ? 'border-l border-border' : ''}`}
-                        style={{ minWidth: 84 }}
-                      >
-                        <AppText size="sm" className="font-medium">
-                          {team.name}
-                        </AppText>
-                        {status === 'done' ? (
-                          <AppText size="xs" className="text-success">
-                            ✓ Xong
+                  <HStack space="sm">
+                    {teamSummaries.map(({ team, status }) => {
+                      const tone = status === 'done' ? 'text-success' : status === 'partial' ? 'text-warning' : 'text-muted-foreground';
+                      const label = status === 'done' ? 'Đã ghi nhận' : status === 'partial' ? 'Đang xử lý' : 'Chưa ghi nhận';
+                      const dot = status === 'none' ? '○' : '●';
+                      return (
+                        <Box key={team.id} className="rounded-xl border border-border bg-card px-4 py-3" style={{ minWidth: 128 }}>
+                          <AppText size="sm" className="font-medium">
+                            {team.name}
                           </AppText>
-                        ) : status === 'partial' ? (
-                          <AppText size="xs" className="text-warning">
-                            ⚠ Thiếu
+                          <AppText size="xs" className={`mt-1 ${tone}`}>
+                            {`${dot} ${label}`}
                           </AppText>
-                        ) : (
-                          <AppText size="xs" className="text-muted-foreground">
-                            ○ Chưa
-                          </AppText>
-                        )}
-                      </VStack>
-                    ))}
-                  </AppCard>
+                        </Box>
+                      );
+                    })}
+                  </HStack>
                 </ScrollView>
               </VStack>
             ) : null}
 
-            {(dailyTrend.data?.days.length ?? 0) > 1 ? (
-              <VStack space="sm">
-                <AppText className="font-semibold" size="lg">
-                  Sản lượng 7 ngày
-                </AppText>
-                <AppCard>
-                  <HStack className="items-end" space="sm" style={{ height: 72 }}>
-                    {dailyTrend.data!.days.map((d, i) => (
+            <VStack space="sm">
+              <AppText className="font-semibold" size="lg">
+                Sản lượng 7 ngày
+              </AppText>
+              <HStack space="xs">
+                {CHART_FILTERS.map((f) => {
+                  const selected = chartFilter === f.key;
+                  return (
+                    <Pressable key={f.key} onPress={() => setChartFilter(f.key)}>
                       <Box
-                        key={d.recordDate}
-                        className={`flex-1 rounded ${
-                          i === dailyTrend.data!.days.length - 1 ? 'bg-primary' : 'bg-primary/25'
+                        className={`rounded-full px-3 py-1.5 border ${
+                          selected ? 'bg-primary border-primary' : 'bg-background border-border'
                         }`}
-                        style={{ height: `${Math.max((d.totalKg / chartMaxKg) * 100, 4)}%` }}
-                      />
-                    ))}
-                  </HStack>
-                  <HStack className="justify-between mt-2.5">
-                    <AppText size="xs" className="text-muted-foreground">
-                      {formatShortDate(dailyTrend.data!.days[0].recordDate)}
-                    </AppText>
-                    <AppText size="xs" className="text-muted-foreground">
-                      Hôm nay
-                    </AppText>
-                  </HStack>
-                </AppCard>
-              </VStack>
-            ) : null}
+                      >
+                        <AppText size="xs" className={selected ? 'font-semibold text-primary-foreground' : 'text-muted-foreground'}>
+                          {f.label}
+                        </AppText>
+                      </Box>
+                    </Pressable>
+                  );
+                })}
+              </HStack>
+              <AppCard>
+                {chartLoading ? (
+                  <LoadingState label="Đang tải biểu đồ..." />
+                ) : chartDays.length > 1 ? (
+                  <>
+                    <HStack className="items-end" space="sm" style={{ height: 72 }}>
+                      {chartDays.map((d, i) => (
+                        <Box
+                          key={d.recordDate}
+                          className={`flex-1 rounded ${i === chartDays.length - 1 ? 'bg-primary' : 'bg-primary/25'}`}
+                          style={{ height: `${Math.max((d.totalKg / chartMaxKg) * 100, 4)}%` }}
+                        />
+                      ))}
+                    </HStack>
+                    <HStack className="justify-between mt-2.5">
+                      <AppText size="xs" className="text-muted-foreground">
+                        {formatShortDate(chartDays[0].recordDate)}
+                      </AppText>
+                      <AppText size="xs" className="text-muted-foreground">
+                        Hôm nay
+                      </AppText>
+                    </HStack>
+                  </>
+                ) : (
+                  <AppText size="sm" className="text-muted-foreground text-center py-4">
+                    Chưa đủ dữ liệu so sánh
+                  </AppText>
+                )}
+              </AppCard>
+            </VStack>
 
             {attentionItems.length > 0 ? (
               <VStack space="sm">
@@ -326,5 +371,61 @@ export function HomeScreen() {
         ) : null}
       </VStack>
     </ScrollView>
+  );
+}
+
+/**
+ * 1 ô trong grid 2×2 "Nhân công/Đã bán/Phiếu hôm nay/Chờ kiểm tra" (mục 5 yêu cầu redesign Home). Card
+ * "actionable" duy nhất là "Chờ kiểm tra" (`accent`+`onPress`) — accent dùng token `info` sẵn có (xanh
+ * dương nhạt) thay vì tím/lilac như ảnh tham chiếu (project chưa có token màu tím, ưu tiên design system
+ * hiện tại hơn khớp đúng màu ảnh, theo đúng thứ tự ưu tiên yêu cầu). KHÔNG dùng tone `warning`/`error`
+ * cho card này — "chờ kiểm tra" là việc cần làm bình thường, không phải lỗi/cảnh báo.
+ */
+function TodayMetricCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  accent,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  subtitle: string;
+  accent?: boolean;
+  onPress?: () => void;
+}) {
+  const content = (
+    <Box
+      className={`flex-1 rounded-2xl border p-4 ${accent ? 'bg-info/10 border-info/30' : 'bg-card border-border'}`}
+    >
+      <HStack className="items-center justify-between">
+        <HStack space="xs" className="items-center">
+          {icon}
+          <AppText size="sm" className="text-muted-foreground">
+            {title}
+          </AppText>
+        </HStack>
+        {accent ? (
+          <AppText size="sm" className="text-info">
+            ›
+          </AppText>
+        ) : null}
+      </HStack>
+      <AppText size="xl" className="font-semibold font-mono mt-1">
+        {value}
+      </AppText>
+      <AppText size="xs" className="text-muted-foreground mt-0.5">
+        {subtitle}
+      </AppText>
+    </Box>
+  );
+  return onPress ? (
+    <Pressable onPress={onPress} style={{ flex: 1 }}>
+      {content}
+    </Pressable>
+  ) : (
+    <Box style={{ flex: 1 }}>{content}</Box>
   );
 }
