@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Box } from '@/components/ui/box';
 import { Pressable } from '@/components/ui/pressable';
@@ -27,6 +27,10 @@ const LILAC_ACCENT = '#8B5CF6';
 const LILAC_BG = '#F7F3FC';
 const LILAC_BORDER = '#E6DCF5';
 
+// Chiều cao vùng vẽ bar (không tính nhãn giá trị phía trên/nhãn ngày phía dưới) — cao hơn bản trước
+// (72px) để có chỗ cho gridline + nhãn giá trị không bị bóp.
+const CHART_AREA_HEIGHT = 110;
+
 type ChartFilter = 'total' | 'water' | 'cup' | 'other';
 const CHART_FILTERS: { key: ChartFilter; label: string }[] = [
   { key: 'total', label: 'Tổng' },
@@ -43,10 +47,23 @@ function formatTodayLabel(): string {
   return `${weekday}, ${todayIsoDate().split('-').reverse().join('/')}`;
 }
 
-/** "2026-08-06" → "06/08" — nhãn ngắn cho biểu đồ 7 ngày. */
-function formatShortDate(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${d}/${m}`;
+/** "2026-08-06" (Thứ năm) → "Th 5" / Chủ nhật → "CN" / ngày cuối cùng (hôm nay) → "Hôm nay" — đúng nhãn
+ * trục X trong ảnh tham chiếu (Th 4/Th 5/Th 6/Th 7/CN/Th 2/Hôm nay), KHÔNG phải "dd/mm" như bản trước
+ * (bản trước còn chỉ hiện 2 nhãn đầu/cuối, thiếu hẳn 5 ngày giữa). */
+function formatChartDayLabel(iso: string, isToday: boolean): string {
+  if (isToday) return 'Hôm nay';
+  const day = new Date(`${iso}T00:00:00`).getDay();
+  return day === 0 ? 'CN' : `Th ${day + 1}`;
+}
+
+/** Làm tròn trục Y lên mốc "đẹp" (1/2/5 × 10^n) — khớp kiểu trục 0/50/100/150 trong ảnh tham chiếu thay
+ * vì dùng thẳng max thô (dễ ra số lẻ như 0/41.5/83/124.5). */
+function computeNiceAxisMax(rawMax: number): number {
+  if (rawMax <= 0) return 10;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const normalized = rawMax / magnitude;
+  const niceNormalized = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return niceNormalized * magnitude;
 }
 
 /**
@@ -185,7 +202,15 @@ export function HomeScreen() {
           ? dailyTrendStrip.isLoading || dailyTrendCoagulated.isLoading
           : dailyTrend.isLoading;
 
-  const chartMaxKg = useMemo(() => Math.max(...chartDays.map((d) => d.totalKg), 1), [chartDays]);
+  const chartAxisMax = useMemo(
+    () => computeNiceAxisMax(Math.max(...chartDays.map((d) => d.totalKg), 1)),
+    [chartDays],
+  );
+  // 4 mốc trục Y đều nhau (0/33%/66%/100% của axisMax) — khớp kiểu "150/100/50/0" ảnh tham chiếu.
+  const chartAxisLabels = useMemo(
+    () => [chartAxisMax, (chartAxisMax * 2) / 3, chartAxisMax / 3, 0],
+    [chartAxisMax],
+  );
 
   const attentionItems: { key: string; label: string; actionLabel: string; onPress: () => void }[] = [];
   for (const team of teamsWithoutDataToday) {
@@ -333,22 +358,87 @@ export function HomeScreen() {
                   <LoadingState label="Đang tải biểu đồ..." />
                 ) : chartDays.length > 1 ? (
                   <>
-                    <HStack className="items-end" space="sm" style={{ height: 72 }}>
-                      {chartDays.map((d, i) => (
-                        <Box
-                          key={d.recordDate}
-                          className={`flex-1 rounded ${i === chartDays.length - 1 ? 'bg-primary' : 'bg-primary/25'}`}
-                          style={{ height: `${Math.max((d.totalKg / chartMaxKg) * 100, 4)}%` }}
-                        />
-                      ))}
+                    {/* "(kg)" — nhãn đơn vị trục Y, đúng ảnh tham chiếu (bản trước không có trục Y). */}
+                    <AppText size="xs" className="text-muted-foreground">
+                      (kg)
+                    </AppText>
+                    <HStack space="xs" style={{ marginTop: 4 }}>
+                      {/* Cột nhãn trục Y — 4 mốc đều nhau (0/33/66/100% axisMax), căn phải sát gridline. */}
+                      <VStack className="justify-between items-end" style={{ height: CHART_AREA_HEIGHT, width: 30 }}>
+                        {chartAxisLabels.map((v) => (
+                          <AppText key={v} size="xs" className="text-muted-foreground">
+                            {Math.round(v)}
+                          </AppText>
+                        ))}
+                      </VStack>
+
+                      <View style={{ flex: 1, height: CHART_AREA_HEIGHT }}>
+                        {/* Gridline ngang mờ tại mỗi mốc trục Y — đúng ảnh tham chiếu (bản trước không
+                            có gridline nào, chỉ có 7 cột bar trơn). */}
+                        {chartAxisLabels.map((v, i) => (
+                          <View
+                            key={v}
+                            className="bg-border"
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              right: 0,
+                              height: 1,
+                              top: `${(i / (chartAxisLabels.length - 1)) * 100}%`,
+                            }}
+                          />
+                        ))}
+
+                        <HStack className="items-end" style={{ height: '100%', gap: 2 }}>
+                          {chartDays.map((d, i) => {
+                            const isToday = i === chartDays.length - 1;
+                            const barPercent = Math.max((d.totalKg / chartAxisMax) * 100, 2);
+                            return (
+                              <VStack key={d.recordDate} className="flex-1 items-center justify-end" style={{ height: '100%' }} space="xs">
+                                {/* Nhãn giá trị NGAY TRÊN từng cột — bản trước hoàn toàn không có (chỉ
+                                    có 2 nhãn ngày đầu/cuối dưới trục X, không có số kg nào hiện ra). */}
+                                <AppText
+                                  size="xs"
+                                  className={isToday ? 'font-semibold text-primary' : 'text-muted-foreground'}
+                                >
+                                  {d.totalKg.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                </AppText>
+                                <Box
+                                  className={isToday ? 'bg-primary' : 'bg-primary/25'}
+                                  style={{
+                                    width: '62%',
+                                    height: `${barPercent}%`,
+                                    borderTopLeftRadius: 4,
+                                    borderTopRightRadius: 4,
+                                  }}
+                                />
+                              </VStack>
+                            );
+                          })}
+                        </HStack>
+                      </View>
                     </HStack>
-                    <HStack className="justify-between mt-2.5">
-                      <AppText size="xs" className="text-muted-foreground">
-                        {formatShortDate(chartDays[0].recordDate)}
-                      </AppText>
-                      <AppText size="xs" className="text-muted-foreground">
-                        Hôm nay
-                      </AppText>
+
+                    {/* Nhãn ngày dưới trục X — ĐỦ CẢ 7 CỘT (Th 4/Th 5/.../CN/Th 2/Hôm nay), bản trước
+                        chỉ hiện 2 nhãn đầu/cuối. marginLeft 34 = khớp width cột trục Y (30) + gap (4). */}
+                    <HStack style={{ marginLeft: 34, marginTop: 6, gap: 2 }}>
+                      {chartDays.map((d, i) => {
+                        const isToday = i === chartDays.length - 1;
+                        return (
+                          <AppText
+                            key={d.recordDate}
+                            size="xs"
+                            // "Hôm nay" (7 ký tự) không đủ chỗ trong 1/7 bề ngang card trên màn hình nhỏ
+                            // → tự vỡ dòng thành "Hôm/nay" (bug thật thấy lúc test). numberOfLines={1} +
+                            // adjustsFontSizeToFit tự co chữ vừa đúng 1 dòng thay vì xuống dòng.
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            className={`flex-1 text-center ${isToday ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
+                          >
+                            {formatChartDayLabel(d.recordDate, isToday)}
+                          </AppText>
+                        );
+                      })}
                     </HStack>
                   </>
                 ) : (
