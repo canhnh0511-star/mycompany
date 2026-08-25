@@ -522,3 +522,28 @@ trên kệ chứ không phải được thanh "ôm" vào. Đổi sang vẽ TOÀN
 đường cong Bezier bậc 3 đối xứng tạo notch lõm mềm mại, tiếp tuyến ngang ở 4 điểm nối — không góc gãy),
 giảm độ nổi nút xuống 12px (trong notch, chỉ nhô nhẹ), thêm viền mảnh quanh nút. Không thêm dependency
 mới. Đã test trên Android Emulator: notch cong mượt, 4 tab cân xứng, content không bị che.
+
+## Đợt 5 (2026-08-25, cùng ngày) — Cải tiến màn Home theo ảnh tham chiếu
+
+Chỉ đổi presentation/UX Home, KHÔNG đổi navigation/route/business logic OCR/camera/nhập phiếu. Ảnh tham
+chiếu: `images/home_screen.jjpg.jpg`. 3 quyết định xác nhận với user trước khi code: (1) bỏ DRC trung
+bình — không có ở backend, không thêm; (2) thêm param `latexTypeCode` cho `/reports/production-records/
+daily-trend` (backend, nhỏ gọn, tái dùng đúng pattern `/production-summary/daily` đã có); (3) dùng SVG
+line-art tự vẽ thay ảnh cây cao su thật — repo không có asset ảnh nông trường, không tự tải ảnh ngoài
+internet vào sản phẩm (rủi ro bản quyền/nguồn gốc).
+
+**Backend**: `ProductionRecordItemRepository.aggregateDailyTotals` + `ReportService`/`ReportController`
+— thêm param `latexTypeCode` optional (NULL = tổng, hành vi cũ không đổi). "Khác" (mủ dây+đông) không
+special-case ở query — frontend gọi 2 lần rồi cộng dồn.
+
+**Frontend** (`features/home/`): `HomeHeader.tsx` (mới, gradient + minh họa line-art bằng
+`react-native-svg`, KHÔNG thêm `expo-linear-gradient`/ảnh raster), `ProductionSummaryCard.tsx` (mới,
+tổng+trend giữ nguyên nguồn cũ + breakdown 4 loại mủ từ `/production-summary/daily` đã có sẵn — KHÔNG
+cần API mới, responsive 2 cột/xếp dọc), `HomeIcons.tsx` (mới, icon vẽ tay màu đồng nhất — không rainbow
+như ảnh, ưu tiên "restrained UI"). `HomeScreen.tsx`: 4 card gộp đôi → grid 2×2 (accent "Chờ kiểm tra"
+dùng token `info` sẵn có, bấm được, giữ nguyên đích đến); "Tổ hôm nay" đổi hiển thị sang chấm ●/○ (logic
+`useTeamDailySummaries` giữ nguyên, dùng chung với team-workday); "Sản lượng 7 ngày" thêm chip filter
+Tổng/Mủ nước/Mủ chén/Khác. Không thêm icon-library/chart-library mới.
+
+Đã test trên Android Emulator + backend local: header/breakdown/grid/chip trạng thái/chart filter đều
+đúng dữ liệu thật, "Chờ kiểm tra" điều hướng đúng sang tab Sản lượng, không lỗi runtime mới.
