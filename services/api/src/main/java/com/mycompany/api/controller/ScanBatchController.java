@@ -5,7 +5,7 @@ import com.mycompany.api.dto.ResolveConflictRequest;
 import com.mycompany.api.dto.ResolveDateRequest;
 import com.mycompany.api.dto.ScanBatchAuditLogResponse;
 import com.mycompany.api.dto.ScanBatchLookupResponse;
-import com.mycompany.api.dto.ScanBatchPendingCountResponse;
+import com.mycompany.api.dto.ScanBatchPendingItem;
 import com.mycompany.api.dto.ScanBatchResponse;
 import com.mycompany.api.entity.OcrTargetType;
 import com.mycompany.api.entity.User;
@@ -57,11 +57,12 @@ public class ScanBatchController {
         return scanBatchService.get(id);
     }
 
-    // Home "Chờ kiểm tra" (2026-08-25) — đếm THEO BATCH (không phải theo dòng draft
-    // production_records/latex_sales phát sinh, xem javadoc ScanBatchRepository.countByStatusIn).
-    @GetMapping("/pending-count")
-    public ScanBatchPendingCountResponse pendingCount() {
-        return new ScanBatchPendingCountResponse(scanBatchService.pendingReviewCount());
+    // Home "Chờ kiểm tra" (2026-08-25, sửa lần 2 — đổi /pending-count (chỉ trả số) sang trả DANH SÁCH):
+    // frontend cần biết đích xác batch nào/ngày nào để mở thẳng (1 batch) hoặc liệt kê cho Admin chọn
+    // (nhiều batch), không chỉ hiện con số rồi bắt tự dò từng ngày ở tab Sản lượng.
+    @GetMapping("/pending")
+    public List<ScanBatchPendingItem> pending() {
+        return scanBatchService.listPending();
     }
 
     @PostMapping("/images/{imageId}/retry")

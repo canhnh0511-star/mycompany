@@ -13,6 +13,7 @@ import com.mycompany.api.dto.ResolveDateRequest;
 import com.mycompany.api.dto.ScanBatchAuditLogResponse;
 import com.mycompany.api.dto.ScanBatchConflictResponse;
 import com.mycompany.api.dto.ScanBatchLookupResponse;
+import com.mycompany.api.dto.ScanBatchPendingItem;
 import com.mycompany.api.dto.ScanBatchResponse;
 import com.mycompany.api.dto.ScanImageResponse;
 import com.mycompany.api.entity.BatchStatus;
@@ -900,11 +901,14 @@ public class ScanBatchService {
         return buildResponse(batchId);
     }
 
-    /** Home "Chờ kiểm tra" (2026-08-25) — số batch đang chờ Admin thao tác tay (xem lại/sửa/duyệt, hoặc
-     * Thử lại/Hủy nếu lỗi), xem BatchStatus.isPendingHumanAction(). */
-    public long pendingReviewCount() {
-        return scanBatchRepository.countByStatusIn(
-                Arrays.stream(BatchStatus.values()).filter(BatchStatus::isPendingHumanAction).toList());
+    /** Home "Chờ kiểm tra" (2026-08-25, sửa lần 2 — đổi từ đếm số sang trả danh sách để frontend biết
+     * đích xác batch nào cần mở, không chỉ biết SỐ). Batch đang chờ Admin thao tác tay (xem lại/sửa/
+     * duyệt, hoặc Thử lại/Hủy nếu lỗi), xem BatchStatus.isPendingHumanAction(). */
+    public List<ScanBatchPendingItem> listPending() {
+        List<BatchStatus> pendingStatuses = Arrays.stream(BatchStatus.values()).filter(BatchStatus::isPendingHumanAction).toList();
+        return scanBatchRepository.findPending(pendingStatuses).stream()
+                .map(row -> new ScanBatchPendingItem(row.id(), row.teamId(), row.teamName(), row.documentType(), row.workDate(), row.status()))
+                .toList();
     }
 
     public List<ScanBatchAuditLogResponse> auditLog(UUID batchId) {

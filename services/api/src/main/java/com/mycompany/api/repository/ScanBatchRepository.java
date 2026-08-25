@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Create-or-merge/reuse thuật toán (0021-scan-batch-model, Spec 1 mục 2-3) đọc qua 2 finder này —
@@ -40,10 +41,19 @@ public interface ScanBatchRepository extends JpaRepository<ScanBatch, UUID> {
     @Query("select b from ScanBatch b join fetch b.team where b.id = :id")
     Optional<ScanBatch> findByIdWithTeam(UUID id);
 
-    // Đếm batch "chờ xử lý" (BatchStatus.isPendingHumanAction()) — Home "Chờ kiểm tra"
-    // (docs/module-1-1-frontend-redesign-progress.md, 2026-08-25). Đếm THEO BATCH, không theo số dòng
-    // draft phát sinh — 1 batch NEED_REVIEW có thể có nhiều dòng production_records/latex_sales draft,
-    // đếm theo dòng (cách cũ) sẽ ra số lớn hơn thực tế, không phản ánh đúng "còn bao nhiêu PHIẾU (ảnh)
-    // cần xử lý".
-    long countByStatusIn(Collection<BatchStatus> statuses);
+    // Danh sách batch "chờ xử lý" (BatchStatus.isPendingHumanAction()) — Home "Chờ kiểm tra"
+    // (docs/module-1-1-frontend-redesign-progress.md, 2026-08-25). SỬA 2026-08-25 (2): ban đầu chỉ có
+    // countByStatusIn (đếm số) — bấm vào card chỉ biết SỐ, không biết batch nào/ngày nào, phải mở tab
+    // Sản lượng (chỉ xem được đúng 1 ngày) rồi tự dò từng ngày mới ra được batch tồn đọng, trải nghiệm
+    // kém khi batch không thuộc hôm nay. Đổi hẳn sang trả DANH SÁCH — frontend tự suy ra count từ
+    // list.length (không cần 2 API riêng) + biết đích xác batch nào để mở thẳng.
+    // Sắp NGÀY CŨ NHẤT lên đầu — batch tồn đọng lâu nhất là việc cần xử lý gấp nhất.
+    @Query("""
+            SELECT new com.mycompany.api.repository.PendingScanBatchRow(
+                b.id, b.team.id, b.team.name, b.documentType, b.workDate, b.status)
+            FROM ScanBatch b
+            WHERE b.status IN :statuses
+            ORDER BY b.workDate ASC, b.createdAt ASC
+            """)
+    List<PendingScanBatchRow> findPending(@Param("statuses") Collection<BatchStatus> statuses);
 }
