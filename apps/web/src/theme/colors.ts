@@ -39,9 +39,13 @@ export const amber = {
   700: '#B45309',
 } as const;
 
+/**
+ * red[600] chuẩn hóa về #DC2626 (typography fix bổ sung — mục 13) — mã đỏ
+ * DUY NHẤT dùng toàn app cho số âm/lỗi, không dùng đỏ cho trạng thái khác.
+ */
 export const red = {
   50: '#FDECEC',
-  600: '#C0392B',
+  600: '#DC2626',
   700: '#A5322A',
 } as const;
 
@@ -85,6 +89,32 @@ export const text = {
 
 /** Nền trang tổng thể — không phải pure white (spec §14). */
 export const pageBackground = '#F7F9F8';
+
+/**
+ * Border "đậm" hơn `neutral[200]` — đánh dấu ranh giới nhóm cột trong bảng
+ * nhiều cột (Bảng lương), khác với border phân tách row bình thường
+ * (typography fix bổ sung, mục 18).
+ */
+export const borderStrong = '#C9CDD1';
+
+/**
+ * Nền 2 tầng header của bảng nhiều cột có nhóm cột (VD Bảng lương) —
+ * tầng nhóm (`group`) tô đậm hơn tầng cột con (`sub`) một chút để phân biệt
+ * cấp khi cuộn dọc (typography fix bổ sung, mục 16).
+ */
+export const tableHeader = {
+  group: '#F1F4F2',
+  sub: '#FAFBFA',
+} as const;
+
+/**
+ * Nền dòng dữ liệu bảng nhiều cột: `zebra` cho hàng chẵn (dễ dò ngang qua
+ * nhiều cột), `hover` khi rê chuột cả dòng (typography fix bổ sung, mục 20).
+ */
+export const tableRow = {
+  zebra: '#FBFCFB',
+  hover: '#F0F6F2',
+} as const;
 
 /**
  * Token màu riêng cho sidebar (spec §5) — không hard-code green[xxx] rải rác
