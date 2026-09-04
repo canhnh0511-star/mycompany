@@ -26,7 +26,10 @@ function NavRow({ item }: { item: NavItem }) {
         py: 1,
         borderRadius: `${uiTokens.radius.nav}px`,
         textDecoration: 'none',
-        color: sidebar.textMuted,
+        // Reference: chữ + icon nav item (kể cả khi KHÔNG active) là trắng
+        // 100%, không phải trắng mờ — trắng mờ (sidebar.textMuted) chỉ dùng
+        // cho label nhóm (CÔNG VIỆC HẰNG NGÀY...), không phải cho nav item.
+        color: sidebar.text,
         fontSize: 14,
         fontWeight: 500,
         transition: 'background-color .15s ease, color .15s ease',
