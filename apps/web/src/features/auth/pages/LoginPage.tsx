@@ -83,142 +83,185 @@ export function LoginPage() {
       navigate('/', { replace: true });
     } catch (err) {
       setServerError(
-        err instanceof ApiError ? err.message : 'Không thể đăng nhập, vui lòng thử lại.',
+        err instanceof ApiError
+          ? err.message
+          : 'Không thể đăng nhập, vui lòng thử lại.',
       );
     }
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: pageBackground }}>
-      <Box sx={{ flex: 1, display: 'flex' }}>
-        {/* Panel trái — thương hiệu, chỉ hiện ở desktop/tablet rộng (spec chung: desktop-first). */}
-        <Box
-          sx={{
-            display: { xs: 'none', md: 'flex' },
-            flexDirection: 'column',
-            width: 500,
-            flexShrink: 0,
-            position: 'relative',
-            overflow: 'hidden',
-            color: '#FFFFFF',
-            px: 4,
-            py: 5,
-            backgroundImage: `linear-gradient(90deg, rgba(17,70,42,0.97) 0%, rgba(17,70,42,0.88) 55%, rgba(17,70,42,0.55) 100%), url(${plantationPhoto})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: pageBackground }}>
+      {/* Panel trái — thương hiệu, chỉ hiện ở desktop/tablet rộng (spec chung: desktop-first). */}
+      <Box
+        sx={{
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column',
+          width: 572,
+          flexShrink: 0,
+          position: 'relative',
+          overflow: 'hidden',
+          color: '#FFFFFF',
+          px: 4,
+          py: 5,
+          backgroundImage: `linear-gradient(90deg, rgba(17,70,42,0.97) 0%, rgba(17,70,42,0.88) 55%, rgba(17,70,42,0.55) 100%), url(${plantationPhoto})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           <Box
             component="img"
-            src={leafDecoration}
+            src={logoMark}
             alt=""
-            sx={{
-              position: 'absolute',
-              right: -80,
-              bottom: -40,
-              width: 320,
-              opacity: 0.12,
-              pointerEvents: 'none',
-            }}
+            sx={{ width: 48, height: 48, flexShrink: 0 }}
           />
+          <Box>
+            <Typography
+              sx={{ fontSize: 18, fontWeight: 700, letterSpacing: 0.4 }}
+            >
+              DAVID DŨNG
+            </Typography>
+            <Typography sx={{ fontSize: 13, opacity: 0.85 }}>
+              Nông trường cao su
+            </Typography>
+          </Box>
+        </Stack>
 
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            <Box component="img" src={logoMark} alt="" sx={{ width: 48, height: 48, flexShrink: 0 }} />
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)', my: 3.5 }} />
+
+        <Typography
+          sx={{
+            fontSize: 11.5,
+            fontWeight: 700,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
+            opacity: 0.7,
+            mb: 2,
+          }}
+        >
+          Hệ thống quản lý nông trường cao su
+        </Typography>
+        <Stack spacing={2}>
+          {FEATURES.map(({ icon: Icon, label }) => (
+            <Stack
+              key={label}
+              direction="row"
+              sx={{ alignItems: 'center', gap: 1.5 }}
+            >
+              <Icon sx={{ fontSize: 20, opacity: 0.9 }} />
+              <Typography sx={{ fontSize: 14 }}>{label}</Typography>
+            </Stack>
+          ))}
+        </Stack>
+
+        <Box sx={{ flex: 1 }} />
+
+        <Box
+          sx={{
+            position: 'relative',
+            bgcolor: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: `${uiTokens.radius.card}px`,
+            p: 2,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: 'flex-start' }}
+          >
+            <ShieldOutlinedIcon sx={{ fontSize: 20, mt: 0.25 }} />
             <Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 700, letterSpacing: 0.4 }}>DAVID DŨNG</Typography>
-              <Typography sx={{ fontSize: 13, opacity: 0.85 }}>Nông trường cao su</Typography>
+              <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>
+                Dữ liệu của bạn luôn được bảo vệ
+              </Typography>
+              <Typography sx={{ fontSize: 12.5, opacity: 0.8, mt: 0.25 }}>
+                Hệ thống được thiết kế với tiêu chuẩn bảo mật cao, đảm bảo an
+                toàn và ổn định.
+              </Typography>
             </Box>
           </Stack>
-
-          <Divider sx={{ borderColor: 'rgba(255,255,255,0.16)', my: 3.5 }} />
-
-          <Typography
-            sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', opacity: 0.7, mb: 2 }}
-          >
-            Hệ thống quản lý nông trường cao su
-          </Typography>
-          <Stack spacing={2}>
-            {FEATURES.map(({ icon: Icon, label }) => (
-              <Stack key={label} direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
-                <Icon sx={{ fontSize: 20, opacity: 0.9 }} />
-                <Typography sx={{ fontSize: 14 }}>{label}</Typography>
-              </Stack>
-            ))}
-          </Stack>
-
-          <Box sx={{ flex: 1 }} />
-
-          <Box
-            sx={{
-              position: 'relative',
-              bgcolor: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.14)',
-              borderRadius: `${uiTokens.radius.card}px`,
-              p: 2,
-            }}
-          >
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-              <ShieldOutlinedIcon sx={{ fontSize: 20, mt: 0.25 }} />
-              <Box>
-                <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>Dữ liệu của bạn luôn được bảo vệ</Typography>
-                <Typography sx={{ fontSize: 12.5, opacity: 0.8, mt: 0.25 }}>
-                  Hệ thống được thiết kế với tiêu chuẩn bảo mật cao, đảm bảo an toàn và ổn định.
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
         </Box>
+      </Box>
 
-        {/* Panel phải — form */}
+      {/* Panel phải — form. Cột dọc riêng (không còn chung Stack footer toàn trang) để đường kẻ +
+            footer chỉ nằm trong phạm vi panel này, không tràn xuống dưới panel trái (xem log đo pixel
+            ảnh reference: divider/footer chỉ trải từ mép panel trái tới mép phải trang). */}
+      <Box
+        sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Hoạ tiết lá — nền trang trí "ẩn" (mờ) riêng cho panel phải, theo đúng ảnh người dùng cung
+            cấp: đặt cả khung hình vuông của ảnh gốc lên góc phải, KHÔNG crop/thu quá nhỏ. */}
+        <Box
+          component="img"
+          src={leafDecoration}
+          alt=""
+          sx={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            width: 480,
+            opacity: 1,
+            pointerEvents: 'none',
+            display: { xs: 'none', md: 'block' },
+          }}
+        />
+
+        {/*
+            Khung đăng nhập KHÔNG canh giữa panel phải — ảnh reference đo được lệch trái rõ rệt
+            (mép trái khung cách đường phân panel ~120px, mép phải cách mép trang ~245px, tức là khung
+            "bám" gần panel trái hơn là nằm chính giữa khoảng trống còn lại).
+          */}
         <Box
           sx={{
             flex: 1,
-            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            px: 2,
-            overflow: 'hidden',
+            justifyContent: { xs: 'center', md: 'flex-start' },
+            pl: { xs: 2, md: '120px' },
+            pr: { xs: 2, md: 6 },
           }}
         >
-          <Box
-            component="img"
-            src={leafDecoration}
-            alt=""
-            sx={{
-              position: 'absolute',
-              right: -60,
-              top: -60,
-              width: 260,
-              opacity: 0.05,
-              pointerEvents: 'none',
-              display: { xs: 'none', md: 'block' },
-            }}
-          />
-
           <Paper
             variant="outlined"
             sx={{
               width: '100%',
-              maxWidth: 460,
-              p: { xs: 3, sm: 5 },
-              my: 4,
+              maxWidth: 600,
+              p: { xs: 3, sm: 6 },
               borderRadius: `${uiTokens.radius.card}px`,
               boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
             }}
           >
-            <Typography variant="h1" sx={{ fontSize: 28 }}>
+            <Typography variant="h1" sx={{ fontSize: 36 }}>
               Đăng nhập
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ fontSize: 18, mt: 0.75, mb: 4 }}
+            >
               Đăng nhập để quản lý hoạt động nông trường
             </Typography>
 
-            <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Stack
+              component="form"
+              spacing={2.5}
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+            >
               {serverError && <Alert severity="error">{serverError}</Alert>}
 
               <Box>
-                <Typography sx={{ fontSize: 13.5, fontWeight: 600, mb: 0.75 }}>Tên đăng nhập</Typography>
+                <Typography sx={{ fontSize: 17.5, fontWeight: 600, mb: 1 }}>
+                  Tên đăng nhập
+                </Typography>
                 <TextField
                   placeholder="Nhập tên đăng nhập"
                   autoComplete="username"
@@ -230,7 +273,9 @@ export function LoginPage() {
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <PersonOutlineOutlinedIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                          <PersonOutlineOutlinedIcon
+                            sx={{ color: 'text.secondary', fontSize: 24 }}
+                          />
                         </InputAdornment>
                       ),
                     },
@@ -240,7 +285,9 @@ export function LoginPage() {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: 13.5, fontWeight: 600, mb: 0.75 }}>Mật khẩu</Typography>
+                <Typography sx={{ fontSize: 17.5, fontWeight: 600, mb: 1 }}>
+                  Mật khẩu
+                </Typography>
                 <TextField
                   placeholder="Nhập mật khẩu"
                   type={showPassword ? 'text' : 'password'}
@@ -252,21 +299,27 @@ export function LoginPage() {
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <LockOutlinedIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                          <LockOutlinedIcon
+                            sx={{ color: 'text.secondary', fontSize: 24 }}
+                          />
                         </InputAdornment>
                       ),
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
                             size="small"
-                            aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                            aria-label={
+                              showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'
+                            }
                             onClick={() => setShowPassword((v) => !v)}
                             edge="end"
                           >
                             {showPassword ? (
-                              <VisibilityOffOutlinedIcon sx={{ fontSize: 20 }} />
+                              <VisibilityOffOutlinedIcon
+                                sx={{ fontSize: 24 }}
+                              />
                             ) : (
-                              <VisibilityOutlinedIcon sx={{ fontSize: 20 }} />
+                              <VisibilityOutlinedIcon sx={{ fontSize: 24 }} />
                             )}
                           </IconButton>
                         </InputAdornment>
@@ -277,17 +330,28 @@ export function LoginPage() {
                 />
               </Box>
 
-              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <Stack
+                direction="row"
+                sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+              >
                 <FormControlLabel
                   control={<Checkbox size="small" />}
-                  label={<Typography sx={{ fontSize: 13.5 }}>Ghi nhớ đăng nhập</Typography>}
+                  label={
+                    <Typography sx={{ fontSize: 17.5 }}>
+                      Ghi nhớ đăng nhập
+                    </Typography>
+                  }
                 />
                 <Typography
                   component="button"
                   type="button"
-                  onClick={() => setHelpMessage('Vui lòng liên hệ quản trị viên hệ thống để được cấp lại mật khẩu.')}
+                  onClick={() =>
+                    setHelpMessage(
+                      'Vui lòng liên hệ quản trị viên hệ thống để được cấp lại mật khẩu.',
+                    )
+                  }
                   sx={{
-                    fontSize: 13.5,
+                    fontSize: 17.5,
                     fontWeight: 600,
                     color: 'primary.main',
                     background: 'none',
@@ -301,23 +365,42 @@ export function LoginPage() {
                 </Typography>
               </Stack>
 
-              <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </Button>
 
               <Divider>
-                <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>hoặc</Typography>
+                <Typography sx={{ fontSize: 16, color: 'text.secondary' }}>
+                  hoặc
+                </Typography>
               </Divider>
 
-              <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-                <HeadsetMicOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-                <Typography sx={{ fontSize: 13.5, color: 'text.secondary' }}>Cần hỗ trợ?</Typography>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'center', justifyContent: 'center' }}
+              >
+                <HeadsetMicOutlinedIcon
+                  sx={{ fontSize: 23, color: 'primary.main' }}
+                />
+                <Typography sx={{ fontSize: 17.5, color: 'text.secondary' }}>
+                  Cần hỗ trợ?
+                </Typography>
                 <Typography
                   component="button"
                   type="button"
-                  onClick={() => setHelpMessage('Vui lòng liên hệ quản trị viên hệ thống để được hỗ trợ.')}
+                  onClick={() =>
+                    setHelpMessage(
+                      'Vui lòng liên hệ quản trị viên hệ thống để được hỗ trợ.',
+                    )
+                  }
                   sx={{
-                    fontSize: 13.5,
+                    fontSize: 17.5,
                     fontWeight: 600,
                     color: 'primary.main',
                     background: 'none',
@@ -333,19 +416,32 @@ export function LoginPage() {
             </Stack>
           </Paper>
         </Box>
-      </Box>
 
-      <Stack
-        direction="row"
-        sx={{ justifyContent: 'space-between', px: 4, py: 2, borderTop: '1px solid', borderColor: 'divider' }}
-      >
-        <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
-          © {new Date().getFullYear()} David Dũng. All rights reserved.
-        </Typography>
-        <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
-          Phiên bản 1.0.0
-        </Typography>
-      </Stack>
+        {/*
+            Footer CHỈ nằm trong panel phải (khớp reference: đường kẻ + text chỉ trải từ mép panel
+            trái tới mép trang, không tràn dưới panel xanh — panel trái tự thân đã kéo dài hết chiều
+            cao màn hình). Dùng `mx` (không phải `px`) để chính đường viền trên (border-top) cũng bị
+            thu hẹp theo — `px` chỉ đẩy nội dung bên trong vào, không ảnh hưởng border vốn luôn nằm ở
+            mép ngoài cùng của box.
+          */}
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: 'space-between',
+            mx: '34px',
+            py: 2,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
+            © {new Date().getFullYear()} David Dũng. All rights reserved.
+          </Typography>
+          <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
+            Phiên bản 1.0.0
+          </Typography>
+        </Stack>
+      </Box>
 
       <Snackbar
         open={!!helpMessage}
