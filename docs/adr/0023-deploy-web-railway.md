@@ -55,9 +55,11 @@ thêm `CORS_ALLOWED_ORIGINS` trỏ đúng domain Railway của `apps/web` một 
 sẵn ở ADR-0020, chưa set vì chưa có domain).
 
 **Đã deploy thành công (2026-09-04)** — domain thật:
-`https://mycompany-production-e7a7.up.railway.app` (Root Directory `apps/web`, verify bằng cách mở
-trực tiếp trên trình duyệt — sandbox chạy Claude Code chặn hẳn domain `*.up.railway.app` ở tầng proxy
-egress nên không tự `curl` verify được từ phiên làm việc).
+`https://pretty-miracle-production-a193.up.railway.app` (Root Directory `apps/web`, verify bằng cách
+mở trực tiếp trên trình duyệt — sandbox chạy Claude Code chặn hẳn domain `*.up.railway.app` ở tầng
+proxy egress nên không tự `curl` verify được từ phiên làm việc). Domain đổi 1 lần so với lần deploy
+đầu (`mycompany-production-e7a7...`, service cũ) do deploy lại service FE mới — nhớ set
+`CORS_ALLOWED_ORIGINS` bên `services/api` đúng domain hiện tại này, không phải domain cũ.
 
 **Cần xem lại** nếu sau này `apps/web` có thêm màn hình cần SSR/SEO (hiện là SPA thuần, admin tool nội
 bộ — không cần).
