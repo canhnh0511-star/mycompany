@@ -11,6 +11,8 @@ const NAV_ITEMS = [
   { href: '/admin-catalog/latex-types' as const, label: 'Loại mủ' },
   { href: '/admin-catalog/rate-configs' as const, label: 'Đơn giá' },
   { href: '/admin-catalog/allowance-configs' as const, label: 'Phụ cấp' },
+  { href: '/admin-catalog/payroll-mixed-latex' as const, label: 'Đơn giá Mủ tạp' },
+  { href: '/admin-catalog/technical-grades' as const, label: 'Đơn giá Hạng kỹ thuật' },
 ];
 
 /**

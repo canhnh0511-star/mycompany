@@ -607,3 +607,36 @@ export interface UpdateDeductionRequest {
 export interface UpdateTechnicalGradeRequest {
   grade: TechnicalGrade | null;
 }
+
+/** Khớp services/api dto/PayrollMixedLatexRateConfigResponse.java — "Mủ tạp", KHÔNG có key phân
+ * biệt (khác RateConfig/AllowanceConfig) — chỉ 1 dòng hiệu lực tại 1 thời điểm cho toàn hệ thống. */
+export interface PayrollMixedLatexRateConfigResponse {
+  id: string;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** Khớp CreatePayrollMixedLatexRateConfigRequest.java + UpdatePayrollMixedLatexRateConfigRequest.java. */
+export interface PayrollMixedLatexRateConfigRequest {
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** Khớp services/api dto/TechnicalGradeConfigResponse.java — "Hạng kỹ thuật" A/B/C. */
+export interface TechnicalGradeConfigResponse {
+  id: string;
+  grade: TechnicalGrade;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+/** Khớp CreateTechnicalGradeConfigRequest.java (tạo, có grade) + UpdateTechnicalGradeConfigRequest.java (sửa). */
+export interface TechnicalGradeConfigRequest {
+  grade?: TechnicalGrade;
+  unitPrice: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}

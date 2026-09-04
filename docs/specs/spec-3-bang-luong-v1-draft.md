@@ -311,9 +311,17 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
    `/api/v1/payroll/export` cũng chưa có — SHOULD, để phase sau). Verify: `tsc --noEmit` +
    `expo export --platform web` sạch — **CHƯA** test bằng mắt trên trình duyệt thật/dữ liệu thật.
 5. Frontend: UI quản lý "Hạng kỹ thuật" + "Mủ tạp" trong admin-catalog (CRUD, cùng pattern
-   `rate-configs.tsx`) — có thể tách phase riêng nếu Phase 4 đã đủ dùng qua seed data tạm. ⏳ CHƯA
-   LÀM — hiện chưa có UI nào tạo được dòng `technical_grade_configs`/`payroll_mixed_latex_rate_configs`,
-   nghĩa là mọi đơn giá đang là 0 cho tới khi có UI này hoặc seed tay qua SQL.
+   `rate-configs.tsx`) — có thể tách phase riêng nếu Phase 4 đã đủ dùng qua seed data tạm. **✅ ĐÃ
+   XONG** — cần viết CRUD backend TRƯỚC (Phase 2 chỉ làm entity/repository, chưa có
+   Service/Controller cho 2 bảng giá này — audit lại lúc bắt tay mới phát hiện gap này):
+   `PayrollMixedLatexRateConfigController` (`/api/v1/payroll-mixed-latex-rate-configs`, không có key
+   phân biệt — chỉ 1 dòng hiệu lực toàn hệ thống tại 1 thời điểm) +
+   `TechnicalGradeConfigController` (`/api/v1/technical-grade-configs`, chống chồng lấn theo
+   `grade`). Frontend: `PayrollMixedLatexRateConfigsScreen` + `TechnicalGradeConfigsScreen`
+   (route `(web)/admin-catalog/payroll-mixed-latex` + `technical-grades`, thêm 2 nav item), cùng
+   pattern CRUD time-versioned không-DELETE như `RateConfigsScreen`. `grade` chỉ chọn được lúc TẠO
+   MỚI (sửa 1 dòng lịch sử không đổi hạng được). Verify: `compileJava` sạch, `tsc --noEmit` +
+   `expo export --platform web` sạch — **CHƯA** test bằng mắt/dữ liệu thật.
 
 ---
 

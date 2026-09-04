@@ -49,6 +49,8 @@ export const queryKeys = {
   latexTypes: { all: ['latex-types'] as const },
   rateConfigs: { all: ['rate-configs'] as const },
   allowanceConfigs: { all: ['allowance-configs'] as const },
+  payrollMixedLatexRateConfigs: { all: ['payroll-mixed-latex-rate-configs'] as const },
+  technicalGradeConfigs: { all: ['technical-grade-configs'] as const },
   ocrCallLogs: {
     list: (filters: Record<string, unknown>) => ['ocr-call-logs', 'list', filters] as const,
     stats: (filters: Record<string, unknown> = {}) => ['ocr-call-logs', 'stats', filters] as const,
