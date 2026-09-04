@@ -1,0 +1,21 @@
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SPA (React Router, client-side routing): route không khớp file tĩnh nào đều trả về
+    # index.html để React Router tự xử lý — thiếu dòng này thì reload ở route con (vd /phieu)
+    # sẽ ra 404 từ nginx thay vì render app.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Asset Vite build ra đã có content-hash trong tên file -> cache dài hạn an toàn.
+    location ~* \.(js|css|woff2?|png|jpg|jpeg|svg|ico)$ {
+        try_files $uri =404;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}

@@ -1,0 +1,15 @@
+# Build context = apps/web (Root Directory của service trên Railway) — xem Dockerfile.
+node_modules
+dist
+dist-ssr
+*.local
+
+.env
+.env.*
+!.env.example
+
+.git
+.vscode
+.idea
+*.log
+.DS_Store
