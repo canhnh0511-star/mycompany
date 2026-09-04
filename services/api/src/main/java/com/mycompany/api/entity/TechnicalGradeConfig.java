@@ -20,7 +20,8 @@ import lombok.Setter;
  * Đơn giá "Hạng kỹ thuật" (Module 3 — Bảng lương) theo hạng A/B/C, time-versioned (cùng cơ chế
  * chống chồng lấn EXCLUDE theo (grade, effective_from/to) như {@link AllowanceConfig}). CỐ ĐỊNH/
  * tháng theo hạng — KHÔNG nhân số lượng gì, khác hẳn calc_type. Xem
- * docs/specs/spec-3-bang-luong-v1-draft.md mục 2.2 + {@link Employee#getTechnicalGrade()}.
+ * docs/specs/spec-3-bang-luong-v1-draft.md mục 2.2 + {@link EmployeeTechnicalGradeAssignment}
+ * (hạng của 1 nhân viên xét THEO TỪNG THÁNG, không phải thuộc tính cố định).
  */
 @Entity
 @Table(name = "technical_grade_configs")

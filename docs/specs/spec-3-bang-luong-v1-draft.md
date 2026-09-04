@@ -64,22 +64,37 @@ Khi tính lương: `mủ_tạp_kg = SUM(production_record_items.kg WHERE latex_t
 `mủ_tạp_tiền = mủ_tạp_kg × unit_price hiện hành`. Không đổi cách `cup`/`strip`/`coagulated` được
 lưu/hiển thị ở màn Sản lượng — đây thuần là 1 phép tính riêng cho payroll.
 
-### 2.2 "Hạng kỹ thuật" — thuộc tính nhân viên + bảng giá theo hạng
+### 2.2 "Hạng kỹ thuật" — XÉT LẠI THEO TỪNG THÁNG, không phải thuộc tính cố định của nhân viên
+> **Sửa sau khi user chỉnh lại (2026-09-04):** bản đầu tiên đặt `technical_grade` làm cột cố định
+> trên `employees` — SAI, vì hạng kỹ thuật là tiêu chí xét THEO TỪNG THÁNG (1 nhân viên có thể đổi
+> hạng tháng này sang tháng khác). Đã sửa: bỏ cột trên `employees`, thay bằng 1 bảng gán hạng theo
+> (employee_id, year_month) — CÙNG PATTERN với `payroll_deductions` (mục 2.6).
 ```sql
-ALTER TABLE employees ADD COLUMN technical_grade CHAR(1) CHECK (technical_grade IN ('A','B','C'));
--- nullable — nhân viên chưa xếp hạng thì không có phụ cấp này, không lỗi
+CREATE TABLE employee_technical_grade_assignments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id     UUID NOT NULL REFERENCES employees(id),
+    year_month      VARCHAR(7) NOT NULL,  -- 'YYYY-MM'
+    grade           VARCHAR(1) NOT NULL CHECK (grade IN ('a','b','c')),
+    updated_by      UUID NOT NULL REFERENCES users(id),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (employee_id, year_month)
+);
 
 CREATE TABLE technical_grade_configs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    grade           CHAR(1) NOT NULL CHECK (grade IN ('A','B','C')),
+    grade           VARCHAR(1) NOT NULL CHECK (grade IN ('a','b','c')),
     unit_price      NUMERIC(12,2) NOT NULL,   -- VND/tháng, CỐ ĐỊNH — không nhân số lượng
     effective_from  DATE NOT NULL,
     effective_to    DATE,
     EXCLUDE USING gist (grade WITH =, daterange(effective_from, effective_to) WITH &&)
 );
 ```
-Tính lương: nếu `employee.technical_grade IS NOT NULL` → cộng thẳng `unit_price` hiện hành của đúng
-`grade` đó, 1 lần/tháng (không phụ thuộc số ngày công/số lần).
+Tính lương: nếu có dòng `employee_technical_grade_assignments` cho đúng (employeeId, yearMonth)
+đang xét → cộng thẳng `unit_price` hiện hành của đúng `grade` đó, 1 lần/tháng (không phụ thuộc số
+ngày công/số lần). Không có dòng → hạng_kỹ_thuật = 0, không lỗi (nhân viên chưa được xếp hạng
+tháng đó). "Sửa hạng" trong UI Bảng lương = upsert 1 dòng ở bảng này cho đúng tháng đang xem — KHÔNG
+đụng tháng khác (đối xứng với cách "Trừ/Tạm ứng" hoạt động ở mục 2.6, khác nhau ở chỗ hạng kỹ thuật
+KHÔNG có "mặc định hệ thống" — mặc định là "chưa xếp hạng" = 0đ).
 
 ### 2.3 "Công thời vụ" — thêm 1 dòng vào `allowance_configs` hiện có
 ```sql
@@ -164,7 +179,7 @@ bồi_thuốc_tiền   = SUM(quantity WHERE attendance_type=medication trong th�
 chuyên_cần_tiền  = SUM(quantity WHERE attendance_type=attendance trong tháng) × allowance_configs hiện hành(attendance)
 mưa_bão_tiền     = SUM(quantity WHERE attendance_type=storm_allowance trong tháng) × allowance_configs hiện hành(storm_allowance)
 thời_vụ_tiền     = SUM(quantity WHERE attendance_type=seasonal_work trong tháng) × allowance_configs hiện hành(seasonal_work)
-hạng_kỹ_thuật    = technical_grade_configs hiện hành(employee.technical_grade)  -- flat, chỉ nếu có grade
+hạng_kỹ_thuật    = technical_grade_configs hiện hành(assignment(employeeId, yearMonth).grade)  -- flat, chỉ nếu có dòng gán hạng tháng đó
 
 Tổng lương  = mủ_nước_tiền + mủ_tạp_tiền + bồi_thuốc_tiền + chuyên_cần_tiền
               + mưa_bão_tiền + thời_vụ_tiền + hạng_kỹ_thuật
@@ -205,6 +220,11 @@ PATCH /api/v1/payroll/{employeeId}/deduction?yearMonth=2026-08   body: { amount 
     dòng override, để UI phân biệt "đang dùng mặc định" vs "đã chỉnh tay" (tránh Admin tưởng nhầm
     giá trị 1.000.000 hiển thị là do họ tự nhập).
 
+PATCH /api/v1/payroll/{employeeId}/technical-grade?yearMonth=2026-08   body: { grade: 'A'|'B'|'C'|null }
+  → upsert employee_technical_grade_assignments (employee_id, year_month) — xếp/đổi hạng riêng cho
+    ĐÚNG tháng đang xem (mục 2.2), KHÔNG ảnh hưởng tháng khác. `grade: null` = xóa dòng (bỏ xếp hạng
+    tháng đó, quay lại 0đ).
+
 POST /api/v1/payroll/lock?yearMonth=2026-08     → khóa (tạo dòng payroll_period_locks)
 POST /api/v1/payroll/unlock?yearMonth=2026-08   → mở khóa (xóa dòng)
 
@@ -237,7 +257,10 @@ migration, chưa cần UI).
 ```text
 PAYROLL-01  Nhân viên có đủ 7 thành phần → tổng đúng bằng tổng 7 khoản
 PAYROLL-02  Nhân viên chỉ có mủ nước, không có phụ cấp nào → các khoản khác = 0, không lỗi
-PAYROLL-03  employee.technical_grade = NULL → hạng_kỹ_thuật = 0, không throw
+PAYROLL-03  Không có dòng employee_technical_grade_assignments cho (employeeId, yearMonth) đang xét
+            → hạng_kỹ_thuật = 0, không throw
+PAYROLL-03b Nhân viên có grade='A' tháng 08 nhưng KHÔNG có dòng gán cho tháng 09 → tháng 09
+            hạng_kỹ_thuật = 0 (KHÔNG tự kế thừa hạng tháng trước — mỗi tháng xét độc lập)
 PAYROLL-04  production_records có dòng DRAFT trong tháng → rowStatus = "Cần kiểm tra"
 PAYROLL-05  Không có production_records nào trong tháng → rowStatus = "Thiếu dữ liệu"
 PAYROLL-06  Toàn bộ production_records APPROVED → rowStatus = "Đã xác nhận"
@@ -260,13 +283,16 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
 
 ## 7. Implementation phases (đề xuất, chờ duyệt)
 
-1. Migration: `payroll_mixed_latex_rate_configs`, `technical_grade_configs`, `payroll_period_locks`,
-   `payroll_settings` (seed `default_monthly_advance`=1.000.000), `payroll_deductions`,
-   `employees.technical_grade`, mở rộng CHECK `attendance_records.attendance_type` thêm
-   `seasonal_work`, seed `allowance_configs` dòng `seasonal_work`.
-2. Backend: `PayrollService`/`PayrollController` (GET summary, GET detail, PATCH deduction,
-   lock/unlock), tái dùng logic chọn rate-theo-thời-gian đã có ở `ReportController`/service liên
-   quan (audit trước khi viết mới).
+1. Migration: `payroll_mixed_latex_rate_configs`, `technical_grade_configs`,
+   `employee_technical_grade_assignments`, `payroll_period_locks`, `payroll_settings` (seed
+   `default_monthly_advance`=1.000.000), `payroll_deductions`, mở rộng CHECK
+   `attendance_records.attendance_type` thêm `seasonal_work`, seed `allowance_configs` dòng
+   `seasonal_work`. **✅ ĐÃ XONG** (migration 011 + entity, commit b6be99b — bản đầu tiên sai ở
+   chỗ đặt technical_grade làm cột cố định trên `employees`, đã sửa lại thành bảng gán theo tháng).
+2. Backend: `PayrollService`/`PayrollController` (GET summary, GET detail, PATCH deduction, PATCH
+   technical-grade, lock/unlock), tái dùng logic chọn rate-theo-thời-gian đã có ở
+   `ReportController`/service liên quan (audit xác nhận: KHÔNG có sẵn — `ReportService` chỉ pivot
+   kg, không lookup rate theo ngày; viết mới, xem mục 3 công thức).
 3. Test: PAYROLL-01 → 13 (unit cho công thức tính, không cần integration DB thật cho phần rate
    lookup nếu tách được thành pure function).
 4. Frontend: màn Bảng lương (web/desktop — có thể tái dùng phần lớn pattern từ `LookupScreen`/

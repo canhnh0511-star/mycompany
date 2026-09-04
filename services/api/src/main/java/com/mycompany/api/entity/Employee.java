@@ -60,11 +60,9 @@ public class Employee {
     @JoinColumn(name = "spouse_employee_id")
     private Employee spouseEmployee;
 
-    // Hạng kỹ thuật A/B/C (Module 3 — Bảng lương, bổ sung 2026-09-04) — nullable, phụ cấp cố định/
-    // tháng theo hạng, xem TechnicalGrade + docs/specs/spec-3-bang-luong-v1-draft.md mục 2.2.
-    // enum ↔ VARCHAR qua TechnicalGradeConverter (autoApply)
-    @Column(name = "technical_grade", length = 1)
-    private TechnicalGrade technicalGrade;
+    // Hạng kỹ thuật A/B/C KHÔNG nằm ở đây — đó là tiêu chí xét THEO TỪNG THÁNG, không phải thuộc
+    // tính cố định của nhân viên (sửa lại sau khi bị góp ý sai ở lần đầu implement). Xem
+    // EmployeeTechnicalGradeAssignment + docs/specs/spec-3-bang-luong-v1-draft.md mục 2.2.
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

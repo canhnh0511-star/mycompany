@@ -5,8 +5,9 @@
 -- 4 khái niệm MỚI so với những gì Module 1 đã khai báo sẵn (rate_configs/allowance_configs):
 --   1. "Mủ tạp" — đơn giá GỘP cho cup+strip+coagulated, tách khỏi rate_configs (vốn định giá riêng
 --      từng latex_type) để không đổi hành vi Module 1 hiện tại — mục 2.1 spec.
---   2. "Hạng kỹ thuật" (A/B/C) — thuộc tính mới của employees + bảng giá cố định/tháng theo hạng —
---      mục 2.2 spec.
+--   2. "Hạng kỹ thuật" (A/B/C) — tiêu chí xét THEO TỪNG THÁNG cho mỗi nhân viên (KHÔNG phải thuộc
+--      tính cố định của employees — sửa lại sau khi user chỉnh, xem mục 2.2 spec), + bảng giá cố
+--      định/tháng theo hạng.
 --   3. Chốt lương — cờ đơn giản theo THÁNG (không immutable, theo xác nhận user) — mục 2.4 spec.
 --   4. Trừ/Tạm ứng — mặc định hệ thống (payroll_settings) + override theo nhân viên/tháng
 --      (payroll_deductions) — mục 2.6 spec.
@@ -31,12 +32,21 @@ CREATE TABLE payroll_mixed_latex_rate_configs (
 );
 
 -- ---------------------------------------------------------------------
--- 2. Hạng kỹ thuật — thuộc tính nhân viên + bảng giá cố định/tháng theo hạng (KHÔNG nhân số lượng
---    gì cả, khác hẳn cơ chế calc_type của allowance_configs).
+-- 2. Hạng kỹ thuật — XÉT LẠI THEO TỪNG THÁNG cho mỗi nhân viên (KHÔNG phải thuộc tính cố định của
+--    employees — có thể đổi hạng tháng này sang tháng khác), + bảng giá cố định/tháng theo hạng
+--    (KHÔNG nhân số lượng gì cả, khác hẳn cơ chế calc_type của allowance_configs).
+--    Cùng pattern (employee_id, year_month) như payroll_deductions bên dưới.
 -- ---------------------------------------------------------------------
-ALTER TABLE employees
-    ADD COLUMN technical_grade VARCHAR(1) CHECK (technical_grade IN ('a', 'b', 'c'));
-    -- nullable — nhân viên chưa xếp hạng thì không có khoản phụ cấp này, không phải lỗi dữ liệu
+CREATE TABLE employee_technical_grade_assignments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id     UUID NOT NULL REFERENCES employees(id),
+    year_month      VARCHAR(7) NOT NULL, -- 'YYYY-MM'
+    grade           VARCHAR(1) NOT NULL CHECK (grade IN ('a', 'b', 'c')),
+    updated_by      UUID NOT NULL REFERENCES users(id),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    UNIQUE (employee_id, year_month)
+);
 
 CREATE TABLE technical_grade_configs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
