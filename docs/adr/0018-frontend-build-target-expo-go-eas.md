@@ -29,3 +29,93 @@ phụ thuộc Expo Go nữa.
   apps/mobile/scripts/eas-dev-client-setup.sh` từ đâu cũng được (script tự `cd` về `apps/mobile`).
 - Sau khi có dev client cài trên máy: `npx expo start --dev-client` thay cho `npx expo start` thường —
   dev client tự kết nối, không qua Expo Go nữa.
+
+## Cập nhật 2026-08-16 — branch thử nghiệm hạ SDK 57→54 để test qua Expo Go (lần 3)
+
+User chủ động yêu cầu test nhanh trên iPhone thật mà KHÔNG cần đợi Apple Developer Program (99 USD/năm) +
+build EAS (~10-20 phút/lần) — dùng thẳng Expo Go (miễn phí, có sẵn trên App Store, chỉ cần quét QR).
+Khác 2 lần trước (2026-08-09 làm rồi revert 4 phút sau không rõ lý do; 2026-08-11 cân nhắc rồi chọn hẳn
+nhánh EAS dev client ở trên) — lần này làm **trên branch riêng `test/expo-sdk54-iphone`**, không đụng
+`main`, đúng tinh thần "thử nghiệm có kiểm soát" thay vì đổi quyết định kiến trúc đã chốt.
+
+- `npx expo install expo@^54.0.0` rồi `npx expo install --fix` — tự động hạ toàn bộ 27 package
+  `expo-*`/`react`/`react-native`/`react-native-*` về đúng version khớp SDK 54 (không chỉnh tay từng
+  package, tránh lệch version nội bộ giữa các module native).
+- **Gotcha phát hiện + fix**: `npx expo export --platform web` lỗi `PluginError: Unable to resolve a
+  valid config plugin for expo-sharing` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` khi Node cố resolve
+  entry point gói để tìm config plugin). Nguyên nhân: `app.json` liệt `"expo-sharing"` vào mảng `plugins`
+  dù gói này **không có config plugin thật** (đã ghi nhận từ Tuần 6, `docs/TASKS.md` — lúc cài package
+  gốc, script auto-add-config-plugin của Expo CLI từng lỗi và bị bỏ qua an toàn, nhưng entry `plugins` vẫn
+  sót lại trong `app.json`). Trên SDK 57 việc này vô hại (resolver không strict), nhưng resolver SDK 54 cố
+  `require` thẳng file chính của gói để tìm plugin và va phải 1 file TypeScript nằm trong
+  `node_modules/expo-modules-core` mà Node (chạy trực tiếp, không qua Metro) không strip type được. Xóa
+  entry `"expo-sharing"` khỏi `plugins` (gói vẫn hoạt động bình thường không cần entry này, đúng ghi chú
+  cũ) — không phải lỗi riêng của SDK 54, chỉ là bug tiềm ẩn từ trước lộ ra khi đổi resolver.
+- Verify: `npx tsc --noEmit` sạch, `npx expo export --platform web` build thành công (1745 module).
+  **Chưa merge vào `main`** — branch này chỉ để user tự `npx expo start` (không `--dev-client`) và quét QR
+  bằng app Expo Go trên iPhone thật để test. Nếu test ổn và muốn giữ SDK 54 lâu dài, cần bàn lại có nên
+  merge (đánh đổi ngược lại EAS dev client đã chọn) hay chỉ dùng branch này cho việc test nhanh rồi bỏ.
+
+### Test thật trên iPhone qua Expo Go — 2 bug phát hiện (2026-08-16)
+
+Chạy `npx expo start` + Expo Go trên iPhone thật, app "build xong" nhưng đứng yên ở màn spinner trắng.
+Debug bằng cách thêm log tạm (`console.log`) vào `app/_layout.tsx`/`lib/api/client.ts` rồi đọc log trực
+tiếp qua terminal Metro (mọi `console.*` từ thiết bị tự gửi ngược về đây) — tìm ra 2 nguyên nhân khác
+nhau:
+
+1. **Bug do SDK 54 (đặc thù branch này)**: `app.json` có `experiments.reactCompiler: true` — log cho
+   thấy `RootLayout`/`AuthGate` render/hydrate lặp lại liên tục không dừng (crash-loop, dòng log còn bị
+   cắt giữa chừng do app tự khởi động lại). Nghi React Compiler (babel-preset-expo, tính năng thực
+   nghiệm) auto-memo sai trên tổ hợp SDK 54/React Native mới hạ, gây `useEffect` re-fire vô hạn. **Tắt
+   `reactCompiler: false`** → vòng lặp hết ngay, app khởi động ổn định 1 lần duy nhất. Chưa report lên
+   Expo/điều tra sâu nguyên nhân gốc — chỉ tắt để test được, KHÔNG bật lại `reactCompiler: true` trên
+   branch này cho tới khi biết chắc SDK nào ổn định với nó.
+2. **Bug thật của app, CÓ TRÊN CẢ `main`, không liên quan SDK 54** (`app/_layout.tsx`, `AuthGate`):
+   sau khi tắt reactCompiler, app hết crash-loop nhưng vẫn đứng yên ở màn spinner trung chuyển
+   (`app/index.tsx`). Log cho thấy `status` chuyển đúng thành `authenticated` nhưng `segments=[]` (đang ở
+   route gốc `"/"`, chưa vào group `(tabs)`/`(auth)` nào) — logic điều hướng cũ chỉ xử lý 2 case
+   (`unauthenticated` + không ở `(auth)` → về login; `authenticated` + đang ở `(auth)` → vào `(tabs)`),
+   **thiếu case `authenticated` + đang ở route trung chuyển gốc `segments=[]`** → không bao giờ
+   `router.replace('/(tabs)')`, kẹt vĩnh viễn ở spinner. Có lẽ trước đây không lộ ra vì test trên Android
+   emulator (2026-08-13, `docs/module-1-1-frontend-redesign-progress.md`) tình cờ có timing khác khiến
+   route resolve nhanh hơn native splash ẩn. **FIXED**: thêm nhánh `atRoot = segments.length === 0` vào
+   điều kiện redirect `authenticated`. Verify: `tsc --noEmit` sạch, `expo export --platform web` build
+   OK, test lại thật trên iPhone qua Expo Go — vào thẳng Home, không còn kẹt spinner.
+   **Cần cherry-pick fix này (chỉ đoạn sửa logic, KHÔNG kèm phần hạ SDK 54) sang `main`** — đây là bug
+   thật ảnh hưởng mọi SDK, không phải đặc thù của branch thử nghiệm này.
+
+### Tiếp tục test thật — 2 bug thêm phát hiện qua màn Review OCR (2026-08-16, cùng ngày)
+
+Sau khi qua được Home, test tiếp luồng Chụp phiếu → OCR review với ảnh phiếu thật (Tổ Phong Phú, 23 nhân
+viên vừa import — xem mục employees import cùng ngày). 2 bug thêm, **CẢ 2 đều là bug thật ảnh hưởng
+`main`**, không liên quan SDK 54:
+
+3. **Ảnh gốc không hiện ở màn Review** (`ReviewHeader` trong `OcrReviewScreen.tsx`) — `photoUrl` trả về
+   từ API thực chất là **object path tương đối** (vd `ocr/2026-08-16/uuid.jpg`), không phải URL tải được,
+   vì bucket Supabase Storage `receipt-photos` là **private** (CLAUDE.md §3) — `record.getPhotoUrl()`
+   lưu path đó thẳng vào DB rồi trả nguyên văn qua DTO (`ProductionRecordService`/`LatexSaleService`
+   `.toResponse()`), FE cố load path này như 1 URI ảnh nên luôn trống. **FIXED (backend)**: thêm
+   `SupabaseStorageService.createSignedReadUrl(objectPath, expiresInSeconds)` (endpoint xác nhận
+   `POST {url}/storage/v1/object/sign/{bucket}/{path}`, khác `createSignedUploadUrl` dùng để GHI) — ký
+   URL đọc mới (hết hạn sau 1h) MỖI LẦN `toResponse()` build response, không cache lại DB (URL ký sẽ hết
+   hạn, cache sẽ trả URL chết). Áp dụng ở CẢ `ProductionRecordService` lẫn `LatexSaleService` (không chỉ
+   OCR review — cùng field `photoUrl` cũng dùng ở record-detail, sửa 1 chỗ `toResponse()` fix cả 2 nơi).
+   Lỗi ký URL (ảnh cũ đã xóa khỏi Storage...) trả `null` + log WARN thay vì ném lỗi chặn cả response
+   (CLAUDE.md §7 — tự phục hồi được, chỉ thiếu ảnh không thiếu số liệu). Test thêm: `ProductionRecordServiceTest`
+   cần thêm mock `SupabaseStorageService` vào constructor (không stub gì thêm — mock trả `null` mặc định
+   là đủ, không có assertion nào phụ thuộc `photoUrl` trong test này).
+4. **Toast "Đã xác nhận 14/23 dòng" kẹt vĩnh viễn trên màn hình, không cách nào tắt** (`OcrReviewScreen
+   .handleSaveAll()`) — toast gọi `variant: successCount === rows.length ? 'success' : 'error'`, mà
+   `useAppToast.showToast()` mặc định `duration: null` (KHÔNG tự đóng) khi `variant='error'` — thiết kế
+   ban đầu cho banner lỗi mạng ở màn Chụp ảnh (cần Admin chủ động bấm "Xem chi tiết"/tự đóng, xem comment
+   gốc trong `useAppToast.tsx`). Nhưng `Toast` UI component của gluestack **không có nút đóng nào** — khi
+   `OcrReviewScreen` tái dùng đúng variant này cho 1 toast tóm tắt kết quả lưu (không phải banner lỗi mạng
+   cần giữ), nó kẹt vĩnh viễn không cách nào tắt tay ngoài reload app. **FIXED**: truyền `duration: 6000`
+   tường minh ở cả 2 chỗ gọi `showToast` trong `OcrReviewScreen` (`ProductionReview`/`LatexSaleReview`) —
+   vẫn tự đóng dù có dòng lỗi, vì dòng lỗi đã hiện sẵn `StatusBadge` "Lỗi" trong bảng, không cần toast neo
+   mãi để nhắc lại. KHÔNG sửa `useAppToast` mặc định (hành vi `duration: null` cho error vẫn đúng ý nghĩa
+   ở màn Chụp ảnh) — chỉ sửa nơi dùng sai ngữ cảnh.
+
+Verify cả 2: `tsc --noEmit` sạch, `./gradlew compileJava compileTestJava` + unit test package `service`
+xanh, `expo export --platform web` build OK. **Cần cherry-pick cả 2 fix này sang `main`** cùng đợt với
+bug AuthGate ở mục trên — cả 3 đều là bug thật, không đặc thù SDK 54.

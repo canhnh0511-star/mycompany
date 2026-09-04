@@ -1,74 +1,273 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
+import { useColorScheme, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Box } from '@/components/ui/box';
-import { HStack } from '@/components/ui/hstack';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { Pressable } from '@/components/ui/pressable';
-import { VStack } from '@/components/ui/vstack';
 import { AppText } from '@/components/AppText';
+import { useSettingsStore } from '@/features/settings/store';
 
 /**
- * Navigation refactor (Phase 3, module-1-1-frontend-redesign) — ĐỔI LẠI 2026-08-13 sau khi user tự
- * test simulator: quay về đúng Claude Design 1a (5 cột, nút "Chụp" nổi bật ở giữa) thay vì bản 4 cột
- * phẳng trước đó (quyết định Phase 3 cũ đã bị chính Product Owner override — không phải tôi tự ý làm
- * lại, xem `docs/module-1-1-frontend-redesign-progress.md`).
+ * Thanh tab dưới — "Vòm cong" (option 3b, Turn 3 "Thanh điều hướng dưới — 3 hướng cải tiến",
+ * `Nông trường cao su - Mobile.dc.html`, đọc qua `claude_design` MCP 2026-08-25). User chọn 3b sau khi
+ * xem cả 3 hướng (3a "Thanh nổi", 3b "Vòm cong", 3c "Pill trượt") — cũng là hướng designer tự đề xuất
+ * ("giữ được cảm giác bo cong và nút giữa nổi như app ngân hàng, nhưng mọi tab vẫn có nhãn chữ — quan
+ * trọng khi người dùng chính là quản lý làm việc ngoài nắng"). Khớp đúng `images/footer_design.png`.
  *
- * Thanh tab tự vẽ (`tabBar` prop, KHÔNG dùng default renderer) vì cần chèn 1 nút to hơn (64×52) ở giữa
- * — default `Tabs.Screen` renderer của react-navigation không hỗ trợ item khác kích thước trong cùng
- * hàng. Nút "Chụp" ở giữa KHÔNG phải 1 tab/route thật (không có screen tương ứng) — chỉ điều hướng
- * `router.push('/(tabs)/capture')`, giống hệt CTA "Chụp phiếu" trên Home.
+ * SỬA LẠI 2026-08-25 (2): bản đầu (2 khối `Box` phẳng xếp chồng — thanh chính bo góc trên + 1 khối
+ * "vòm" bo tròn top riêng đặt đè lên) tạo cảm giác 2 lớp xếp tầng chứ KHÔNG PHẢI 1 đường cong liền mạch
+ * — nhìn giống FAB đặt trên kệ hơn là được "ôm" vào thanh, đúng góp ý user sau khi lên app thật. Đổi
+ * sang vẽ TOÀN BỘ hình dạng thanh (viền ngoài + notch lõm ở giữa) bằng 1 path SVG DUY NHẤT
+ * (`react-native-svg`, ĐÃ có sẵn dependency — không thêm gì mới) — 2 đường cong Bezier bậc 3 đối xứng
+ * tại notch, tiếp tuyến ngang ở 2 đầu nên nối mượt vào đoạn thẳng, không góc gãy. Nút Chụp giảm độ nổi
+ * từ ~36px xuống 12px (nằm gọn trong notch, chỉ nhô nhẹ) — xem hằng số `BUTTON_PROTRUSION` bên dưới.
  *
- * Điều hướng bằng `router.push(path)` (expo-router file-path), KHÔNG dùng `navigation.navigate(name)`
- * của react-navigation — đã thử và bị lỗi "action NAVIGATE ... was not handled" với route trong thư
- * mục con (`profile/index.tsx`, `lookup/index.tsx`): tên route nội bộ không khớp `name` khai báo ở
- * `Tabs.Screen`. `router.push` dùng path thật, cùng cơ chế đã hoạt động ổn định ở mọi nơi khác trong
- * app (Home, Capture...) — an toàn hơn. Trạng thái "đang chọn" đọc từ `usePathname()` thay vì
- * `state.index`, cùng pattern `(web)/_layout.tsx` đã dùng.
+ * Tên tab thứ 3 GIỮ "Sản lượng" (không revert về "Tra cứu" như chữ trong mockup Turn 3) — xác nhận với
+ * user 2026-08-25: mockup Turn 3 có vẻ chưa cập nhật tab bar theo tên mới dù ghi chú cuối turn đã dùng
+ * đúng "Sản lượng"; tên "Sản lượng" là quyết định có chủ đích ở Phase 5 (dashboard Official Production
+ * thay hẳn LookupScreen cũ), không phải lỗi cần sửa lại.
  *
- * Icon: Claude Design gốc chỉ dùng khối vuông bo góc làm placeholder (không phải icon set thật, xem
- * mockup `Nông trường cao su - Mobile.dc.html`) — giữ đúng y vậy thay vì tự chọn icon rời rạc không có
- * trong design, cũng né được lỗi font icon bị vỡ (tofu box) đang gặp trên build hiện tại.
+ * Icon — port thẳng path SVG từ chính mockup qua `react-native-svg`, KHÔNG dùng thư viện icon ngoài.
  *
- * `capture`/`quick-entry` vẫn là route thật (Phase 3 cũ) — chỉ ẩn khỏi tabBar mặc định, không xóa.
+ * Thanh tự vẽ (`tabBar` prop, KHÔNG dùng default renderer) — cần chèn nút "Chụp" to hơn, không phải
+ * 1 tab/route thật, chỉ điều hướng `router.push('/(tabs)/capture')`. Điều hướng bằng `router.push(path)`
+ * (không dùng `navigation.navigate(name)` — đã từng lỗi "action NAVIGATE ... was not handled" với route
+ * trong thư mục con). Trạng thái "đang chọn" đọc từ `usePathname()`. `capture`/`quick-entry` vẫn là
+ * route thật — chỉ ẩn khỏi tabBar mặc định, không xóa. Business flow/navigation logic/route KHÔNG đổi —
+ * lần sửa này chỉ đổi presentation/layout của thanh tab.
  */
-function TabIcon({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+
+// Màu icon lấy ĐÚNG hex từ mockup (không map qua token gần đúng) — giữ độ chính xác pixel, cùng nguyên
+// tắc đã áp dụng cho BrandMark/login.tsx (vd "#1F5A45 của chính artboard này thay vì hex lấy lệch").
+const ICON_ACTIVE = '#1F5A45'; // = --primary (global.css)
+const ICON_INACTIVE = '#7A8681';
+
+// Màu nền/viền thanh tab đọc theo theme thật (features/settings/store.ts) — SVG fill cần giá trị màu cụ
+// thể, không nhận className/token Tailwind như Box, nên lấy trực tiếp từ global.css (:root/--dark).
+const BAR_FILL = { light: 'rgb(255,255,255)', dark: 'rgb(10,10,10)' };
+const BAR_BORDER = { light: 'rgb(229,229,229)', dark: 'rgb(46,46,46)' };
+
+type IconProps = { color: string; active: boolean };
+
+function HomeIcon({ color, active }: IconProps) {
   return (
-    <Pressable onPress={onPress} className="flex-1 items-center pt-2.5">
-      <VStack space="xs" className="items-center">
-        <Box
-          className={`w-[18px] h-[18px] rounded-[5px] ${active ? 'bg-primary' : 'border-[1.5px] border-muted-foreground'}`}
-        />
-        <AppText size="xs" className={active ? 'text-primary font-semibold' : 'text-muted-foreground font-medium'}>
-          {label}
-        </AppText>
-      </VStack>
+    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M4 11l8-6.5 8 6.5" />
+      <Path d="M6.5 10v9h11v-9" />
+    </Svg>
+  );
+}
+
+function DocumentIcon({ color }: IconProps) {
+  return (
+    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M6.5 4h7L18 8.5V20H6.5z" />
+      <Path d="M13.5 4v4.5H18" />
+      <Path d="M9.5 13h5" />
+      <Path d="M9.5 16.5h5" />
+    </Svg>
+  );
+}
+
+function SearchIcon({ color }: IconProps) {
+  return (
+    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={11} cy={11} r={6.5} />
+      <Path d="M16 16l4 4" />
+    </Svg>
+  );
+}
+
+function PersonIcon({ color }: IconProps) {
+  return (
+    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={12} cy={8} r={3.5} />
+      <Path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" />
+    </Svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M4.5 8.5h3l1.5-2h6l1.5 2h3v10h-15z" />
+      <Circle cx={12} cy={13} r={3} />
+    </Svg>
+  );
+}
+
+function TabBarItem({
+  Icon,
+  label,
+  active,
+  onPress,
+}: {
+  Icon: (props: IconProps) => React.JSX.Element;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const color = active ? ICON_ACTIVE : ICON_INACTIVE;
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+      <Icon color={color} active={active} />
+      <AppText size="xs" className={active ? 'font-semibold' : 'font-medium'} style={{ color }}>
+        {label}
+      </AppText>
+      {/* Gạch chỉ dưới nhãn khi active — KHÔNG dùng khối nền/rounded rect lớn phía sau tab (giữ tối
+          giản theo yêu cầu). Luôn render (kể cả lúc ẩn) để nhãn không nhảy vị trí khi đổi active. */}
+      <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: active ? ICON_ACTIVE : 'transparent' }} />
     </Pressable>
   );
+}
+
+// ---- Thông số hình học thanh tab (đơn vị dp, RN) ----
+// Chiều cao phần thanh trắng thấy được — trong khoảng 72–80px yêu cầu.
+const BAR_HEIGHT = 76;
+// Bán kính bo góc trên của thanh.
+const BAR_CORNER_RADIUS = 24;
+// Nút Chụp — đường kính trong khoảng 56–62px yêu cầu.
+const BUTTON_SIZE = 60;
+const BUTTON_RADIUS = BUTTON_SIZE / 2;
+// Độ nổi của nút phía TRÊN mép thanh — trong khoảng 10–16px yêu cầu (trước đây ~36px, đúng góp ý cần sửa).
+const BUTTON_PROTRUSION = 12;
+// Khoảng hở giữa mép nút và mép notch — trong khoảng 6–10px yêu cầu.
+const NOTCH_GAP = 8;
+const NOTCH_WIDTH = BUTTON_SIZE + NOTCH_GAP * 2;
+// Độ sâu notch (đo từ mép trên thanh xuống) — đủ để "ôm" quá nửa dưới nút, không phải hình chữ V.
+const NOTCH_DEPTH = 34;
+// Bề ngang đoạn cong chuyển tiếp giữa đoạn thẳng và notch — càng lớn càng mượt, càng nhỏ càng "gãy".
+const NOTCH_CURVE_IN = 22;
+
+// Khoảng cách nút → nhãn "Chụp phiếu" — trong khoảng 4–6px yêu cầu.
+const LABEL_GAP = 6;
+const LABEL_HEIGHT = 14;
+
+// Tổng chiều cao vùng chiếm chỗ thật (để react-navigation tự đo qua onLayout và chừa đúng khoảng cho
+// content bên trên — bản trước đây nút CÓ THỂ tràn ra ngoài `BAR_HEIGHT` khai báo, sửa luôn ở đây).
+const TOTAL_HEIGHT = BAR_HEIGHT + BUTTON_PROTRUSION;
+
+/**
+ * 1 path SVG duy nhất cho toàn bộ viền thanh tab — bo góc trên 2 bên + notch lõm mềm ở giữa (2 đường
+ * cong Bezier bậc 3 đối xứng, tiếp tuyến NGANG ở cả 4 điểm nối nên liền mạch vào đoạn thẳng/đáy notch,
+ * không có góc gãy — đúng yêu cầu "concave notch/cradle" mềm mại thay vì hình chữ V).
+ */
+function buildTabBarPath(width: number): string {
+  const cx = width / 2;
+  const notchLeft = cx - NOTCH_WIDTH / 2;
+  const notchRight = cx + NOTCH_WIDTH / 2;
+  const curveInStart = notchLeft - NOTCH_CURVE_IN;
+  const curveInEnd = notchRight + NOTCH_CURVE_IN;
+  const r = BAR_CORNER_RADIUS;
+  return [
+    `M0,${r}`,
+    `Q0,0 ${r},0`,
+    `L${curveInStart},0`,
+    `C${notchLeft},0 ${notchLeft},${NOTCH_DEPTH} ${cx},${NOTCH_DEPTH}`,
+    `C${notchRight},${NOTCH_DEPTH} ${notchRight},0 ${curveInEnd},0`,
+    `L${width - r},0`,
+    `Q${width},0 ${width},${r}`,
+    `L${width},${BAR_HEIGHT}`,
+    `L0,${BAR_HEIGHT}`,
+    'Z',
+  ].join(' ');
 }
 
 function CustomTabBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const themeSetting = useSettingsStore((s) => s.theme);
+  const systemScheme = useColorScheme();
+  const isDark = themeSetting === 'dark' || (themeSetting === 'system' && systemScheme === 'dark');
+  const barFill = isDark ? BAR_FILL.dark : BAR_FILL.light;
+  const barBorder = isDark ? BAR_BORDER.dark : BAR_BORDER.light;
 
   const isHome = pathname === '/';
   const isPhieu = pathname.startsWith('/phieu');
   const isLookup = pathname.startsWith('/lookup');
   const isProfile = pathname.startsWith('/profile');
 
+  // Nút nằm giữa notch: đáy nút cách đáy thanh (BUTTON_SIZE - protrusion đo từ đỉnh thanh) — tính ra
+  // "bottom" tuyệt đối trong hệ toạ độ TOTAL_HEIGHT (đỉnh thanh = BAR_HEIGHT, đỉnh nút phải chạm đúng
+  // TOTAL_HEIGHT = BAR_HEIGHT + BUTTON_PROTRUSION, không tràn ra ngoài vùng đã chừa chỗ).
+  const buttonBottom = TOTAL_HEIGHT - BUTTON_SIZE;
+
   return (
-    <HStack className="bg-background border-t border-border" style={{ paddingBottom: insets.bottom }}>
-      <TabIcon label="Hôm nay" active={isHome} onPress={() => router.push('/(tabs)')} />
-      <TabIcon label="Phiếu" active={isPhieu} onPress={() => router.push('/(tabs)/phieu')} />
-      <Pressable onPress={() => router.push('/(tabs)/capture')} className="flex-1 items-center pt-2.5">
-        <Box className="w-16 h-[52px] rounded-xl bg-primary items-center justify-center">
-          <AppText size="sm" className="text-primary-foreground font-semibold">
-            Chụp
-          </AppText>
-        </Box>
-      </Pressable>
-      <TabIcon label="Sản lượng" active={isLookup} onPress={() => router.push('/(tabs)/lookup')} />
-      <TabIcon label="Hồ sơ" active={isProfile} onPress={() => router.push('/(tabs)/profile')} />
-    </HStack>
+    <View style={{ height: TOTAL_HEIGHT + insets.bottom }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: insets.bottom, height: TOTAL_HEIGHT }}>
+        {/* Shadow rất nhẹ — chỉ đủ tách thanh khỏi content phía trên, không dùng shadow mạnh. Bọc View
+            riêng cho shadow vì Svg (bo theo path, không phải hình chữ nhật) không tự có shadow đẹp. */}
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: BAR_HEIGHT,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 6,
+            elevation: 4,
+          }}
+        >
+          <Svg width={width} height={BAR_HEIGHT}>
+            <Path d={buildTabBarPath(width)} fill={barFill} stroke={barBorder} strokeWidth={1} />
+          </Svg>
+        </View>
+
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 10, height: 44, flexDirection: 'row', paddingHorizontal: 6 }}>
+          <TabBarItem Icon={HomeIcon} label="Hôm nay" active={isHome} onPress={() => router.push('/(tabs)')} />
+          <TabBarItem Icon={DocumentIcon} label="Phiếu" active={isPhieu} onPress={() => router.push('/(tabs)/phieu')} />
+          <View style={{ width: NOTCH_WIDTH }} />
+          <TabBarItem Icon={SearchIcon} label="Sản lượng" active={isLookup} onPress={() => router.push('/(tabs)/lookup')} />
+          <TabBarItem Icon={PersonIcon} label="Hồ sơ" active={isProfile} onPress={() => router.push('/(tabs)/profile')} />
+        </View>
+
+        {/* Nút "Chụp phiếu" — nằm trong notch, chỉ nhô nhẹ BUTTON_PROTRUSION phía trên mép thanh (KHÔNG
+            phải tab/route thật, xem javadoc đầu file). Viền mảnh cùng màu nền thanh tạo cảm giác "cắt
+            gọn" vào notch; shadow nhẹ, không glow/gradient. */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/capture')}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            marginLeft: -BUTTON_RADIUS,
+            bottom: buttonBottom,
+            width: BUTTON_SIZE,
+            height: BUTTON_SIZE,
+            borderRadius: BUTTON_RADIUS,
+            backgroundColor: ICON_ACTIVE,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 2,
+            borderColor: barFill,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.2,
+            shadowRadius: 6,
+            elevation: 5,
+          }}
+        >
+          <CameraIcon />
+        </Pressable>
+        <AppText
+          size="xs"
+          className="font-semibold"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: buttonBottom - LABEL_GAP - LABEL_HEIGHT,
+            textAlign: 'center',
+            color: ICON_ACTIVE,
+          }}
+        >
+          Chụp phiếu
+        </AppText>
+      </View>
+    </View>
   );
 }
 

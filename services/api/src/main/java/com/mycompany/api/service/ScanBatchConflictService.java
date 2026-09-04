@@ -38,6 +38,8 @@ public class ScanBatchConflictService {
         DISPLAY_ORDER.put(ConflictType.INVALID_BUSINESS_VALUE, 6);
         DISPLAY_ORDER.put(ConflictType.POTENTIAL_DUPLICATE_OCR_ROW, 7);
         DISPLAY_ORDER.put(ConflictType.OTHER, 8);
+        DISPLAY_ORDER.put(ConflictType.TOTAL_MISMATCH, 9);
+        DISPLAY_ORDER.put(ConflictType.EMPTY_ROW_SKIPPED, 10);
     }
 
     private final ScanBatchConflictRepository conflictRepository;
@@ -59,6 +61,14 @@ public class ScanBatchConflictService {
                 .status(ConflictStatus.OPEN)
                 .detail(writeJsonOrNull(detail))
                 .build());
+    }
+
+    // Cập nhật lại detail JSON của 1 conflict CÒN OPEN — dùng khi kiểm tra lại TOTAL_MISMATCH sau khi
+    // Admin sửa số liệu nhưng vẫn còn lệch (không đủ để resolve hẳn, chỉ cập nhật số lệch mới nhất để
+    // hiện đúng trên UI thay vì giữ số cũ đã lỗi thời).
+    public void updateDetail(ScanBatchConflict conflict, Object detail) {
+        conflict.setDetail(writeJsonOrNull(detail));
+        conflictRepository.save(conflict);
     }
 
     public void resolve(ScanBatchConflict conflict, ConflictStatus finalStatus, String resolution, User resolvedBy) {

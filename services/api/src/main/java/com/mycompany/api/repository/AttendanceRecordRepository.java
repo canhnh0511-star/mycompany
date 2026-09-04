@@ -29,4 +29,15 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceAggregateRow> aggregateForPayroll(
             @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate,
             @Param("teamId") UUID teamId, @Param("employeeId") UUID employeeId);
+
+    // Home dashboard payroll-summary distribution — nhân viên ACTIVE có ít nhất 1 attendance_record
+    // active (status <> cancelled) trong tháng -> "complete" (cùng tiêu chí OR với production_record,
+    // xem ProductionRecordRepository.findDistinctActiveEmployeeIdsInRange).
+    @Query("""
+            SELECT DISTINCT a.employee.id
+            FROM AttendanceRecord a
+            WHERE a.recordDate BETWEEN :from AND :to
+              AND a.status <> com.mycompany.api.entity.AttendanceRecordStatus.CANCELLED
+            """)
+    List<UUID> findDistinctActiveEmployeeIdsInRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
 }

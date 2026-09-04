@@ -35,6 +35,9 @@
 - [ ] *(Phase riêng, chưa lên lịch)* Ngày làm việc / roster theo Tổ
 - [ ] **QUAN TRỌNG — chưa làm ở bất kỳ Phase nào**: test runtime thật trên thiết bị/browser (chỉ mới
   verify `tsc --noEmit` + `expo export --platform web` sau mỗi Phase, chưa xác nhận bằng mắt)
+- [x] **Hồ sơ — 8 màn hình mới** ✅ (2026-08-25, MUST — xem "Đợt 4" bên dưới, plan chi tiết
+  `docs/plans/0022-profile-8-screens-plan.md`) — SHOULD còn lại (Cỡ chữ, Chất lượng ảnh gửi lên) CHƯA làm
+- [x] **Footer/tab-bar — redesign "Vòm cong"** ✅ (2026-08-25 — xem "Đợt 4" bên dưới)
 
 ---
 
@@ -469,3 +472,106 @@ Kết quả xác nhận bằng mắt trên emulator (đăng nhập bằng mật 
 
 Đã trả `.env.local` (mobile) về lại URL Railway production, tắt backend local — không còn tiến trình
 nào chạy nền sau khi test xong.
+
+## Đợt 4 (2026-08-25) — Hồ sơ 8 màn hình + Footer/tab-bar redesign "Vòm cong"
+
+Plan chi tiết đầy đủ (audit + API gap + checklist từng màn): `docs/plans/0022-profile-8-screens-plan.md`
+— mục này chỉ tóm tắt để tra cứu nhanh trong dòng lịch sử redesign, KHÔNG lặp lại chi tiết.
+
+### Hồ sơ — 8 màn hình mới (thay hẳn wireframe cũ)
+
+Nguồn: Claude Design, project `55a7676b-68b2-4a14-a355-f2ec6a0394d1`, Turn 2 "Hồ sơ — 8 màn, brand
+David Dũng". Backend: migration `014_add_user_phone.sql` + `User.phone` + đăng nhập bằng SĐT (song song
+email, không phá luồng cũ) + vá gap `avatarUrl` (objectPath thô → phải ký signed URL mới hiển thị được,
+giống các entity ảnh khác). Frontend: `features/profile/` mới hoàn toàn — ProfileScreen, EditProfileScreen,
+AvatarActionSheet, ChangePasswordScreen, AppSettingsScreen (giao diện sáng/tối/hệ thống nối
+`features/settings/store.ts`, xóa dữ liệu tạm thật), AboutScreen, LogoutConfirmDialog.
+
+**3 bug thật phát hiện + sửa lúc test trên Android Emulator** (không phải suy đoán, test tay qua
+adb tap + uiautomator dump):
+1. `Role` type frontend khai lowercase (`'admin'|'team_lead'`) trong khi backend `UserRole.name()` trả
+   UPPERCASE — nhãn vai trò không bao giờ khớp. Sửa type khớp đúng runtime.
+2. Gõ sai "Mật khẩu hiện tại" ở màn Đổi mật khẩu làm user bị ĐĂNG XUẤT LUÔN (interceptor 401 toàn cục
+   coi mọi 401 là hết phiên) — thêm cờ `skipUnauthorizedHandler` cho riêng endpoint đổi mật khẩu.
+3. Màn Đăng nhập validate CHỈ chấp nhận SĐT, chặn cứng cả email — trong khi Admin seed KHÔNG có SĐT, chỉ
+   có email → có thể khóa cứng không đăng nhập lại được. Nới validate chấp nhận cả 2 định dạng.
+4. *(phát hiện sau, từ báo cáo user riêng)* Màn Thiết lập hiện nhãn "Tắt đăng nhập bằng Face ID/vân tay"
+   chỉ dựa vào có mật khẩu đã lưu (`hasSavedCredentials`), không kiểm tra máy có thật sự hỗ trợ sinh trắc
+   học (`biometrics.isAvailable()`) — gây lệch với màn Đăng nhập (đúng đắn ẩn nút khi không có cảm biến).
+   Sửa: đổi nhãn theo đúng thực tế thiết bị ("Xóa mật khẩu đã ghi nhớ" khi không có sinh trắc học).
+
+**CHƯA làm** (SHOULD, không chặn MVP — để phase riêng sau nếu cần):
+- Cỡ chữ (cần dựng context scale xuyên `AppText`/`AppHeading`, chưa có cơ chế này ở đâu trong
+  `components/ui` — rủi ro ảnh hưởng UI mọi màn hình nếu làm vội).
+- Chất lượng ảnh gửi lên (nén trước upload, phạm vi hẹp hơn — chỉ luồng upload ảnh phiếu/avatar).
+
+### Footer/tab-bar — redesign "Vòm cong" (Turn 3, KHÔNG cùng turn với Hồ sơ)
+
+Đọc lại đúng nguồn qua `claude_design` MCP — Turn 3 "Thanh điều hướng dưới — 3 hướng cải tiến" (3a Thanh
+nổi / 3b Vòm cong / 3c Pill trượt), khớp `images/footer_design.png` user cung cấp trước đó. User chọn
+**3b "Vòm cong"** (cũng là hướng designer tự đề xuất), giữ tên tab "Sản lượng" (mockup Turn 3 ghi "Tra
+cứu" nhưng ghi chú cuối turn của chính designer lại dùng "Sản lượng" — mâu thuẫn ngay trong design gốc,
+xác nhận không phải yêu cầu revert).
+
+Viết lại toàn bộ `CustomTabBar` (`apps/mobile/src/app/(tabs)/_layout.tsx`) — icon SVG thật port từ chính
+mockup qua `react-native-svg` (đã có sẵn dependency), nút "Chụp phiếu" chuyển từ phẳng sang nổi nhẹ.
+
+**Sửa lại lần 2 cùng ngày** (theo góp ý sau khi lên app thật): bản đầu dùng 2 khối `Box` phẳng xếp chồng
+(thanh chính + 1 khối "vòm" riêng đè lên) — tạo cảm giác 2 lớp xếp tầng, nút nổi ~36px, giống FAB đặt
+trên kệ chứ không phải được thanh "ôm" vào. Đổi sang vẽ TOÀN BỘ viền thanh bằng 1 path SVG duy nhất (2
+đường cong Bezier bậc 3 đối xứng tạo notch lõm mềm mại, tiếp tuyến ngang ở 4 điểm nối — không góc gãy),
+giảm độ nổi nút xuống 12px (trong notch, chỉ nhô nhẹ), thêm viền mảnh quanh nút. Không thêm dependency
+mới. Đã test trên Android Emulator: notch cong mượt, 4 tab cân xứng, content không bị che.
+
+## Đợt 5 (2026-08-25, cùng ngày) — Cải tiến màn Home theo ảnh tham chiếu
+
+Chỉ đổi presentation/UX Home, KHÔNG đổi navigation/route/business logic OCR/camera/nhập phiếu. Ảnh tham
+chiếu: `images/home_screen.jjpg.jpg`. 3 quyết định xác nhận với user trước khi code: (1) bỏ DRC trung
+bình — không có ở backend, không thêm; (2) thêm param `latexTypeCode` cho `/reports/production-records/
+daily-trend` (backend, nhỏ gọn, tái dùng đúng pattern `/production-summary/daily` đã có); (3) dùng SVG
+line-art tự vẽ thay ảnh cây cao su thật — repo không có asset ảnh nông trường, không tự tải ảnh ngoài
+internet vào sản phẩm (rủi ro bản quyền/nguồn gốc).
+
+**Backend**: `ProductionRecordItemRepository.aggregateDailyTotals` + `ReportService`/`ReportController`
+— thêm param `latexTypeCode` optional (NULL = tổng, hành vi cũ không đổi). "Khác" (mủ dây+đông) không
+special-case ở query — frontend gọi 2 lần rồi cộng dồn.
+
+**Frontend** (`features/home/`): `HomeHeader.tsx` (mới, gradient + minh họa line-art bằng
+`react-native-svg`, KHÔNG thêm `expo-linear-gradient`/ảnh raster), `ProductionSummaryCard.tsx` (mới,
+tổng+trend giữ nguyên nguồn cũ + breakdown 4 loại mủ từ `/production-summary/daily` đã có sẵn — KHÔNG
+cần API mới, responsive 2 cột/xếp dọc), `HomeIcons.tsx` (mới, icon vẽ tay màu đồng nhất — không rainbow
+như ảnh, ưu tiên "restrained UI"). `HomeScreen.tsx`: 4 card gộp đôi → grid 2×2 (accent "Chờ kiểm tra"
+dùng token `info` sẵn có, bấm được, giữ nguyên đích đến); "Tổ hôm nay" đổi hiển thị sang chấm ●/○ (logic
+`useTeamDailySummaries` giữ nguyên, dùng chung với team-workday); "Sản lượng 7 ngày" thêm chip filter
+Tổng/Mủ nước/Mủ chén/Khác. Không thêm icon-library/chart-library mới.
+
+Đã test trên Android Emulator + backend local: header/breakdown/grid/chip trạng thái/chart filter đều
+đúng dữ liệu thật, "Chờ kiểm tra" điều hướng đúng sang tab Sản lượng, không lỗi runtime mới.
+
+## Đợt 6 (2026-08-25, cùng ngày) — Shimmer loading + sửa N+1 signed URL
+
+User yêu cầu 2 việc: "them shimmer loading cho cac man hinh" + điều tra Home load chậm dù data test rất
+ít.
+
+**Điều tra Home chậm**: độ chậm nghiêm trọng (7-27s, log cũ) hoá ra ĐÃ được sửa gián tiếp ở Đợt 5 (đổi
+"Chờ kiểm tra" sang đếm theo batch — bỏ hẳn query `production-records?status=DRAFT` không giới hạn ngày
+gây chậm trước đó); test lại sạch: Home hiện load 540-764ms. Nhưng phát hiện bug hiệu năng RIÊNG, chưa
+từng sửa: `ProductionRecordService`/`LatexSaleService.toResponse()` gọi `createSignedReadUrl()` (HTTP
+thật tới Supabase Storage) CHO TỪNG DÒNG trong `.map()`, dù nhiều dòng cùng `photoUrl` (1 ảnh phiếu →
+nhiều nhân viên, CLAUDE.md §5) — 1 batch 21 dòng ký URL trùng lặp 21 lần thay vì 1-2 lần, khiến
+`GET .../production-records?scanBatchId=...` mất 1-3.5s. Sửa: `Map<String,String> signedUrlCache`
+computed 1 lần/`list()` call, share qua `computeIfAbsent()` — verify curl: 21 dòng từ ~1-3.5s xuống
+~140-180ms; 2 dòng cùng ảnh trả cùng 1 signed URL (cùng token), xác nhận không đổi hành vi.
+
+**Shimmer loading**: `components/Skeleton.tsx` (mới) — primitive `Skeleton` (opacity pulse loop qua
+`react-native-reanimated`, ĐÃ có sẵn dependency, không thêm mới) + `SkeletonText`/`SkeletonList`
+(danh sách dạng AppCard, dùng cho hầu hết màn liệt kê)/`SkeletonDetail` (form/chi tiết)/`SkeletonChart`
+(placeholder biểu đồ cột)/`SkeletonProfile` (avatar+menu)/`HomeSkeleton` (bespoke, khớp shape Home: card
+sản lượng + grid 2×2 + chip Tổ + chart). Thay thế `LoadingState` (spinner+text) ở TẤT CẢ 18 màn đang
+dùng nó — chọn skeleton shape khớp nội dung từng màn (list/detail/profile/chart) thay vì 1 shape chung
+chung. Xoá hẳn `components/LoadingState.tsx` (không còn nơi nào import).
+
+Verify: `tsc --noEmit` + `eslint` sạch (0 lỗi mới) trên toàn bộ file đã sửa. Test emulator: app chạy
+bình thường qua các tab Hôm nay/Sản lượng/Hồ sơ/Thiết lập, không crash — do backend giờ rất nhanh (kết
+quả trực tiếp từ 2 việc sửa ở trên) nên khung skeleton hiện quá nhanh để chụp màn hình bắt kịp bằng tay;
+đã xác nhận đúng đắn qua code review + type-check thay vì ảnh chụp trực tiếp khung shimmer.

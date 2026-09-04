@@ -7,6 +7,11 @@ export function useProductionRecordsBatchMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: productionRecordsApi.createBatch,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.productionRecords.all });
+      // Nhập tay confirmed ngay (ADR-0007) — Hôm nay/Ngày làm việc đọc report (namespace riêng, xem
+      // queryKeys.reports.all) cần invalidate cùng lúc, không tự trôi theo productionRecords.
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    },
   });
 }

@@ -5,6 +5,7 @@ import com.mycompany.api.dto.UpdateProfileRequest;
 import com.mycompany.api.dto.UserProfileResponse;
 import com.mycompany.api.entity.User;
 import com.mycompany.api.repository.UserRepository;
+import com.mycompany.api.service.SupabaseStorageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,8 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class UserController {
 
+    // Cùng TTL 1h đang dùng cho ảnh phiếu (ProductionRecordService/LatexSaleService) — không có lý do
+    // riêng để avatar khác, giữ 1 hằng số chung ở đây cho đơn giản.
+    private static final int AVATAR_READ_URL_TTL_SECONDS = 3600;
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SupabaseStorageService storageService;
 
     @GetMapping("/me")
     public UserProfileResponse me(@AuthenticationPrincipal User currentUser) {
@@ -41,7 +47,10 @@ public class UserController {
         currentUser.setFullName(request.fullName());
         currentUser.setAvatarUrl(request.avatarUrl());
         currentUser.setPosition(request.position());
-        User saved = userRepository.save(currentUser);
+        currentUser.setPhone(request.phone());
+        // saveAndFlush — bắt trùng SĐT (UNIQUE, migration 014) ngay trong request này, không đợi tới lúc
+        // transaction commit mới phát hiện (cùng pattern RateConfigService.create()).
+        User saved = userRepository.saveAndFlush(currentUser);
         return toResponse(saved);
     }
 
@@ -63,8 +72,15 @@ public class UserController {
                 user.getId(),
                 user.getFullName(),
                 user.getEmail(),
+                user.getPhone(),
                 user.getRole().name(),
-                user.getAvatarUrl(),
+                // DB lưu objectPath thô trên bucket private "receipt-photos" (đặt tên avatarUrl nhưng
+                // cùng bản chất photoUrl ở ProductionRecord/LatexSale/ScanImage) — phải ký URL đọc mới
+                // hiển thị được, không trả thẳng path ra ngoài như code cũ (bug: field đã tồn tại từ
+                // trước Phase Hồ sơ nhưng chưa có nơi nào từng ĐỌC LẠI avatar nên chưa lộ ra).
+                user.getAvatarUrl() == null
+                        ? null
+                        : storageService.createSignedReadUrl(user.getAvatarUrl(), AVATAR_READ_URL_TTL_SECONDS),
                 user.getPosition());
     }
 }

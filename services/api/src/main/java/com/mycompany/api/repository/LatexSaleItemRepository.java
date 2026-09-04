@@ -27,4 +27,17 @@ public interface LatexSaleItemRepository extends JpaRepository<LatexSaleItem, UU
             """)
     List<LatexSaleAggregateRow> aggregateForReport(
             @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+
+    // Home dashboard (Module 1.1) — soldKg/soldRevenue "hôm nay" tổng quan: status <> CANCELLED (khác
+    // aggregateForReport chỉ APPROVED), cùng lý do với ProductionRecordItemRepository.aggregateActiveProductionByDate.
+    @Query("""
+            SELECT new com.mycompany.api.repository.LatexSaleAggregateRow(
+                ls.team.id, ls.team.name, lsi.latexType.code, SUM(lsi.kg))
+            FROM LatexSaleItem lsi
+              JOIN lsi.latexSale ls
+            WHERE ls.status <> com.mycompany.api.entity.RecordStatus.CANCELLED
+              AND ls.recordDate = :date
+            GROUP BY ls.team.id, ls.team.name, lsi.latexType.code
+            """)
+    List<LatexSaleAggregateRow> aggregateActiveSalesByDate(@Param("date") LocalDate date);
 }

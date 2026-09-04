@@ -48,8 +48,9 @@ public class ReportController {
     @GetMapping("/production-records/daily-trend")
     public ProductionDailyTrendResponse productionDailyTrend(
             @RequestParam LocalDate fromDate, @RequestParam LocalDate toDate,
-            @RequestParam(required = false) UUID teamId) {
-        return reportService.productionDailyTrend(fromDate, toDate, teamId);
+            @RequestParam(required = false) UUID teamId,
+            @RequestParam(required = false) String latexTypeCode) {
+        return reportService.productionDailyTrend(fromDate, toDate, teamId, latexTypeCode);
     }
 
     @GetMapping("/latex-sales")

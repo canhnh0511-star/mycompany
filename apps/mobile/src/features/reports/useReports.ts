@@ -17,11 +17,17 @@ export function useProductionReportQuery(filters: ProductionReportFilters) {
   });
 }
 
-export function useProductionDailyTrendQuery(filters: ProductionDailyTrendFilters) {
+/** `options.enabled` — thêm 2026-08-25 cho Home "Sản lượng 7 ngày" filter theo loại mủ: chỉ gọi query
+ * ứng với filter đang CHỌN (vd chỉ fetch `latexTypeCode=water` khi Admin đang xem "Mủ nước"), tránh bắn
+ * cả 4-5 request cùng lúc lúc mount màn. Mặc định `true` (không truyền = hành vi cũ, không đổi). */
+export function useProductionDailyTrendQuery(
+  filters: ProductionDailyTrendFilters,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.reports.productionDailyTrend({ ...filters }),
     queryFn: () => reportsApi.productionDailyTrend(filters),
-    enabled: !!filters.fromDate && !!filters.toDate,
+    enabled: !!filters.fromDate && !!filters.toDate && (options?.enabled ?? true),
   });
 }
 

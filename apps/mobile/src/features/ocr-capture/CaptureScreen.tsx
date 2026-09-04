@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,12 +11,13 @@ import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
-import { AppInput } from '@/components/AppInput';
+import { AppDateInput } from '@/components/AppDateInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { todayIsoDate } from '@/features/reports/dateRange';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
-import type { OcrTargetType } from '@/types/api';
+import { queryClient, queryKeys } from '@/lib/query/queryClient';
+import type { OcrTargetType, ScanBatchResponse } from '@/types/api';
 import { scanBatchApi } from './api';
 import { useOcrSessionStore } from './store';
 import { useOcrQueue, type QueueItem } from './useOcrQueue';
@@ -44,6 +45,25 @@ function blockedReasonLabel(status: string | null): string {
   return 'Không thể chụp tiếp cho Tổ/ngày/loại phiếu này lúc này.';
 }
 
+/** Nhãn ngắn cho card "Đã có phiên quét" — chỉ các status mà `/scan-batches/lookup` có thể trả về
+ * (findLatestPrimary loại CANCELLED), khác `batchStatusLabel` đầy đủ ở BatchReviewScreen. */
+function existingBatchLabel(status: string): string {
+  switch (status) {
+    case 'NEED_REVIEW':
+      return 'cần kiểm tra';
+    case 'READY_TO_APPROVE':
+      return 'sẵn sàng xác nhận';
+    case 'PARTIAL_FAILED':
+      return 'một số ảnh lỗi';
+    case 'FAILED':
+      return 'lỗi toàn bộ';
+    case 'APPROVED':
+      return 'đã xác nhận';
+    default:
+      return 'đang xử lý';
+  }
+}
+
 /**
  * Tab "Chụp ảnh" — chia 2 bước theo đúng Claude Design (màn 02 "Chọn loại phiếu" tách khỏi màn 03
  * "Camera", KHÔNG gộp chung 1 màn — xem docs/module-1-1-frontend-redesign-progress.md). Vẫn cùng 1
@@ -64,6 +84,7 @@ export function CaptureScreen() {
   const [showQueue, setShowQueue] = useState(false);
   const [checkingLookup, setCheckingLookup] = useState(false);
   const [blockedStatus, setBlockedStatus] = useState<string | null>(null);
+  const [existingBatch, setExistingBatch] = useState<{ batchId: string; status: string } | null>(null);
 
   const { data: teams } = useTeamsLookupQuery();
   const activeTeamId = useOcrSessionStore((s) => s.activeTeamId);
@@ -80,9 +101,71 @@ export function CaptureScreen() {
     }
   }, [sessionWorkDate, setSessionWorkDate]);
 
+  // Trước đây màn Batch Review CHỈ mở được sau khi chụp/upload 1 ảnh mới trong phiên hiện tại — không
+  // có cách quay lại xem/xử lý phiên đã tạo trước đó (vd FAILED cần "Thử lại"/"Hủy phiên", hoặc
+  // NEED_REVIEW dở dang từ lần trước) nếu chưa chụp thêm gì. Tự gọi lookup ngay khi Tổ/ngày/loại phiếu
+  // đổi để biết có phiên nào đang tồn tại cho đúng key này, cho phép mở thẳng Batch Review không cần
+  // chụp ảnh (phát hiện khi test thật trên iPhone, 2026-08-23).
+  useEffect(() => {
+    if (!activeTeamId || !sessionWorkDate || step !== 'select') {
+      setExistingBatch(null);
+      return;
+    }
+    let cancelled = false;
+    scanBatchApi
+      .lookup(targetType, activeTeamId, sessionWorkDate)
+      .then((result) => {
+        if (cancelled) return;
+        setExistingBatch(result.batchId ? { batchId: result.batchId, status: result.status! } : null);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingBatch(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [targetType, activeTeamId, sessionWorkDate, step]);
+
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const { items, enqueue, batchId } = useOcrQueue();
+  const { items, enqueue, batchId, reset: resetQueue, removeStaleItems } = useOcrQueue();
+
+  // CaptureScreen KHÔNG unmount khi router.push sang Batch Review rồi quay lại (native stack giữ
+  // nguyên instance) — nếu batch vừa rời khỏi đã APPROVED/CANCELLED, dọn sạch hàng đợi ảnh cũ để bắt
+  // đầu phiên mới; đọc thẳng cache react-query (BatchReviewScreen tự cập nhật qua mọi mutation, xem
+  // applyResponse ở đó) — không cần gọi API riêng. Batch còn đang xử lý (NEED_REVIEW...) thì GIỮ
+  // nguyên hàng đợi — Admin có thể quay lại chụp bổ sung cho đúng batch đó. Phát hiện khi test thật
+  // trên iPhone (2026-08-23): hủy phiên để chụp lại nhưng màn Chụp ảnh vẫn còn ảnh cũ. Batch NON-
+  // terminal nhưng có ảnh vừa bị xóa (removeImage — vd ACTIVE đọc sai, xem BatchReviewScreen) thì chỉ
+  // lọc bỏ đúng item đó, không reset cả hàng đợi.
+  useFocusEffect(
+    useCallback(() => {
+      if (!batchId) return;
+      const cached = queryClient.getQueryData<ScanBatchResponse>(queryKeys.scanBatches.detail(batchId));
+      if (!cached) return;
+      if (cached.status === 'APPROVED' || cached.status === 'CANCELLED') {
+        resetQueue();
+        return;
+      }
+      const activeImageIds = new Set(cached.images.filter((img) => img.status !== 'REPLACED').map((img) => img.id));
+      removeStaleItems(activeImageIds);
+    }, [batchId, resetQueue, removeStaleItems]),
+  );
+
+  // Đổi Tổ/ngày làm việc trong khi hàng đợi còn ảnh của Tổ/ngày CŨ (mỗi ảnh gắn cứng teamId/workDate
+  // ngay lúc chụp, xem enqueue bên dưới) — dọn sạch hàng đợi để tránh hiểu lầm ảnh cũ vẫn thuộc phiên
+  // mới, hoặc lỡ tay chụp tiếp cho đúng batch SAI ngày/Tổ. Bỏ qua lần đổi ĐẦU TIÊN sau mount (giá trị
+  // null → có giá trị khi màn vừa mở, không phải Admin chủ động đổi) — phát hiện khi test thật trên
+  // iPhone (2026-08-23).
+  const prevKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = activeTeamId && sessionWorkDate ? `${targetType}|${activeTeamId}|${sessionWorkDate}` : null;
+    const prev = prevKeyRef.current;
+    prevKeyRef.current = key;
+    if (prev !== null && key !== null && prev !== key && items.length > 0) {
+      resetQueue();
+    }
+  }, [targetType, activeTeamId, sessionWorkDate, items.length, resetQueue]);
 
   const teamOptions = (teams ?? []).map((t) => ({ label: t.name, value: t.id }));
   const selectedType = DOCUMENT_TYPE_OPTIONS.find((o) => o.value === targetType)!;
@@ -188,12 +271,7 @@ export function CaptureScreen() {
             </AppText>
             <AppCard className="p-0 overflow-hidden">
               <Box className="p-4">
-                <AppInput
-                  label="Ngày"
-                  value={sessionWorkDate ?? ''}
-                  onChangeText={setSessionWorkDate}
-                  placeholder="yyyy-mm-dd"
-                />
+                <AppDateInput label="Ngày" value={sessionWorkDate ?? ''} onChangeText={setSessionWorkDate} />
                 {sessionWorkDate ? (
                   <AppText size="xs" className="text-muted-foreground mt-1">
                     {dateLabel(sessionWorkDate)}
@@ -230,6 +308,23 @@ export function CaptureScreen() {
               Mọi ảnh chụp trong lần này dùng chung ngày và tổ ở trên — không phải chọn lại cho từng ảnh.
             </AppText>
           </VStack>
+
+          {existingBatch ? (
+            <AppCard>
+              <VStack space="xs">
+                <AppText size="sm">
+                  Đã có phiên quét cho Tổ/ngày/loại phiếu này — {existingBatchLabel(existingBatch.status)}.
+                </AppText>
+                <AppButton
+                  size="sm"
+                  variant="outline"
+                  onPress={() => router.push(`/scan-batch-review/${existingBatch.batchId}`)}
+                >
+                  Xem lại phiên
+                </AppButton>
+              </VStack>
+            </AppCard>
+          ) : null}
 
           {blockedStatus ? (
             <Box className="border border-destructive rounded-md p-3 bg-destructive/10">

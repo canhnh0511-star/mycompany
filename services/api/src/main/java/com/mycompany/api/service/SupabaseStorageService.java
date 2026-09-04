@@ -2,11 +2,14 @@ package com.mycompany.api.service;
 
 import com.mycompany.api.config.SupabaseStorageProperties;
 import com.mycompany.api.exception.InvalidRequestException;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -36,7 +39,13 @@ public class SupabaseStorageService {
 
     public SupabaseStorageService(SupabaseStorageProperties properties) {
         this.properties = properties;
-        this.restClient = RestClient.builder().baseUrl(properties.url() + "/storage/v1").build();
+        // Cùng lý do đã ghi ở ClaudeOcrService — RestClient.builder() mặc định không có timeout,
+        // request thread có thể treo vô thời hạn nếu Supabase Storage chậm/hang.
+        var requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(60));
+        this.restClient = RestClient.builder().baseUrl(properties.url() + "/storage/v1")
+                .requestFactory(requestFactory).build();
     }
 
     public record SignedUploadUrl(String objectPath, String uploadUrl, String token) {
@@ -68,6 +77,42 @@ public class SupabaseStorageService {
         String token = extractToken(relativeUrl);
         String uploadUrl = properties.url() + "/storage/v1" + relativeUrl;
         return new SignedUploadUrl(objectPath, uploadUrl, token);
+    }
+
+    /**
+     * URL có chữ ký để ĐỌC 1 ảnh (khác {@link #createSignedUploadUrl}, dùng để GHI) — bucket
+     * "receipt-photos" là private nên FE không thể tải thẳng bằng object path lưu ở DB
+     * (`photo_url` cột lưu path tương đối, không phải URL công khai). Gọi mỗi lần build response
+     * có kèm ảnh (`ProductionRecordService`/`LatexSaleService`.toResponse()) — không cache URL đã ký
+     * lại DB vì hết hạn sau {@code expiresInSeconds}, cache sẽ trả URL chết.
+     *
+     * <p>Endpoint xác nhận qua storage-js: {@code POST {url}/storage/v1/object/sign/{bucket}/{path}}
+     * body {@code {expiresIn: <giây>}}, trả {@code {signedURL: "/object/sign/bucket/path?token=..."}}
+     * (khác field {@code url} ở {@link #createSignedUploadUrl}).
+     */
+    public String createSignedReadUrl(String objectPath, int expiresInSeconds) {
+        if (objectPath == null || objectPath.isBlank()) {
+            return null;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restClient.post()
+                    .uri("/object/sign/" + properties.bucket() + "/" + objectPath)
+                    .header("Authorization", "Bearer " + properties.serviceRoleKey())
+                    .header("apikey", properties.serviceRoleKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("expiresIn", expiresInSeconds))
+                    .retrieve()
+                    .body(Map.class);
+            String relativeUrl = String.valueOf(response.get("signedURL"));
+            return properties.url() + "/storage/v1" + relativeUrl;
+        } catch (RestClientException ex) {
+            // Không chặn cả response chỉ vì 1 ảnh cũ/đã xóa khỏi Storage không ký được nữa — log WARN
+            // (CLAUDE.md §7, tự phục hồi được: user vẫn xem được số liệu, chỉ thiếu ảnh) và trả null
+            // thay vì ném lỗi, để `toResponse()` gọi chỗ này không phải tự try/catch lại.
+            log.warn("Không ký được URL đọc ảnh (objectPath={}): {}", objectPath, ex.getMessage());
+            return null;
+        }
     }
 
     public byte[] download(String objectPath) {

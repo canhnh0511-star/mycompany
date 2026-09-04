@@ -10,7 +10,7 @@ import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
 import { AppText } from '@/components/AppText';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useOcrSessionStore } from '@/features/ocr-capture/store';
 import { useProductionReportQuery } from '@/features/reports/useReports';
 import { toIsoDate, todayIsoDate } from '@/features/reports/dateRange';
@@ -92,7 +92,7 @@ export function TeamWorkdayScreen() {
           </HStack>
         </AppCard>
 
-        {isLoading ? <LoadingState label="Đang tải tình hình..." /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được dữ liệu ngày này." detail={getErrorMessage(error)} /> : null}
 
         {!isLoading && !isError ? (

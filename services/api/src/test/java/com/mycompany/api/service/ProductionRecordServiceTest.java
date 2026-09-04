@@ -55,6 +55,8 @@ class ProductionRecordServiceTest {
     private LatexTypeRepository latexTypeRepository;
     @Mock
     private EditHistoryService editHistoryService;
+    @Mock
+    private SupabaseStorageService storageService;
 
     private final BatchRowValidator batchRowValidator = new BatchRowValidator(
             jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator());
@@ -70,7 +72,8 @@ class ProductionRecordServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProductionRecordService(productionRecordRepository, employeeRepository,
-                latexTypeRepository, editHistoryService, batchRowValidator, transactionRunner, objectMapper);
+                latexTypeRepository, editHistoryService, batchRowValidator, transactionRunner, objectMapper,
+                storageService);
 
         currentUser = User.builder().id(UUID.randomUUID()).fullName("Admin").build();
         Team team = Team.builder().id(UUID.randomUUID()).name("Tổ 1").build();

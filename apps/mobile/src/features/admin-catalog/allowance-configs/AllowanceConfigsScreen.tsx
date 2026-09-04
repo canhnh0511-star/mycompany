@@ -6,12 +6,13 @@ import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppHeading } from '@/components/AppHeading';
+import { AppDateInput } from '@/components/AppDateInput';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import type { AllowanceConfigResponse, CalcType } from '@/types/api';
@@ -149,19 +150,17 @@ export function AllowanceConfigsScreen() {
               />
               <HStack space="sm">
                 <Box className="flex-1">
-                  <AppInput
-                    label="Hiệu lực từ (yyyy-mm-dd)"
+                  <AppDateInput
+                    label="Hiệu lực từ"
                     value={fields.effectiveFrom}
                     onChangeText={(effectiveFrom) => setFields((f) => ({ ...f, effectiveFrom }))}
-                    placeholder="2026-01-01"
                   />
                 </Box>
                 <Box className="flex-1">
-                  <AppInput
+                  <AppDateInput
                     label="Đến (bỏ trống = vô hạn)"
                     value={fields.effectiveTo}
                     onChangeText={(effectiveTo) => setFields((f) => ({ ...f, effectiveTo }))}
-                    placeholder="Bỏ trống"
                   />
                 </Box>
               </HStack>
@@ -191,7 +190,7 @@ export function AllowanceConfigsScreen() {
           </AppCard>
         ) : null}
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được danh sách." detail={getErrorMessage(error)} /> : null}
         {!isLoading && allowanceConfigs?.length === 0 ? <EmptyState message="Chưa có phụ cấp nào." /> : null}
 

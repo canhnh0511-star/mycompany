@@ -131,5 +131,25 @@ export function useOcrQueue() {
     [updateItem],
   );
 
-  return { items, enqueue, batchId };
+  // Batch đã APPROVED/CANCELLED (xem CaptureScreen — useFocusEffect gọi khi quay lại màn Chụp ảnh sau
+  // khi rời sang Batch Review) — không thể thêm ảnh vào batch đó nữa, dọn sạch hàng đợi cũ để Admin
+  // chụp phiên MỚI. Trước đây không có cơ chế này: `items` là state cục bộ tưởng "tự reset khi rời màn"
+  // (ghi chú javadoc cũ) nhưng thực ra CaptureScreen KHÔNG unmount khi router.push sang Batch Review rồi
+  // back lại (native stack giữ nguyên instance) — phát hiện khi test thật trên iPhone (2026-08-23), user
+  // hủy phiên để chụp lại nhưng màn Chụp ảnh vẫn còn nguyên ảnh cũ.
+  const reset = useCallback(() => {
+    setItems([]);
+    setBatchId(null);
+  }, []);
+
+  // Ảnh đã bị xóa khỏi batch qua Batch Review (removeImage — vd ACTIVE nhưng đọc sai, Admin xóa để
+  // chụp lại, xem BatchReviewScreen) nhưng batch vẫn NEED_REVIEW/READY_TO_APPROVE (non-terminal) nên
+  // `reset()` toàn bộ không chạy — thumbnail của ảnh đã xóa vẫn nằm lì trong hàng đợi cục bộ, trong khi
+  // trên server ảnh đó đã REPLACED. Chỉ lọc bỏ ĐÚNG item ứng với ảnh đã xóa, giữ nguyên các ảnh khác
+  // trong hàng đợi — phát hiện khi test thật trên iPhone (2026-08-23).
+  const removeStaleItems = useCallback((activeScanImageIds: Set<string>) => {
+    setItems((prev) => prev.filter((it) => !it.scanImageId || activeScanImageIds.has(it.scanImageId)));
+  }, []);
+
+  return { items, enqueue, batchId, reset, removeStaleItems };
 }

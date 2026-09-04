@@ -5,12 +5,12 @@ import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { AppButton } from '@/components/AppButton';
 import { AppHeading } from '@/components/AppHeading';
-import { AppInput } from '@/components/AppInput';
+import { AppDateInput } from '@/components/AppDateInput';
 import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { useAppToast } from '@/components/useAppToast';
 import { ApiError } from '@/lib/api/client';
 import { useEmployeesLookupQuery, useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
@@ -71,19 +71,17 @@ export function ProductionReportScreen() {
 
         <HStack space="sm" className="flex-wrap items-end">
           <Box className="w-40">
-            <AppInput
+            <AppDateInput
               label="Từ ngày"
               value={fromDate}
               onChangeText={(v) => setDateRange((r) => ({ ...r, fromDate: v }))}
-              placeholder="yyyy-mm-dd"
             />
           </Box>
           <Box className="w-40">
-            <AppInput
+            <AppDateInput
               label="Đến ngày"
               value={toDate}
               onChangeText={(v) => setDateRange((r) => ({ ...r, toDate: v }))}
-              placeholder="yyyy-mm-dd"
             />
           </Box>
           <Box className="w-48">
@@ -125,7 +123,7 @@ export function ProductionReportScreen() {
           </AppButton>
         </HStack>
 
-        {isLoading ? <LoadingState /> : null}
+        {isLoading ? <SkeletonList /> : null}
         {isError ? <ErrorState message="Không tải được báo cáo." detail={getErrorMessage(error)} /> : null}
         {report ? <ProductionReportTable report={report} /> : null}
       </VStack>

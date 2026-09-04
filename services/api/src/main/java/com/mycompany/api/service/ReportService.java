@@ -93,9 +93,11 @@ public class ReportService {
                 rows, teamSubtotals, grandTotalByType, grandTotalKg);
     }
 
-    public ProductionDailyTrendResponse productionDailyTrend(LocalDate fromDate, LocalDate toDate, UUID teamId) {
+    public ProductionDailyTrendResponse productionDailyTrend(
+            LocalDate fromDate, LocalDate toDate, UUID teamId, String latexTypeCode) {
         validateDateRange(fromDate, toDate);
-        List<DailyTotalRow> raw = productionRecordItemRepository.aggregateDailyTotals(fromDate, toDate, teamId);
+        List<DailyTotalRow> raw =
+                productionRecordItemRepository.aggregateDailyTotals(fromDate, toDate, teamId, latexTypeCode);
         Map<LocalDate, BigDecimal> totalByDate =
                 raw.stream().collect(Collectors.toMap(DailyTotalRow::recordDate, DailyTotalRow::totalKg));
 

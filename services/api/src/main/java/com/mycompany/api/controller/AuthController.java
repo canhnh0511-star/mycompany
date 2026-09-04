@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class AuthController {
 
-    private static final String INVALID_CREDENTIALS_MESSAGE = "Email hoặc mật khẩu không đúng";
+    private static final String INVALID_CREDENTIALS_MESSAGE = "Email/Số điện thoại hoặc mật khẩu không đúng";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -34,7 +34,11 @@ public class AuthController {
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        // request.email() là identifier chung (mục "API còn thiếu #1",
+        // docs/plans/0022-profile-8-screens-plan.md) — thử email trước (đa số tài khoản cũ), không thấy
+        // thử phone (màn đăng nhập mới của mobile gửi SĐT qua đúng key này).
         User user = userRepository.findByEmail(request.email())
+                .or(() -> userRepository.findByPhone(request.email()))
                 .filter(User::isActive)
                 .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS_MESSAGE));
 

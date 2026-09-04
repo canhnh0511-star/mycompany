@@ -82,6 +82,12 @@ public class ScanImage {
     @Column(name = "effective_work_date")
     private LocalDate effectiveWorkDate;
 
+    // Số dòng OCR đọc được (input.rows.size() lúc xử lý) — KHÔNG suy ngược từ số record/conflict đã
+    // tạo (1 dòng vợ/chồng → 2 record, 1 dòng lỗi số liệu vẫn tạo record + conflict riêng). Dùng để
+    // Admin đối chiếu bằng mắt với số dòng thật trên phiếu giấy (migration 011).
+    @Column(name = "ocr_row_count")
+    private Integer ocrRowCount;
+
     // Set khi status=PENDING_MOVE, trỏ Supplement batch đích (Spec 1 mục 5/5.1). Không map @ManyToOne
     // trực tiếp sang ScanBatch — chỉ cần id để tránh vòng lặp lazy-load 2 chiều không cần thiết.
     @Column(name = "pending_move_target_batch_id")

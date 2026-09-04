@@ -54,6 +54,11 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    // Nullable — dữ liệu cũ (seed qua email) chưa có SĐT; UNIQUE khi có giá trị (migration 014). Dùng để
+    // định danh đăng nhập song song với email — xem AuthController#login.
+    @Column(length = 15)
+    private String phone;
+
     @Column(length = 100)
     private String position; // chức vụ — vd "Giám đốc", "Nhân sự"; free text
 
