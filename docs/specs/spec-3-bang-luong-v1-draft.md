@@ -2,8 +2,9 @@
 
 > **Trạng thái: DRAFT — do Claude soạn dựa trên audit code thật + trả lời nghiệp vụ của user qua
 > `AskUserQuestion` (xem lịch sử hội thoại), KHÔNG phải bản do user viết sẵn như Spec 1/Spec 2.**
-> Có 1 điểm còn bỏ ngỏ chưa hỏi user (mục 8 "Trừ / Tạm ứng") — đánh dấu rõ, không tự suy diễn.
-> Dừng lại chờ user duyệt trước khi implement, theo đúng kỷ luật đã áp dụng cho Module 1.
+> Mục 8 "Trừ / Tạm ứng" đã được xác nhận (mặc định 1.000.000đ/người/tháng, cho phép sửa từng người)
+> — xem mục 2.6 + 8. Dừng lại chờ user duyệt toàn bộ trước khi implement, theo đúng kỷ luật đã áp
+> dụng cho Module 1.
 
 Nguồn: 2 ảnh mockup "Bảng lương" (desktop web, sidebar mới) user cung cấp + audit
 `db/migrations/001_init_schema.sql` (bảng `rate_configs`/`allowance_configs`/`employees` đã được
@@ -115,6 +116,42 @@ của nhân viên đó (cùng field `status`/`RecordStatus` đã có — product
 OCR, mà attendance hiện tại không có OCR) nên không ảnh hưởng tới rule "Cần kiểm tra" ở trên trong
 v1 — chỉ `production_records.status` mới quyết định.
 
+### 2.6 Trừ / Tạm ứng — mặc định hệ thống + override theo từng nhân viên/tháng
+Xác nhận với user: mặc định MỌI nhân viên tạm ứng 1.000.000đ/tháng, Admin được sửa riêng cho từng
+người khi cần (không phải nhập tay từ đầu cho tất cả — chỉ sửa những trường hợp khác mặc định).
+Thiết kế 2 bảng, tách mặc định hệ thống khỏi override cá nhân (không nhét chung 1 bảng — mặc định
+cần sửa được ở "Cấu hình hệ thống" mà không phải sửa từng dòng nhân viên):
+
+```sql
+-- Cấu hình chung, key-value đơn giản (tái dùng cho các setting hệ thống khác sau này nếu cần,
+-- khớp mục "Cấu hình hệ thống" trong sidebar ảnh 1) — time-versioned nhẹ, không cần daterange đầy
+-- đủ như rate_configs vì chỉ 1 giá trị hiện hành tại 1 thời điểm, không cần lịch sử chồng lấn phức tạp.
+CREATE TABLE payroll_settings (
+    key             VARCHAR(50) PRIMARY KEY,      -- vd 'default_monthly_advance'
+    value           NUMERIC(12,2) NOT NULL,
+    updated_by      UUID NOT NULL REFERENCES users(id),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO payroll_settings (key, value, updated_by, updated_at)
+    VALUES ('default_monthly_advance', 1000000, <admin seed user id>, now());
+
+-- Override theo từng nhân viên/tháng — CHỈ có dòng khi Admin chủ động sửa khác mặc định.
+CREATE TABLE payroll_deductions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id     UUID NOT NULL REFERENCES employees(id),
+    year_month      CHAR(7) NOT NULL,   -- 'YYYY-MM'
+    amount          NUMERIC(12,2) NOT NULL,
+    updated_by      UUID NOT NULL REFERENCES users(id),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (employee_id, year_month)
+);
+```
+Rule khi tính lương: `Trừ/Tạm ứng = payroll_deductions.amount nếu có dòng (employee_id, year_month),
+ngược lại = payroll_settings['default_monthly_advance'].value hiện hành`. Sửa 1 dòng trong UI bảng
+lương (PATCH) = upsert vào `payroll_deductions`, KHÔNG đổi `payroll_settings` (đổi mặc định hệ
+thống là hành động riêng, ở màn Cấu hình hệ thống — LATER, ngoài scope UI v1, chỉ cần seed sẵn
+1.000.000 qua migration là đủ cho MVP).
+
 ---
 
 ## 3. Công thức tính lương (per nhân viên / tháng, runtime — không lưu DB)
@@ -131,7 +168,7 @@ hạng_kỹ_thuật    = technical_grade_configs hiện hành(employee.technical
 
 Tổng lương  = mủ_nước_tiền + mủ_tạp_tiền + bồi_thuốc_tiền + chuyên_cần_tiền
               + mưa_bão_tiền + thời_vụ_tiền + hạng_kỹ_thuật
-Thực lãnh   = Tổng lương − Trừ/Tạm ứng   -- xem mục 8, nguồn dữ liệu CHƯA XÁC ĐỊNH
+Thực lãnh   = Tổng lương − Trừ/Tạm ứng   -- xem mục 2.6: override payroll_deductions, mặc định payroll_settings
 ```
 "Đơn giá hiện hành" = dòng `rate_configs`/`allowance_configs`/`technical_grade_configs`/
 `payroll_mixed_latex_rate_configs` có `effective_from <= <ngày cuối tháng>` và
@@ -154,13 +191,19 @@ GET /api/v1/payroll?yearMonth=2026-08&teamId=&status=&query=
           medicationCount, medicationAmount, attendanceDays, attendanceAmount,
           stormAllowanceDays, stormAllowanceAmount, seasonalWorkDays, seasonalWorkAmount,
           technicalGrade, technicalGradeAmount,
-          totalPay, deduction, netPay, rowStatus
+          totalPay, deduction, deductionIsOverride, netPay, rowStatus
       } ]
   }
 
 GET /api/v1/payroll/{employeeId}?yearMonth=2026-08
   → PayrollDetailResponse (breakdown đầy đủ như panel bên phải ảnh 2 — mỗi dòng kèm
     "số lượng × đơn giá = thành tiền" để trace được, giống nguyên tắc drill-down của Spec 2 mục 22-24)
+
+PATCH /api/v1/payroll/{employeeId}/deduction?yearMonth=2026-08   body: { amount }
+  → upsert payroll_deductions (employee_id, year_month) — sửa Trừ/Tạm ứng riêng cho 1 người/1 tháng,
+    KHÔNG đổi payroll_settings mặc định (mục 2.6). `deductionIsOverride=true` ở response sau khi có
+    dòng override, để UI phân biệt "đang dùng mặc định" vs "đã chỉnh tay" (tránh Admin tưởng nhầm
+    giá trị 1.000.000 hiển thị là do họ tự nhập).
 
 POST /api/v1/payroll/lock?yearMonth=2026-08     → khóa (tạo dòng payroll_period_locks)
 POST /api/v1/payroll/unlock?yearMonth=2026-08   → mở khóa (xóa dòng)
@@ -175,14 +218,17 @@ GET /api/v1/payroll/export?yearMonth=2026-08&teamId=   → Excel (tái dùng Exc
 ## 5. Phạm vi MUST / SHOULD / LATER (v1)
 
 **MUST**: bảng tổng hợp theo tháng + filter Tổ/trạng thái, breakdown chi tiết theo nhân viên
-(drill-down, trace được về record nguồn — cùng nguyên tắc Spec 2), chốt/mở chốt lương (cờ đơn
-giản), Loading/Empty/Error, responsive desktop (ảnh là desktop, mobile để sau).
+(drill-down, trace được về record nguồn — cùng nguyên tắc Spec 2), sửa Trừ/Tạm ứng riêng từng người
+(mục 2.6), chốt/mở chốt lương (cờ đơn giản), Loading/Empty/Error, responsive desktop (ảnh là
+desktop, mobile để sau).
 
 **SHOULD**: search theo tên, export Excel.
 
 **LATER**: in phiếu lương ("In phiếu lương" nút trong ảnh), lương cho `latex_sales`, audit log chi
 tiết cho hành động chốt/mở chốt, UI quản lý "Hạng kỹ thuật"/"Mủ tạp" trong "Thành phần lương" (cần
-CRUD riêng, giống `rate-configs.tsx`/`allowance-configs.tsx` hiện có).
+CRUD riêng, giống `rate-configs.tsx`/`allowance-configs.tsx` hiện có), UI sửa
+`payroll_settings['default_monthly_advance']` (màn Cấu hình hệ thống — v1 chỉ seed sẵn qua
+migration, chưa cần UI).
 
 ---
 
@@ -202,6 +248,12 @@ PAYROLL-08  rate_configs/allowance_configs đổi giá giữa tháng (effective_
             1 mốc "cuối tháng" duy nhất — XEM MỤC 9, câu hỏi còn mở)
 PAYROLL-09  Lock tháng → GET vẫn trả đúng dữ liệu (không immutable, theo quyết định user)
 PAYROLL-10  Filter theo Tổ/trạng thái áp dụng nhất quán summary + rows (giống PROD-16 Spec 2)
+PAYROLL-11  Nhân viên chưa có dòng payroll_deductions cho tháng đang xem → deduction =
+            payroll_settings['default_monthly_advance'] (1.000.000), deductionIsOverride = false
+PAYROLL-12  PATCH deduction cho 1 nhân viên/tháng → GET sau đó trả đúng amount vừa sửa,
+            deductionIsOverride = true; các nhân viên khác KHÔNG bị ảnh hưởng (vẫn dùng mặc định)
+PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên CHƯA có override phản ánh
+            giá trị mới ngay; nhân viên ĐÃ override giữ nguyên giá trị đã sửa (không bị ghi đè)
 ```
 
 ---
@@ -209,14 +261,17 @@ PAYROLL-10  Filter theo Tổ/trạng thái áp dụng nhất quán summary + row
 ## 7. Implementation phases (đề xuất, chờ duyệt)
 
 1. Migration: `payroll_mixed_latex_rate_configs`, `technical_grade_configs`, `payroll_period_locks`,
-   `employees.technical_grade`, mở rộng CHECK `attendance_records.attendance_type` thêm `seasonal_work`,
-   seed `allowance_configs` dòng `seasonal_work`.
-2. Backend: `PayrollService`/`PayrollController` (2 endpoint GET + lock/unlock), tái dùng logic chọn
-   rate-theo-thời-gian đã có ở `ReportController`/service liên quan (audit trước khi viết mới).
-3. Test: PAYROLL-01 → 10 (unit cho công thức tính, không cần integration DB thật cho phần rate lookup
-   nếu tách được thành pure function).
+   `payroll_settings` (seed `default_monthly_advance`=1.000.000), `payroll_deductions`,
+   `employees.technical_grade`, mở rộng CHECK `attendance_records.attendance_type` thêm
+   `seasonal_work`, seed `allowance_configs` dòng `seasonal_work`.
+2. Backend: `PayrollService`/`PayrollController` (GET summary, GET detail, PATCH deduction,
+   lock/unlock), tái dùng logic chọn rate-theo-thời-gian đã có ở `ReportController`/service liên
+   quan (audit trước khi viết mới).
+3. Test: PAYROLL-01 → 13 (unit cho công thức tính, không cần integration DB thật cho phần rate
+   lookup nếu tách được thành pure function).
 4. Frontend: màn Bảng lương (web/desktop — có thể tái dùng phần lớn pattern từ `LookupScreen`/
-   `ProductionReportScreen` hiện có), panel chi tiết nhân viên (giống ảnh 2), export Excel.
+   `ProductionReportScreen` hiện có), panel chi tiết nhân viên (giống ảnh 2) kèm sửa Trừ/Tạm ứng,
+   export Excel.
 5. Frontend: UI quản lý "Hạng kỹ thuật" + "Mủ tạp" trong admin-catalog (CRUD, cùng pattern
    `rate-configs.tsx`) — có thể tách phase riêng nếu Phase 4 đã đủ dùng qua seed data tạm.
 
@@ -224,15 +279,16 @@ PAYROLL-10  Filter theo Tổ/trạng thái áp dụng nhất quán summary + row
 
 ## 8. CÂU HỎI CÒN MỞ — chưa hỏi user, KHÔNG được tự suy diễn khi implement
 
-1. **Trừ / Tạm ứng** ("Trừ / Tạm ứng" cột trong ảnh, có giá trị khác 0 ở mọi dòng — vd 1.000.000)
-   — domain hiện tại KHÔNG có bảng nào lưu khấu trừ/tạm ứng theo nhân viên/tháng. Cần hỏi: nhập tay
-   thủ công mỗi tháng (form riêng), hay có nguồn dữ liệu khác (vd ứng lương từ Module khác)? Đây là
-   **gap lớn nhất chưa giải quyết** — ảnh hưởng trực tiếp cột "Thực lãnh" (MUST).
-2. Đơn giá + ngày hiệu lực chính xác cho `seasonal_work` (mục 2.3).
-3. Rate lookup theo NGÀY thực tế của từng record hay theo 1 mốc chung cho cả tháng khi giá đổi giữa
+> ~~Trừ / Tạm ứng~~ — **đã xác nhận**, xem mục 2.6 (mặc định 1.000.000đ/tháng qua `payroll_settings`,
+> override từng người qua `payroll_deductions`).
+
+1. Đơn giá + ngày hiệu lực chính xác cho `seasonal_work` (mục 2.3) — số trong ảnh không đọc được rõ
+   ràng đơn giá cột "Công thời vụ" (khác các cột còn lại có ghi rõ "x đ/đơn vị" ngay dưới tên cột).
+2. Rate lookup theo NGÀY thực tế của từng record hay theo 1 mốc chung cho cả tháng khi giá đổi giữa
    tháng (PAYROLL-08) — hiện chưa rõ, cần audit cách `ReportController` đang làm trước khi quyết.
-4. "Xem phiếu nguồn"/"In phiếu lương" (nút trong ảnh 2) — in phiếu lương ra định dạng gì (PDF?
+3. "Xem phiếu nguồn"/"In phiếu lương" (nút trong ảnh 2) — in phiếu lương ra định dạng gì (PDF?
    Excel 1 dòng?) — đánh dấu LATER, chưa cần trả lời ngay cho MVP.
 
-**Không implement bất kỳ phần nào phụ thuộc mục 8.1 (Trừ/Tạm ứng) cho tới khi có câu trả lời** —
-đây là field xuất hiện ở MỌI dòng trong ảnh, không thể bỏ qua nếu làm đúng "Thực lãnh".
+Cả 3 câu trên đều KHÔNG chặn MUST của v1 (seasonal_work có thể seed tạm 1 giá trị placeholder rồi
+sửa sau qua "Thành phần lương" một khi CRUD làm xong — LATER theo mục 5; mục 2/3 chỉ ảnh hưởng độ
+chính xác khi giá đổi giữa tháng, trường hợp hiếm, không chặn happy-path).
