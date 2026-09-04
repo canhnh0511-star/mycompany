@@ -27,8 +27,11 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
       ) : isError || !data ? (
         <WidgetErrorState message="Không thể tải dữ liệu bảng lương." onRetry={() => refetch()} />
       ) : (
-        <Stack spacing={2.5}>
-          <Box>
+        // Đối chiếu pixel với ảnh reference: đây là 1 HÀNG 3 CỘT (text+nút bên
+        // trái / donut giữa / legend phải), không phải 2 khối xếp dọc như bản
+        // cũ (text ở trên, donut+legend+nút xếp chồng bên dưới).
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2.5, md: 4 }} sx={{ alignItems: 'center' }}>
+          <Box sx={{ flex: '0 0 auto', width: { xs: '100%', md: 200 } }}>
             <Typography variant="body2" color="text.secondary">
               Tổng dự kiến
             </Typography>
@@ -37,10 +40,19 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
               {data.employeeCount} nhân viên
               {data.needsReviewCount > 0 ? ` • ${data.needsReviewCount} cần kiểm tra` : ''}
             </Typography>
+
+            <Button
+              component={RouterLink}
+              to={`/bang-luong/${month}?ref=${workDate}`}
+              variant="contained"
+              sx={{ mt: 3, bgcolor: green[800], '&:hover': { bgcolor: green[900] } }}
+            >
+              Xem bảng lương
+            </Button>
           </Box>
 
           {data.distribution.filter((s) => s.count > 0).length > 1 ? (
-            <Stack direction="row" spacing={3} sx={{ alignItems: 'center' }}>
+            <>
               <PayrollDonutChart
                 centerValue={String(data.distribution.find((s) => s.bucket === 'complete')?.count ?? data.employeeCount)}
                 centerLabel="Đã đủ dữ liệu"
@@ -50,7 +62,7 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
                   color: BUCKET_COLOR[s.bucket],
                 }))}
               />
-              <Stack spacing={1}>
+              <Stack spacing={1.25}>
                 {data.distribution.map((slice) => (
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }} key={slice.bucket}>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: BUCKET_COLOR[slice.bucket] }} />
@@ -63,7 +75,7 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
                   </Stack>
                 ))}
               </Stack>
-            </Stack>
+            </>
           ) : (
             // spec §24: chỉ 1 trạng thái -> dùng progress summary thay vì chart.
             <Stack spacing={0.5}>
@@ -76,15 +88,6 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
                 ))}
             </Stack>
           )}
-
-          <Button
-            component={RouterLink}
-            to={`/bang-luong/${month}?ref=${workDate}`}
-            variant="contained"
-            sx={{ alignSelf: 'flex-start', bgcolor: green[800], '&:hover': { bgcolor: green[900] } }}
-          >
-            Xem bảng lương
-          </Button>
         </Stack>
       )}
     </SectionPanel>
