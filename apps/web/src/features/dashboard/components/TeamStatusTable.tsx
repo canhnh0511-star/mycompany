@@ -2,8 +2,14 @@ import { Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material'
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { TEAM_STATUS_LABEL, TEAM_STATUS_TONE, type TeamStatusRow } from '../model/dashboard.types';
 import { formatNumber } from '../../../utils/format';
+import { green } from '../../../theme/colors';
 
-/** spec §21 — số căn phải, text căn trái, hover nhẹ, footer Tổng. */
+/**
+ * spec §21 — số căn phải, text căn trái, hover nhẹ, footer Tổng.
+ *
+ * Đối chiếu pixel: chỉ dòng "Tổng" in đậm — tên Tổ ở các dòng thường KHÔNG
+ * in đậm (trước đó đang in đậm rải rác gây cảm giác nặng/tối không cần thiết).
+ */
 export function TeamStatusTable({ rows }: { rows: TeamStatusRow[] }) {
   const totals = rows.reduce(
     (acc, row) => ({
@@ -29,7 +35,7 @@ export function TeamStatusTable({ rows }: { rows: TeamStatusRow[] }) {
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.teamId} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-            <TableCell sx={{ fontWeight: 600 }}>{row.teamName}</TableCell>
+            <TableCell>{row.teamName}</TableCell>
             <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
               {formatNumber(row.productionKg)}
             </TableCell>
@@ -46,7 +52,10 @@ export function TeamStatusTable({ rows }: { rows: TeamStatusRow[] }) {
         ))}
         <TableRow>
           <TableCell sx={{ fontWeight: 700, borderBottom: 'none' }}>Tổng</TableCell>
-          <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderBottom: 'none' }}>
+          <TableCell
+            align="right"
+            sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderBottom: 'none', color: green[700] }}
+          >
             {formatNumber(totals.productionKg)}
           </TableCell>
           <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderBottom: 'none' }}>

@@ -43,7 +43,7 @@ export function RecentDocumentsPanel({ workDate }: { workDate: string }) {
                     onClick={() => navigate(`/phieu/${doc.id}`)}
                     sx={{ cursor: 'pointer' }}
                   >
-                    <TableCell sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{doc.code}</TableCell>
+                    <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{doc.code}</TableCell>
                     <TableCell>{DOCUMENT_TYPE_LABEL[doc.documentType]}</TableCell>
                     <TableCell>{formatDate(doc.recordDate)}</TableCell>
                     <TableCell>{doc.teamName}</TableCell>

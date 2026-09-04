@@ -18,6 +18,12 @@ export interface KpiCardProps {
 
 /**
  * spec §11 — component không biết nghiệp vụ cụ thể, chỉ nhận props hiển thị.
+ *
+ * Layout đối chiếu pixel với ảnh reference (không phải đoán): icon nằm CÙNG
+ * HÀNG với title (không phải phía trên), value xuống dòng riêng bên dưới;
+ * icon là hình vuông bo góc (không phải hình tròn) nền màu ĐẶC + icon trắng;
+ * breakdown theo Tổ nằm chung 1 dòng (không xuống dòng từng Tổ); trend value
+ * và label nằm 2 dòng riêng (không chung 1 hàng).
  */
 export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCardProps) {
   const toneStyle = tones[tone];
@@ -39,55 +45,59 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
         boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
       }}
     >
-      <Stack spacing={0.75} sx={{ height: '100%' }}>
-        <Box
-          sx={{
-            width: 30,
-            height: 30,
-            borderRadius: 1.5,
-            bgcolor: toneStyle.bg,
-            color: toneStyle.main,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {icon}
-        </Box>
+      <Stack spacing={1.25} sx={{ height: '100%' }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '12px',
+              bgcolor: toneStyle.bg,
+              color: toneStyle.main,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
 
-        <Box>
-          <Typography variant="body2" color="text.secondary">
-            {title}
-          </Typography>
-          <Typography variant="h2" sx={{ fontVariantNumeric: 'tabular-nums', mt: 0.25 }}>
-            {value}
-          </Typography>
-        </Box>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {title}
+            </Typography>
+            <Typography
+              sx={{ fontSize: 21, fontWeight: 700, fontVariantNumeric: 'tabular-nums', mt: 0.125, lineHeight: 1.25 }}
+              noWrap
+            >
+              {value}
+            </Typography>
+          </Box>
+        </Stack>
 
         {helperLines && helperLines.length > 0 && (
-          <Stack spacing={0.125} sx={{ flex: 1 }}>
-            {helperLines.map((line) => (
-              <Typography key={line} variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
-                {line}
-              </Typography>
-            ))}
-          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+            {helperLines.join('   ')}
+          </Typography>
         )}
 
         {trend && (
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 'auto' }}>
-            {trend.direction === 'up' ? (
-              <ArrowUpwardRoundedIcon sx={{ fontSize: 15, color: trendColor }} />
-            ) : trend.direction === 'down' ? (
-              <ArrowDownwardRoundedIcon sx={{ fontSize: 15, color: trendColor }} />
-            ) : null}
-            <Typography variant="caption" sx={{ color: trendColor, fontWeight: 700 }}>
-              {trend.value}
-            </Typography>
+          <Box sx={{ mt: 'auto' }}>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              {trend.direction === 'up' ? (
+                <ArrowUpwardRoundedIcon sx={{ fontSize: 15, color: trendColor }} />
+              ) : trend.direction === 'down' ? (
+                <ArrowDownwardRoundedIcon sx={{ fontSize: 15, color: trendColor }} />
+              ) : null}
+              <Typography variant="caption" sx={{ color: trendColor, fontWeight: 700 }}>
+                {trend.value}
+              </Typography>
+            </Stack>
             <Typography variant="caption" color="text.secondary">
               {trend.label}
             </Typography>
-          </Stack>
+          </Box>
         )}
       </Stack>
     </Paper>

@@ -27,10 +27,16 @@ export const neutral = {
   900: '#111827',
 } as const;
 
+/**
+ * amber/blue 600 — đối chiếu pixel trực tiếp trên ảnh reference (badge icon
+ * KPI "Đã bán"/"Nhân công"): reference dùng vàng nghệ/xanh dương khá tươi
+ * (~#F5A928, ~#4F8EDB), không phải tông trầm/xỉn như giá trị cũ — giá trị cũ
+ * gây cảm giác u ám khi lặp lại ở badge/icon cảnh báo.
+ */
 export const amber = {
-  50: '#FFF6E5',
-  600: '#B7791F',
-  700: '#92600F',
+  50: '#FEF3D9',
+  600: '#F5A928',
+  700: '#B45309',
 } as const;
 
 export const red = {
@@ -41,8 +47,8 @@ export const red = {
 
 export const blue = {
   50: '#E9F1FC',
-  600: '#2563AC',
-  700: '#1D4E88',
+  600: '#4F8EDB',
+  700: '#2A5C9E',
 } as const;
 
 export const purple = {
@@ -51,12 +57,17 @@ export const purple = {
   700: '#6743E8',
 } as const;
 
-/** Tone dùng cho KpiCard icon / các chấm màu không thuộc MUI semantic palette. */
+/**
+ * Tone cho icon badge của KpiCard — đối chiếu pixel trên ảnh reference: nền
+ * là màu ĐẶC (không phải tint nhạt), icon màu trắng. `bg` ở đây vì vậy là màu
+ * nền đặc, `main` là màu icon (trắng) — giữ tên field cũ để không phải sửa
+ * lại chỗ dùng, chỉ đổi Ý NGHĨA màu cho đúng reference.
+ */
 export const tones = {
-  green: { main: green[600], bg: green[50] },
-  blue: { main: blue[600], bg: blue[50] },
-  amber: { main: amber[600], bg: amber[50] },
-  purple: { main: purple[600], bg: purple[50] },
+  green: { bg: green[600], main: '#FFFFFF' },
+  blue: { bg: blue[600], main: '#FFFFFF' },
+  amber: { bg: amber[600], main: '#FFFFFF' },
+  purple: { bg: purple[600], main: '#FFFFFF' },
 } as const;
 
 export type Tone = keyof typeof tones;

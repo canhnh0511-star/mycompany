@@ -10,7 +10,7 @@ import { WidgetErrorState } from '../../../components/feedback/WidgetErrorState'
 import { useDashboardKpis } from '../hooks/useDashboard';
 import { formatCurrency, formatKg } from '../../../utils/format';
 
-const iconSx = { fontSize: 18 } as const;
+const iconSx = { fontSize: 20 } as const;
 
 export function DashboardKpiGrid({ workDate }: { workDate: string }) {
   const { data, isLoading, isError, refetch } = useDashboardKpis(workDate);
