@@ -77,7 +77,7 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
         </Stack>
 
         {helperLines && helperLines.length > 0 && (
-          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
             {helperLines.join('   ')}
           </Typography>
         )}
