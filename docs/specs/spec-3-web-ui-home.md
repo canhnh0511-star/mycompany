@@ -147,8 +147,8 @@ CÀI ĐẶT
 | Phiếu                | PENDING PREVIEW |
 | Sản lượng            | PENDING PREVIEW |
 | Ngày làm việc        | PENDING PREVIEW |
-| Bảng lương           | PENDING PREVIEW |
-| Chi tiết lương       | PENDING PREVIEW |
+| Bảng lương           | **READY** — triển khai theo `docs/specs/spec-3-bang-luong-v1-draft.md` + 2 ảnh mockup Admin cung cấp (không theo tiến trình design-first của riêng spec này), route `/bang-luong`, `apps/web/src/features/payroll/` |
+| Chi tiết lương       | PENDING PREVIEW — panel chi tiết đã có sẵn ngay trong Bảng lương (side panel khi click 1 dòng), chưa rõ có cần thêm 1 route/màn riêng hay không |
 | Thành phần lương     | PENDING PREVIEW |
 | Bán mủ               | PENDING PREVIEW |
 | Chi phí              | PENDING PREVIEW |

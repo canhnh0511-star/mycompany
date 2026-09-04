@@ -44,7 +44,7 @@ Chi tiết đầy đủ: xem `docs/module-1-chi-phi-san-luong-spec.md` (copy t�
 | Thành phần | Lựa chọn | Ghi chú |
 |---|---|---|
 | Frontend (Mobile app) | **Expo** (React Native + Expo Router) | Ưu tiên các luồng thao tác tại thực địa (chụp phiếu OCR, nhập nhanh) — chạy được cả trên web nhưng không phải mục tiêu chính |
-| Frontend (Web quản lý) | **React + TypeScript + Vite** (React Router, TanStack Query, React Hook Form, Zod, MUI) | Web app riêng, desktop-first — cho các luồng bàn giấy (tổng quan, báo cáo, bảng lương, cấu hình danh mục). Xem `docs/specs/spec-3-web-ui-home.md`. Ở release hiện tại chỉ màn Tổng quan/Home được triển khai — các màn khác PENDING PREVIEW, xem spec §44 |
+| Frontend (Web quản lý) | **React + TypeScript + Vite** (React Router, TanStack Query, React Hook Form, Zod, MUI) | Web app riêng, desktop-first — cho các luồng bàn giấy (tổng quan, báo cáo, bảng lương, cấu hình danh mục). Xem `docs/specs/spec-3-web-ui-home.md`. Ở release hiện tại đã triển khai Tổng quan/Home và Bảng lương (`docs/specs/spec-3-bang-luong-v1-draft.md`) — các màn khác còn lại PENDING PREVIEW, xem spec §44 |
 | Backend | **Java Spring Boot + Gradle** (single module, package theo layer — mục 6) | REST API |
 | Database migration | **Flyway** | Chạy `.sql` thuần trong `db/migrations/`. Xem `docs/adr/0003-flyway-for-migrations.md` |
 | Database | **PostgreSQL** (Supabase free tier, chỉ dùng Postgres + Storage, KHÔNG dùng Supabase Auth/BaaS) | Spring Boot kết nối qua JDBC |
@@ -57,7 +57,7 @@ Chi tiết đầy đủ: xem `docs/module-1-chi-phi-san-luong-spec.md` (copy t�
 ```
 /apps
   /mobile          → Expo app (React Native, chạy được cả web)
-  /web             → Web quản lý (React + Vite + MUI) — chỉ Home đã triển khai
+  /web             → Web quản lý (React + Vite + MUI) — đã triển khai Home + Bảng lương
 /services
   /api             → Spring Boot + Gradle
 /db

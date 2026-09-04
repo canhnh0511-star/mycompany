@@ -322,6 +322,20 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
    pattern CRUD time-versioned không-DELETE như `RateConfigsScreen`. `grade` chỉ chọn được lúc TẠO
    MỚI (sửa 1 dòng lịch sử không đổi hạng được). Verify: `compileJava` sạch, `tsc --noEmit` +
    `expo export --platform web` sạch — **CHƯA** test bằng mắt/dữ liệu thật.
+6. **SỬA HƯỚNG** — Phase 4 xây màn Bảng lương trong `apps/mobile`'s `(web)` route group, nhưng đó
+   KHÔNG phải web frontend thật của dự án: `apps/web` (React+TS+Vite+MUI, tồn tại song song trên
+   `main`, xem `docs/specs/spec-3-web-ui-home.md`) mới là web app chính thức — phát hiện muộn vì 2
+   nhánh phát triển song song không đồng bộ tới lúc merge. Route/`PayrollScreen` cũ trong
+   `apps/mobile` **VẪN GIỮ NGUYÊN** (không xóa — vẫn hoạt động, có thể hữu ích nếu Admin dùng điện
+   thoại), nhưng KHÔNG còn là màn chính. Build lại toàn bộ UI (KPI row, filter bar, bảng 2 hàng
+   header, panel chi tiết sửa Trừ/Tạm ứng + Hạng kỹ thuật, nút Chốt/Mở khóa) trong
+   `apps/web/src/features/payroll/`, route `/bang-luong` (đổi `status: 'pending' → 'ready'` trong
+   `navConfig.tsx`), gọi thẳng `PayrollController` có sẵn — không cần dựng lại backend. **✅ ĐÃ
+   XONG** — đối chiếu đúng bố cục 2 ảnh mockup gốc. Verify: `tsc -b && vite build` + `oxlint` sạch;
+   test thật qua mock backend (Node http server giả `/api/v1/payroll`, `/api/v1/payroll/{id}`,
+   `/api/v1/teams`, `/api/v1/users/me`) + Playwright screenshot — bảng, click chọn dòng, panel chi
+   tiết, sửa Hạng kỹ thuật render đúng. **CHƯA** test với backend thật (sandbox không có mạng tới
+   Supabase Postgres) — cần verify lại khi có DB thật. Export Excel vẫn CHƯA làm (như Phase 4).
 
 ---
 
