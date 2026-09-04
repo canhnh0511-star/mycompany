@@ -3,6 +3,7 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { green, neutral, red } from '../../theme/colors';
+import { uiTokens } from '../../theme/tokens';
 
 interface SectionPanelProps {
   title: string;
@@ -20,14 +21,21 @@ interface SectionPanelProps {
  */
 export function SectionPanel({ title, badgeCount, actionLabel, actionHref, children }: SectionPanelProps) {
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        borderRadius: `${uiTokens.radius.panel}px`,
+        height: '100%',
+        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
+      }}
+    >
       <Stack
         direction="row"
         sx={{
           alignItems: 'center',
           justifyContent: 'space-between',
           px: 2.5,
-          py: 1.75,
+          py: 1.5,
           borderBottom: `1px solid ${neutral[200]}`,
         }}
       >

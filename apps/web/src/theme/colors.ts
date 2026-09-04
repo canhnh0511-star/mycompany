@@ -60,3 +60,18 @@ export const tones = {
 } as const;
 
 export type Tone = keyof typeof tones;
+
+/** Nền trang tổng thể — không phải pure white (spec §14). */
+export const pageBackground = '#F7F9F8';
+
+/**
+ * Token màu riêng cho sidebar (spec §5) — không hard-code green[xxx] rải rác
+ * trong Sidebar.tsx, đọc qua đây để đổi tone 1 chỗ khi cần.
+ */
+export const sidebar = {
+  background: green[900],
+  activeBackground: green[50],
+  activeText: green[800],
+  text: '#FFFFFF',
+  textMuted: 'rgba(255, 255, 255, 0.7)',
+} as const;

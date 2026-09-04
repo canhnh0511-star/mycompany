@@ -17,7 +17,7 @@ export function WorkQueueItem({ item }: { item: WorkQueueItemData }) {
   const { icon: Icon, color, bg } = SEVERITY_STYLE[item.severity];
 
   return (
-    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', py: 1 }}>
       <Box
         sx={{
           width: 30,
@@ -52,6 +52,9 @@ export function WorkQueueItem({ item }: { item: WorkQueueItemData }) {
         variant="outlined"
         sx={{
           flexShrink: 0,
+          minHeight: 30,
+          fontSize: 12.5,
+          px: 1.5,
           borderColor: green[700],
           color: green[700],
           '&:hover': { borderColor: green[800], bgcolor: green[50] },

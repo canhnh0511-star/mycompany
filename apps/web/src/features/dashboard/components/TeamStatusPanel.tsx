@@ -18,8 +18,8 @@ export function TeamStatusPanel({ workDate }: { workDate: string }) {
       ) : !data || data.length === 0 ? (
         <WidgetEmptyState title="Chưa có dữ liệu tổ nào hôm nay" />
       ) : (
-        <Box sx={{ overflowX: 'auto', mx: -3 }}>
-          <Box sx={{ minWidth: 480, px: 3 }}>
+        <Box sx={{ overflowX: 'auto', mx: -2.5 }}>
+          <Box sx={{ minWidth: 480, px: 2.5 }}>
             <TeamStatusTable rows={data} />
           </Box>
         </Box>

@@ -2,8 +2,8 @@ import { useState, type MouseEvent } from 'react';
 import { Box, Menu, MenuItem, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import { useCurrentUser } from '../../features/auth/hooks/useCurrentUser';
 import { clearAccessToken } from '../../api/tokenStorage';
 
@@ -27,7 +27,7 @@ export function UserMenu() {
           alignItems: 'center',
           px: 0.5,
           py: 0.5,
-          borderRadius: 1.5,
+          borderRadius: '8px',
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
@@ -42,7 +42,7 @@ export function UserMenu() {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PersonRoundedIcon fontSize="small" /> Hồ sơ
+            <PersonOutlineOutlinedIcon fontSize="small" /> Hồ sơ
           </Box>
         </MenuItem>
         <MenuItem
@@ -53,7 +53,7 @@ export function UserMenu() {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <LogoutRoundedIcon fontSize="small" /> Đăng xuất
+            <LogoutOutlinedIcon fontSize="small" /> Đăng xuất
           </Box>
         </MenuItem>
       </Menu>

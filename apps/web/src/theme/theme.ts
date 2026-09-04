@@ -1,10 +1,11 @@
 import { createTheme } from '@mui/material/styles';
-import { amber, blue, green, neutral, red } from './colors';
+import { amber, blue, green, neutral, pageBackground, red } from './colors';
 import { typography } from './typography';
 import { components } from './components';
+import { uiTokens } from './tokens';
 
 /** Chiều rộng sidebar — spec §8 (240px, cho phép 224–256px). */
-export const SIDEBAR_WIDTH = 240;
+export const SIDEBAR_WIDTH = uiTokens.sidebarWidth;
 
 export const theme = createTheme({
   palette: {
@@ -19,7 +20,7 @@ export const theme = createTheme({
     warning: { main: amber[600], light: amber[50], dark: amber[700] },
     error: { main: red[600], light: red[50], dark: red[700] },
     info: { main: blue[600], light: blue[50], dark: blue[700] },
-    background: { default: neutral[50], paper: neutral[0] },
+    background: { default: pageBackground, paper: neutral[0] },
     text: { primary: neutral[900], secondary: neutral[500] },
     divider: neutral[200],
   },

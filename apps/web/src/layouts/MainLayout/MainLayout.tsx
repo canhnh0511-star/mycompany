@@ -29,18 +29,18 @@ export function MainLayout() {
           notificationCount={notificationCount ?? 0}
         />
 
-        <Box component="main" sx={{ flex: 1, px: 4, py: 2.5 }}>
+        <Box component="main" sx={{ flex: 1, px: 3.5, py: 2.5 }}>
           <Outlet />
         </Box>
 
         <Stack
           direction="row"
-          sx={{ justifyContent: 'space-between', px: 4, py: 2, borderTop: `1px solid ${neutral[200]}` }}
+          sx={{ justifyContent: 'space-between', px: 3.5, py: 1.75, borderTop: `1px solid ${neutral[200]}` }}
         >
-          <Typography variant="caption" color="text.secondary">
+          <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
             © {new Date().getFullYear()} David Dũng. All rights reserved.
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography sx={{ fontSize: 11.5 }} color="text.secondary">
             Phiên bản 1.0.0
           </Typography>
         </Stack>

@@ -23,8 +23,8 @@ export function RecentDocumentsPanel({ workDate }: { workDate: string }) {
       ) : !data || data.length === 0 ? (
         <WidgetEmptyState title="Chưa có phiếu nào hôm nay" />
       ) : (
-        <Box sx={{ overflowX: 'auto', mx: -3 }}>
-          <Box sx={{ minWidth: 520, px: 3 }}>
+        <Box sx={{ overflowX: 'auto', mx: -2.5 }}>
+          <Box sx={{ minWidth: 520, px: 2.5 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>

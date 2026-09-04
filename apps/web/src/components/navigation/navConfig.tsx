@@ -1,14 +1,14 @@
-import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
-import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
-import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
-import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded';
-import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
-import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
-import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
-import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import type { NavGroup, NavItem, SidebarSection } from '../../types/nav';
 
 /**
@@ -16,18 +16,21 @@ import type { NavGroup, NavItem, SidebarSection } from '../../types/nav';
  * mọi mục còn lại là PENDING PREVIEW (spec §44) — route tồn tại nhưng chỉ
  * render placeholder "Đang phát triển" (§47), không tự invent UI/business
  * behavior cho các màn chưa được duyệt.
+ *
+ * Icon: 1 family duy nhất — MUI Outlined (spec visual-alignment §6), mapping
+ * cố định theo module, không trộn filled/rounded/outlined.
  */
 export const overviewNavItem: NavItem = {
   label: 'Tổng quan',
   path: '/',
-  icon: <HomeRoundedIcon fontSize="small" />,
+  icon: <HomeOutlinedIcon fontSize="small" />,
   status: 'ready',
 };
 
 export const reportsNavItem: NavItem = {
   label: 'Báo cáo',
   path: '/bao-cao',
-  icon: <AssessmentRoundedIcon fontSize="small" />,
+  icon: <AssessmentOutlinedIcon fontSize="small" />,
   status: 'pending',
 };
 
@@ -35,25 +38,25 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Công việc hằng ngày',
     items: [
-      { label: 'Phiếu', path: '/phieu', icon: <DescriptionRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Sản lượng', path: '/san-luong', icon: <BarChartRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Ngày làm việc', path: '/ngay-lam-viec', icon: <EventAvailableRoundedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Phiếu', path: '/phieu', icon: <DescriptionOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Sản lượng', path: '/san-luong', icon: <BarChartOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Ngày làm việc', path: '/ngay-lam-viec', icon: <EventAvailableOutlinedIcon fontSize="small" />, status: 'pending' },
     ],
   },
   {
     label: 'Tiền & vận hành',
     items: [
-      { label: 'Bảng lương', path: '/bang-luong', icon: <PaymentsRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Bán mủ', path: '/ban-mu', icon: <StorefrontRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Chi phí', path: '/chi-phi', icon: <ReceiptLongRoundedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Bảng lương', path: '/bang-luong', icon: <PaymentsOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Bán mủ', path: '/ban-mu', icon: <ShoppingCartOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Chi phí', path: '/chi-phi', icon: <ReceiptLongOutlinedIcon fontSize="small" />, status: 'pending' },
     ],
   },
   {
     label: 'Cài đặt',
     items: [
-      { label: 'Thành phần lương', path: '/thanh-phan-luong', icon: <TuneRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Cấu hình hệ thống', path: '/cau-hinh-he-thong', icon: <SettingsRoundedIcon fontSize="small" />, status: 'pending' },
-      { label: 'Hồ sơ', path: '/ho-so', icon: <PersonRoundedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Thành phần lương', path: '/thanh-phan-luong', icon: <TuneOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Cấu hình hệ thống', path: '/cau-hinh-he-thong', icon: <SettingsOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Hồ sơ', path: '/ho-so', icon: <PersonOutlineOutlinedIcon fontSize="small" />, status: 'pending' },
     ],
   },
 ];

@@ -3,6 +3,7 @@ import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import type { ReactNode } from 'react';
 import { green, red, tones, type Tone } from '../../../theme/colors';
+import { uiTokens } from '../../../theme/tokens';
 import type { Trend } from '../model/dashboard.types';
 
 export interface KpiCardProps {
@@ -29,7 +30,15 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
     : undefined;
 
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 3, p: 2, height: '100%' }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        borderRadius: `${uiTokens.radius.card}px`,
+        p: 2,
+        height: '100%',
+        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
+      }}
+    >
       <Stack spacing={0.75} sx={{ height: '100%' }}>
         <Box
           sx={{

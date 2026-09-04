@@ -1,8 +1,9 @@
 import { Box, Stack, Typography, alpha } from '@mui/material';
 import { NavLink } from 'react-router-dom';
-import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import { green } from '../../theme/colors';
+import { RubberTreeLogo } from '../common/RubberTreeLogo';
+import { sidebar } from '../../theme/colors';
+import { uiTokens } from '../../theme/tokens';
 import { SIDEBAR_WIDTH } from '../../theme/theme';
 import { overviewNavItem, sidebarSections } from './navConfig';
 import type { NavItem } from '../../types/nav';
@@ -23,16 +24,16 @@ function NavRow({ item }: { item: NavItem }) {
         gap: 1.25,
         px: 1.5,
         py: 1,
-        borderRadius: 2,
+        borderRadius: `${uiTokens.radius.nav}px`,
         textDecoration: 'none',
-        color: alpha('#FFFFFF', 0.82),
+        color: sidebar.textMuted,
         fontSize: 14,
         fontWeight: 500,
         transition: 'background-color .15s ease, color .15s ease',
-        '&:hover': { backgroundColor: alpha('#FFFFFF', 0.06) },
+        '&:hover': { backgroundColor: alpha('#FFFFFF', 0.08) },
         '&.active': {
-          backgroundColor: green[700],
-          color: '#FFFFFF',
+          backgroundColor: sidebar.activeBackground,
+          color: sidebar.activeText,
           fontWeight: 600,
         },
       }}
@@ -54,8 +55,8 @@ export function Sidebar() {
       sx={{
         width: SIDEBAR_WIDTH,
         flexShrink: 0,
-        bgcolor: green[900],
-        color: '#FFFFFF',
+        bgcolor: sidebar.background,
+        color: sidebar.text,
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
@@ -63,12 +64,24 @@ export function Sidebar() {
         top: 0,
       }}
     >
-      {/* Logo area */}
-      <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', px: 2.5, py: 3 }}>
+      {/* Logo area — spec §2/§3: vòng tròn + rubber-tree mark local (chưa có
+          asset thương hiệu chính thức), tên + subtitle cùng hàng, divider nhẹ
+          phía dưới tách khỏi nav. */}
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: 'center',
+          pt: 2.75,
+          pb: 2.5,
+          px: 2.25,
+          borderBottom: `1px solid ${alpha('#FFFFFF', 0.12)}`,
+        }}
+      >
         <Box
           sx={{
-            width: 36,
-            height: 36,
+            width: 44,
+            height: 44,
             borderRadius: '50%',
             bgcolor: alpha('#FFFFFF', 0.12),
             display: 'flex',
@@ -77,12 +90,12 @@ export function Sidebar() {
             flexShrink: 0,
           }}
         >
-          <ParkRoundedIcon fontSize="small" sx={{ color: '#FFFFFF' }} />
+          <RubberTreeLogo size={22} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 700,
               letterSpacing: 0.4,
               lineHeight: 1.3,
@@ -91,14 +104,14 @@ export function Sidebar() {
           >
             {BRAND_NAME}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: alpha('#FFFFFF', 0.62), lineHeight: 1.3 }}>
+          <Typography sx={{ fontSize: 11, color: alpha('#FFFFFF', 0.8), lineHeight: 1.3 }}>
             Nông trường cao su
           </Typography>
         </Box>
       </Stack>
 
       {/* Nav */}
-      <Stack spacing={2.5} sx={{ px: 1.5, flex: 1, overflowY: 'auto', pb: 2 }}>
+      <Stack spacing={2.5} sx={{ px: 1.5, pt: 2, flex: 1, overflowY: 'auto', pb: 2 }}>
         <Stack spacing={0.5}>
           <NavRow item={overviewNavItem} />
         </Stack>
@@ -117,7 +130,7 @@ export function Sidebar() {
                   fontWeight: 700,
                   letterSpacing: 0.6,
                   textTransform: 'uppercase',
-                  color: alpha('#FFFFFF', 0.42),
+                  color: alpha('#FFFFFF', 0.7),
                 }}
               >
                 {section.group.label}

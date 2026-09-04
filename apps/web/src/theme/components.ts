@@ -1,15 +1,19 @@
 import type { ThemeOptions } from '@mui/material/styles';
-import { neutral } from './colors';
+import { neutral, pageBackground } from './colors';
+import { uiTokens } from './tokens';
 
 /**
  * Overrides theo component MUI — spec §6/§30: "Dùng theme tùy chỉnh theo
  * brand, không dùng Material default appearance nguyên bản."
+ *
+ * Border-radius ở đây dùng số px thật (styleOverrides không đi qua transform
+ * nhân với theme.shape.borderRadius như sx — an toàn hơn, xem theme/tokens.ts).
  */
 export const components: ThemeOptions['components'] = {
   MuiCssBaseline: {
     styleOverrides: {
       body: {
-        backgroundColor: neutral[50],
+        backgroundColor: pageBackground,
       },
     },
   },
@@ -26,10 +30,17 @@ export const components: ThemeOptions['components'] = {
       elevation: 0,
     },
   },
+  MuiCard: {
+    styleOverrides: {
+      root: {
+        borderRadius: uiTokens.radius.card,
+      },
+    },
+  },
   MuiButton: {
     styleOverrides: {
       root: {
-        borderRadius: 8,
+        borderRadius: uiTokens.radius.button,
         paddingLeft: 16,
         paddingRight: 16,
       },
@@ -47,14 +58,14 @@ export const components: ThemeOptions['components'] = {
     styleOverrides: {
       root: {
         borderBottom: `1px solid ${neutral[200]}`,
-        padding: '12px 16px',
+        padding: '10px 16px',
       },
       head: {
-        fontSize: 12.5,
+        fontSize: 12,
         fontWeight: 600,
         color: neutral[500],
         textTransform: 'uppercase',
-        letterSpacing: 0.3,
+        letterSpacing: 0.5,
       },
     },
   },

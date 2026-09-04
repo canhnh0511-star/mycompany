@@ -1,8 +1,9 @@
 import { Badge, Box, IconButton, Stack, Typography } from '@mui/material';
-import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
+import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
 import { DateSelector } from './DateSelector';
 import { UserMenu } from './UserMenu';
 import { neutral } from '../../theme/colors';
+import { uiTokens } from '../../theme/tokens';
 
 interface TopBarProps {
   title: string;
@@ -18,8 +19,8 @@ export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) 
       sx={{
         alignItems: 'center',
         justifyContent: 'space-between',
-        px: 4,
-        py: 2,
+        px: 3.5,
+        py: 1.75,
         borderBottom: `1px solid ${neutral[200]}`,
         bgcolor: 'background.paper',
         flexWrap: 'wrap',
@@ -27,21 +28,26 @@ export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) 
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h1" sx={{ lineHeight: 1.25 }}>
-          {title}
-        </Typography>
+        <Typography variant="h1">{title}</Typography>
         {greeting && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {greeting}
-          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5 }}>{greeting}</Typography>
         )}
       </Box>
 
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
         <DateSelector />
-        <IconButton size="small" aria-label="Thông báo" sx={{ border: `1px solid ${neutral[200]}` }}>
+        <IconButton
+          size="small"
+          aria-label="Thông báo"
+          sx={{
+            border: `1px solid ${neutral[200]}`,
+            borderRadius: `${uiTokens.radius.input}px`,
+            width: 38,
+            height: 38,
+          }}
+        >
           <Badge color="error" badgeContent={notificationCount} max={9} invisible={notificationCount === 0}>
-            <NotificationsRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+            <NotificationsOutlinedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
           </Badge>
         </IconButton>
         <UserMenu />

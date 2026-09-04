@@ -34,6 +34,7 @@ export function DateSelector() {
           bgcolor: 'background.paper',
           fontWeight: 500,
           fontSize: 13.5,
+          minHeight: 38,
           '&:hover': { borderColor: neutral[400], bgcolor: 'background.paper' },
         }}
         variant="outlined"
