@@ -25,7 +25,11 @@ export function SectionPanel({ title, badgeCount, actionLabel, actionHref, child
       variant="outlined"
       sx={{
         borderRadius: `${uiTokens.radius.panel}px`,
-        height: '100%',
+        // KHÔNG height:'100%' — panel phải cao theo đúng nội dung của nó,
+        // không bị kéo giãn bằng panel bên cạnh trong cùng hàng (vd panel
+        // "Tình hình theo tổ" chỉ có 2 Tổ thực tế sẽ thấp hơn hẳn "Cần xử
+        // lý" có 5 việc, không nên có khoảng trắng thừa trong card). Xem
+        // alignItems:'start' ở DashboardPage.tsx — phần bù cần thiết còn lại.
         boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
       }}
     >

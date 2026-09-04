@@ -26,12 +26,12 @@ export function DashboardPage() {
     <Stack spacing={2.5}>
       <DashboardKpiGrid workDate={workDate} />
 
-      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
+      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' }, alignItems: 'start' }}>
         <WorkQueuePanel workDate={workDate} />
         <TeamStatusPanel workDate={workDate} />
       </Box>
 
-      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
+      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' }, alignItems: 'start' }}>
         <PayrollSummaryPanel workDate={workDate} month={month} />
         <RecentDocumentsPanel workDate={workDate} />
       </Box>
