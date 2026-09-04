@@ -24,7 +24,7 @@ export function WorkQueuePanel({ workDate }: { workDate: string }) {
           description="Dữ liệu hôm nay đã đầy đủ."
         />
       ) : (
-        <Stack divider={<Divider />} spacing={2}>
+        <Stack divider={<Divider />} spacing={1.25}>
           {data.map((item) => (
             <WorkQueueItem key={item.id} item={item} />
           ))}

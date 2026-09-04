@@ -23,15 +23,15 @@ export function DashboardPage() {
   const month = toMonthKey(workDate);
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={2.5}>
       <DashboardKpiGrid workDate={workDate} />
 
-      <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
+      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
         <WorkQueuePanel workDate={workDate} />
         <TeamStatusPanel workDate={workDate} />
       </Box>
 
-      <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
+      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' } }}>
         <PayrollSummaryPanel workDate={workDate} month={month} />
         <RecentDocumentsPanel workDate={workDate} />
       </Box>

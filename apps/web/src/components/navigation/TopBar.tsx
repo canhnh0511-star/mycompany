@@ -19,7 +19,7 @@ export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) 
         alignItems: 'center',
         justifyContent: 'space-between',
         px: 4,
-        py: 2.5,
+        py: 2,
         borderBottom: `1px solid ${neutral[200]}`,
         bgcolor: 'background.paper',
         flexWrap: 'wrap',
@@ -40,7 +40,7 @@ export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) 
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
         <DateSelector />
         <IconButton size="small" aria-label="Thông báo" sx={{ border: `1px solid ${neutral[200]}` }}>
-          <Badge color="error" variant="dot" invisible={notificationCount === 0}>
+          <Badge color="error" badgeContent={notificationCount} max={9} invisible={notificationCount === 0}>
             <NotificationsRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
           </Badge>
         </IconButton>

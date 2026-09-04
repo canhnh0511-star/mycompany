@@ -26,8 +26,8 @@ export function SectionPanel({ title, badgeCount, actionLabel, actionHref, child
         sx={{
           alignItems: 'center',
           justifyContent: 'space-between',
-          px: 3,
-          py: 2.25,
+          px: 2.5,
+          py: 1.75,
           borderBottom: `1px solid ${neutral[200]}`,
         }}
       >
@@ -65,7 +65,7 @@ export function SectionPanel({ title, badgeCount, actionLabel, actionHref, child
           </Stack>
         )}
       </Stack>
-      <Box sx={{ px: 3, py: 2.25 }}>{children}</Box>
+      <Box sx={{ px: 2.5, py: 1.75 }}>{children}</Box>
     </Paper>
   );
 }

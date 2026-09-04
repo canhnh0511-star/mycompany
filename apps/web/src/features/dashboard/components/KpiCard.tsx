@@ -29,13 +29,13 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
     : undefined;
 
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, height: '100%' }}>
-      <Stack spacing={1.5} sx={{ height: '100%' }}>
+    <Paper variant="outlined" sx={{ borderRadius: 3, p: 2, height: '100%' }}>
+      <Stack spacing={0.75} sx={{ height: '100%' }}>
         <Box
           sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2,
+            width: 30,
+            height: 30,
+            borderRadius: 1.5,
             bgcolor: toneStyle.bg,
             color: toneStyle.main,
             display: 'flex',
@@ -56,9 +56,9 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
         </Box>
 
         {helperLines && helperLines.length > 0 && (
-          <Stack spacing={0.25} sx={{ flex: 1 }}>
+          <Stack spacing={0.125} sx={{ flex: 1 }}>
             {helperLines.map((line) => (
-              <Typography key={line} variant="caption" color="text.secondary">
+              <Typography key={line} variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
                 {line}
               </Typography>
             ))}
@@ -66,7 +66,7 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
         )}
 
         {trend && (
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 'auto', pt: 0.5 }}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 'auto' }}>
             {trend.direction === 'up' ? (
               <ArrowUpwardRoundedIcon sx={{ fontSize: 15, color: trendColor }} />
             ) : trend.direction === 'down' ? (
