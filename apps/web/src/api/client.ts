@@ -1,4 +1,4 @@
-import { getAccessToken } from './tokenStorage';
+import { clearAccessToken, getAccessToken } from './tokenStorage';
 
 /**
  * Base URL của Spring Boot API — cấu hình qua biến môi trường Vite
@@ -43,11 +43,48 @@ export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> 
     },
   });
 
+  return handleResponse<T>(response);
+}
+
+/**
+ * POST — hiện chỉ dùng cho `/api/v1/auth/login` (không kèm Bearer token, vì lúc gọi chưa có token —
+ * chính là request để LẤY token). Không dùng chung handleResponse cho lỗi 401/403 ở đây: sai mật
+ * khẩu lúc đăng nhập phải hiện lỗi ngay trên form, không phải redirect vòng lặp về /login.
+ */
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
   if (!response.ok) {
     const message = await safeErrorMessage(response);
     throw new ApiError(response.status, message);
   }
 
+  return (await response.json()) as T;
+}
+
+/**
+ * Token thiếu/hết hạn (CLAUDE.md §4 — access token duy nhất, hết hạn 1 ngày, không refresh token) ->
+ * backend trả 401/403 (SecurityConfig chưa cấu hình authenticationEntryPoint riêng nên mặc định luôn
+ * là 403, kể cả khi CHƯA đăng nhập lần nào — không phải lỗi CORS/backend, xem docs/adr liên quan).
+ * Xoá token cũ (nếu có) + đưa thẳng về /login thay vì để mọi widget hiện lỗi. Redirect cứng
+ * (window.location) vì đây là code ngoài React tree, không có access tới react-router navigate.
+ */
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (response.status === 401 || response.status === 403) {
+    clearAccessToken();
+    if (window.location.pathname !== '/login') {
+      window.location.assign('/login');
+    }
+    throw new ApiError(response.status, 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+  }
+  if (!response.ok) {
+    const message = await safeErrorMessage(response);
+    throw new ApiError(response.status, message);
+  }
   return (await response.json()) as T;
 }
 
