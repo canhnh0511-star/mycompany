@@ -60,6 +60,12 @@ public class Employee {
     @JoinColumn(name = "spouse_employee_id")
     private Employee spouseEmployee;
 
+    // Hạng kỹ thuật A/B/C (Module 3 — Bảng lương, bổ sung 2026-09-04) — nullable, phụ cấp cố định/
+    // tháng theo hạng, xem TechnicalGrade + docs/specs/spec-3-bang-luong-v1-draft.md mục 2.2.
+    // enum ↔ VARCHAR qua TechnicalGradeConverter (autoApply)
+    @Column(name = "technical_grade", length = 1)
+    private TechnicalGrade technicalGrade;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
