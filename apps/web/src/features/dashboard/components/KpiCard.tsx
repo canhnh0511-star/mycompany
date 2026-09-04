@@ -14,6 +14,8 @@ export interface KpiCardProps {
   trend?: Trend;
   icon: ReactNode;
   tone: Tone;
+  /** value là placeholder dạng chữ (vd "Chưa có dữ liệu") — hiển thị nhỏ/nhạt hơn số liệu thật. */
+  muted?: boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface KpiCardProps {
  * breakdown theo Tổ nằm chung 1 dòng (không xuống dòng từng Tổ); trend value
  * và label nằm 2 dòng riêng (không chung 1 hàng).
  */
-export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCardProps) {
+export function KpiCard({ title, value, helperLines, trend, icon, tone, muted }: KpiCardProps) {
   const toneStyle = tones[tone];
   const trendColor = trend
     ? trend.semantic === 'positive'
@@ -64,11 +66,23 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone }: KpiCar
           </Box>
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 500, color: 'text.secondary' }} noWrap>
               {title}
             </Typography>
             <Typography
-              sx={{ fontSize: 21, fontWeight: 700, fontVariantNumeric: 'tabular-nums', mt: 0.125, lineHeight: 1.25 }}
+              sx={
+                muted
+                  ? { fontSize: 17, fontWeight: 600, color: 'text.disabled', mt: 0.25, lineHeight: 1.25 }
+                  : {
+                      fontSize: 24,
+                      fontWeight: 700,
+                      letterSpacing: '-0.01em',
+                      fontVariantNumeric: 'tabular-nums',
+                      mt: 0.25,
+                      lineHeight: 1.1,
+                      color: 'text.primary',
+                    }
+              }
               noWrap
             >
               {value}

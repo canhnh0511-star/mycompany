@@ -35,11 +35,11 @@ export function WorkQueueItem({ item }: { item: WorkQueueItemData }) {
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.45 }}>
           {item.title}
         </Typography>
         {item.description && (
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
             {item.description}
           </Typography>
         )}

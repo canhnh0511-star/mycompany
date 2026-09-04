@@ -72,6 +72,17 @@ export const tones = {
 
 export type Tone = keyof typeof tones;
 
+/**
+ * 3 token màu TEXT chuẩn hóa toàn app (typography fix — đối chiếu
+ * `typography-fix-mockup.html`) — thay cho các sắc xám lẻ tẻ (neutral[900]/
+ * [500]/[400]) trước đây bị dùng lẫn lộn không nhất quán.
+ */
+export const text = {
+  primary: '#14181C',
+  secondary: '#565F68',
+  muted: '#8A929B',
+} as const;
+
 /** Nền trang tổng thể — không phải pure white (spec §14). */
 export const pageBackground = '#F7F9F8';
 

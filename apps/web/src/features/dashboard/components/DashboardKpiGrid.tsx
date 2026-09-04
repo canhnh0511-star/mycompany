@@ -61,6 +61,7 @@ export function DashboardKpiGrid({ workDate }: { workDate: string }) {
         <KpiCard
           title="Sản lượng hôm nay"
           value={data.productionKg != null ? formatKg(data.productionKg) : 'Chưa có dữ liệu'}
+          muted={data.productionKg == null}
           helperLines={data.productionByTeam?.map((t) => `${t.teamName}: ${formatKg(t.kg)}`)}
           trend={data.trends?.production}
           icon={<WaterDropRoundedIcon sx={iconSx} />}
@@ -81,6 +82,7 @@ export function DashboardKpiGrid({ workDate }: { workDate: string }) {
         <KpiCard
           title="Đã bán hôm nay"
           value={data.soldKg != null ? formatKg(data.soldKg) : 'Chưa có dữ liệu'}
+          muted={data.soldKg == null}
           helperLines={data.soldRevenue != null ? [formatCurrency(data.soldRevenue)] : undefined}
           trend={data.trends?.sold}
           icon={<ShoppingCartRoundedIcon sx={iconSx} />}
@@ -91,6 +93,7 @@ export function DashboardKpiGrid({ workDate }: { workDate: string }) {
         <KpiCard
           title="Chi phí hôm nay"
           value={data.costAmount != null ? formatCurrency(data.costAmount) : 'Chưa có dữ liệu'}
+          muted={data.costAmount == null}
           helperLines={data.costCount != null ? [`${data.costCount} khoản chi`] : undefined}
           trend={data.trends?.cost}
           icon={<AccountBalanceWalletRoundedIcon sx={iconSx} />}
@@ -101,6 +104,7 @@ export function DashboardKpiGrid({ workDate }: { workDate: string }) {
         <KpiCard
           title="Lợi nhuận ước tính"
           value={data.estimatedProfit != null ? formatCurrency(data.estimatedProfit) : 'Chưa có dữ liệu'}
+          muted={data.estimatedProfit == null}
           helperLines={['Hôm nay']}
           trend={data.trends?.estimatedProfit}
           icon={<TrendingUpRoundedIcon sx={iconSx} />}

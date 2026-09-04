@@ -70,7 +70,7 @@ export function SectionPanel({ title, badgeCount, actionLabel, actionHref, child
             component={RouterLink}
             to={actionHref}
             direction="row"
-            sx={{ alignItems: 'center', color: green[700], textDecoration: 'none', fontSize: 13.5, fontWeight: 600 }}
+            sx={{ alignItems: 'center', color: green[700], textDecoration: 'none', fontSize: 13, fontWeight: 500 }}
           >
             {actionLabel}
             <ChevronRightRoundedIcon sx={{ fontSize: 18 }} />

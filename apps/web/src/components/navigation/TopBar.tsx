@@ -30,7 +30,9 @@ export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) 
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="h1">{title}</Typography>
         {greeting && (
-          <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5 }}>{greeting}</Typography>
+          <Typography sx={{ fontSize: 14.5, fontWeight: 500, color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}>
+            {greeting}
+          </Typography>
         )}
       </Box>
 

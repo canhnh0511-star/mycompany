@@ -55,8 +55,15 @@ function Kpi({ tone, icon, primary, secondary }: { tone: Tone; icon: ReactNode; 
   );
 }
 
-const primarySx = { fontSize: 20, fontWeight: 700, lineHeight: 1.25, fontVariantNumeric: 'tabular-nums' } as const;
-const secondarySx = { fontSize: 12.5, color: 'text.secondary' } as const;
+const primarySx = {
+  fontSize: 22,
+  fontWeight: 700,
+  letterSpacing: '-0.01em',
+  lineHeight: 1.2,
+  fontVariantNumeric: 'tabular-nums',
+  color: 'text.primary',
+} as const;
+const secondarySx = { fontSize: 12.5, fontWeight: 500, color: 'text.secondary' } as const;
 
 export function PayrollKpiRow({ summary, isLoading }: { summary: PayrollSummary | undefined; isLoading: boolean }) {
   if (isLoading || !summary) {

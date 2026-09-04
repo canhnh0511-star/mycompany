@@ -1,5 +1,5 @@
 import type { ThemeOptions } from '@mui/material/styles';
-import { neutral, pageBackground } from './colors';
+import { neutral, pageBackground, text } from './colors';
 import { uiTokens } from './tokens';
 
 /**
@@ -59,13 +59,16 @@ export const components: ThemeOptions['components'] = {
       root: {
         borderBottom: `1px solid ${neutral[200]}`,
         padding: '10px 16px',
+        fontVariantNumeric: 'tabular-nums',
       },
+      // Bỏ uppercase+letter-spacing (typography fix) — phân cấp header bảng
+      // bằng weight/màu thay vì viết hoa, đối chiếu mockup .note.
       head: {
-        fontSize: 12,
+        fontSize: 12.5,
         fontWeight: 600,
-        color: neutral[500],
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        color: text.secondary,
+        textTransform: 'none',
+        letterSpacing: 0,
       },
     },
   },

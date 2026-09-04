@@ -1,5 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-import { amber, blue, green, neutral, pageBackground, red } from './colors';
+import { amber, blue, green, neutral, pageBackground, red, text } from './colors';
 import { typography } from './typography';
 import { components } from './components';
 import { uiTokens } from './tokens';
@@ -24,7 +24,10 @@ export const theme = createTheme({
     error: { main: red[600], light: red[50], dark: red[700] },
     info: { main: blue[600], light: blue[50], dark: blue[700] },
     background: { default: pageBackground, paper: neutral[0] },
-    text: { primary: neutral[900], secondary: neutral[500] },
+    // 3 token text chuẩn hóa (typography fix) — primary/secondary/muted;
+    // "muted" (vd "Chưa có dữ liệu") đọc qua `text.disabled` — MUI không có
+    // field thứ 3 sẵn cho text nên mượn slot này thay vì thêm field lạ.
+    text: { primary: text.primary, secondary: text.secondary, disabled: text.muted },
     divider: neutral[200],
   },
   shape: { borderRadius: 10 },

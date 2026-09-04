@@ -32,15 +32,13 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
         // cũ (text ở trên, donut+legend+nút xếp chồng bên dưới).
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2.5, md: 4 }} sx={{ alignItems: 'center' }}>
           <Box sx={{ flex: '0 0 auto', width: { xs: '100%', md: 200 } }}>
-            <Typography variant="body2" color="text.secondary">
-              Tổng dự kiến
-            </Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Tổng dự kiến</Typography>
             {/* Module 1 chưa tính lương tự động (Module 3 ngoài phạm vi) — backend luôn trả null,
                 hiện "Chưa có dữ liệu" thay vì gọi formatCurrency(undefined) (tránh "NaN ₫"). */}
-            <Typography variant="h2">
+            <Typography variant="h2" sx={data.totalExpected == null ? { color: 'text.disabled' } : undefined}>
               {data.totalExpected != null ? formatCurrency(data.totalExpected) : 'Chưa có dữ liệu'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
               {data.employeeCount} nhân viên
               {data.needsReviewCount > 0 ? ` • ${data.needsReviewCount} cần kiểm tra` : ''}
             </Typography>
