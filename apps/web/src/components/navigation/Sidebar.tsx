@@ -1,7 +1,7 @@
 import { Box, Stack, Typography, alpha } from '@mui/material';
 import { NavLink } from 'react-router-dom';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import { RubberTreeLogo } from '../common/RubberTreeLogo';
+import logoMark from '../../assets/logo-mark.png';
 import { sidebar } from '../../theme/colors';
 import { uiTokens } from '../../theme/tokens';
 import { SIDEBAR_WIDTH } from '../../theme/theme';
@@ -67,9 +67,11 @@ export function Sidebar() {
         top: 0,
       }}
     >
-      {/* Logo area — spec §2/§3: vòng tròn + rubber-tree mark local (chưa có
-          asset thương hiệu chính thức), tên + subtitle cùng hàng, divider nhẹ
-          phía dưới tách khỏi nav. */}
+      {/* Logo area — spec §2/§3: logo mark thật (asset thương hiệu do người
+          dùng cung cấp, xem apps/web/src/assets/logo-mark.png — cây cao su
+          trong vòng tròn, nét trắng, nền trong suốt, đặt trực tiếp lên nền
+          sidebar không cần khung tròn phụ vì ảnh đã có sẵn viền tròn riêng),
+          tên + subtitle cùng hàng, divider nhẹ phía dưới tách khỏi nav. */}
       <Stack
         direction="row"
         spacing={1.5}
@@ -82,19 +84,11 @@ export function Sidebar() {
         }}
       >
         <Box
-          sx={{
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            bgcolor: alpha('#FFFFFF', 0.12),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <RubberTreeLogo size={22} />
-        </Box>
+          component="img"
+          src={logoMark}
+          alt="Logo Nông trường cao su"
+          sx={{ width: 44, height: 44, flexShrink: 0, objectFit: 'contain' }}
+        />
         <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
