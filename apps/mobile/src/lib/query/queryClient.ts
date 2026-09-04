@@ -59,6 +59,10 @@ export const queryKeys = {
       ['scan-batches', 'lookup', documentType, teamId, workDate] as const,
   },
   editHistory: (tableName: string, recordId: string) => ['edit-history', tableName, recordId] as const,
+  payroll: {
+    summary: (filters: Record<string, unknown>) => ['payroll', 'summary', filters] as const,
+    detail: (employeeId: string, yearMonth: string) => ['payroll', 'detail', employeeId, yearMonth] as const,
+  },
   reports: {
     productionRecords: (filters: Record<string, unknown>) =>
       ['reports', 'production-records', filters] as const,

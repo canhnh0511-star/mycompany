@@ -175,7 +175,8 @@ public class PayrollService {
 
         return new PayrollDetailResponse(employee.getId(), employee.getFullName(),
                 employee.getTeam().getId(), employee.getTeam().getName(), yearMonth,
-                lines, amounts.totalPay(), amounts.deduction(), amounts.deductionIsOverride(),
+                lines, amounts.grade() == null ? null : amounts.grade().name(),
+                amounts.totalPay(), amounts.deduction(), amounts.deductionIsOverride(),
                 amounts.netPay(), amounts.rowStatus());
     }
 

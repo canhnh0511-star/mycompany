@@ -8,6 +8,7 @@ import { AppText } from '@/components/AppText';
 const NAV_ITEMS = [
   { href: '/admin-catalog/teams' as const, prefix: '/admin-catalog', label: 'Quản lý danh mục' },
   { href: '/reports/production-records' as const, prefix: '/reports', label: 'Báo cáo & Theo dõi OCR' },
+  { href: '/payroll' as const, prefix: '/payroll', label: 'Bảng lương' },
 ];
 
 /**

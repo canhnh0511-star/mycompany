@@ -303,9 +303,17 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
    test DB thật sau nếu muốn phủ đầy đủ.
 4. Frontend: màn Bảng lương (web/desktop — có thể tái dùng phần lớn pattern từ `LookupScreen`/
    `ProductionReportScreen` hiện có), panel chi tiết nhân viên (giống ảnh 2) kèm sửa Trừ/Tạm ứng,
-   export Excel.
+   export Excel. **✅ ĐÃ XONG PHẦN CHÍNH** — route `(web)/payroll`, `PayrollScreen` (bảng chỉ đọc +
+   panel chi tiết bên phải khi bấm 1 dòng, KHÔNG sửa inline trong bảng — tránh `AppSelect` phá layout
+   nhiều cột), sửa Trừ/Tạm ứng + Hạng kỹ thuật ở panel. Thêm field `technicalGrade` vào
+   `PayrollDetailResponse` (backend) khi làm tới đây — DTO Phase 2 thiếu, cần cho frontend preselect
+   đúng giá trị thay vì tự suy từ label dòng breakdown. **Export Excel CHƯA làm** (backend
+   `/api/v1/payroll/export` cũng chưa có — SHOULD, để phase sau). Verify: `tsc --noEmit` +
+   `expo export --platform web` sạch — **CHƯA** test bằng mắt trên trình duyệt thật/dữ liệu thật.
 5. Frontend: UI quản lý "Hạng kỹ thuật" + "Mủ tạp" trong admin-catalog (CRUD, cùng pattern
-   `rate-configs.tsx`) — có thể tách phase riêng nếu Phase 4 đã đủ dùng qua seed data tạm.
+   `rate-configs.tsx`) — có thể tách phase riêng nếu Phase 4 đã đủ dùng qua seed data tạm. ⏳ CHƯA
+   LÀM — hiện chưa có UI nào tạo được dòng `technical_grade_configs`/`payroll_mixed_latex_rate_configs`,
+   nghĩa là mọi đơn giá đang là 0 cho tới khi có UI này hoặc seed tay qua SQL.
 
 ---
 

@@ -518,3 +518,92 @@ export interface OcrCallLogStatsResponse {
   totalEstimatedCostUsd: number;
   avgDurationMs: number | null;
 }
+
+// ===================================================================================
+// Module 3 — Bảng lương (docs/specs/spec-3-bang-luong-v1-draft.md mục 4). Khớp
+// services/api dto/PayrollSummaryResponse.java, PayrollRowResponse.java, PayrollDetailResponse.java,
+// PayrollLineItem.java, PayrollRowStatus.java, UpdateDeductionRequest.java, UpdateTechnicalGradeRequest.java.
+// ===================================================================================
+
+/** DERIVED, không lưu DB — dựa vào status production_records trong tháng (mục 2.5 spec). */
+export type PayrollRowStatus = 'MISSING_DATA' | 'NEEDS_REVIEW' | 'CONFIRMED';
+
+export type TechnicalGrade = 'A' | 'B' | 'C';
+
+/** 1 dòng nhân viên ở Bảng lương — mọi field *Amount đã nhân sẵn (quantity × đơn giá hiện hành),
+ * KHÔNG tự tính lại ở client. technicalGrade = null nghĩa là tháng này chưa được xếp hạng. */
+export interface PayrollRowResponse {
+  employeeId: string;
+  employeeName: string;
+  teamId: string;
+  teamName: string;
+  waterKg: number;
+  waterAmount: number;
+  mixedLatexKg: number;
+  mixedLatexAmount: number;
+  medicationCount: number;
+  medicationAmount: number;
+  attendanceDays: number;
+  attendanceAmount: number;
+  stormAllowanceDays: number;
+  stormAllowanceAmount: number;
+  seasonalWorkDays: number;
+  seasonalWorkAmount: number;
+  technicalGrade: TechnicalGrade | null;
+  technicalGradeAmount: number;
+  totalPay: number;
+  deduction: number;
+  deductionIsOverride: boolean;
+  netPay: number;
+  rowStatus: PayrollRowStatus;
+}
+
+/** Khớp GET /api/v1/payroll — `locked` là cờ đơn giản theo THÁNG, KHÔNG immutable (mục 2.4) — số
+ * liệu luôn tính từ dữ liệu nguồn mới nhất dù đã khóa hay chưa. */
+export interface PayrollSummaryResponse {
+  yearMonth: string; // 'YYYY-MM'
+  totalNetPay: number;
+  totalEmployees: number;
+  needsReviewCount: number;
+  missingDataCount: number;
+  locked: boolean;
+  lockedBy: string | null;
+  lockedAt: string | null;
+  rows: PayrollRowResponse[];
+}
+
+/** 1 dòng breakdown "số lượng × đơn giá = thành tiền" ở panel chi tiết (drill-down). */
+export interface PayrollLineItem {
+  label: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  amount: number;
+}
+
+/** Khớp GET /api/v1/payroll/{employeeId} */
+export interface PayrollDetailResponse {
+  employeeId: string;
+  employeeName: string;
+  teamId: string;
+  teamName: string;
+  yearMonth: string;
+  lines: PayrollLineItem[];
+  technicalGrade: TechnicalGrade | null;
+  totalPay: number;
+  deduction: number;
+  deductionIsOverride: boolean;
+  netPay: number;
+  rowStatus: PayrollRowStatus;
+}
+
+/** PATCH /api/v1/payroll/{employeeId}/deduction — sửa Trừ/Tạm ứng riêng cho 1 người/1 tháng. */
+export interface UpdateDeductionRequest {
+  amount: number;
+}
+
+/** PATCH /api/v1/payroll/{employeeId}/technical-grade — grade: null = xóa dòng gán (bỏ xếp hạng
+ * tháng đó, quay lại 0đ). */
+export interface UpdateTechnicalGradeRequest {
+  grade: TechnicalGrade | null;
+}
