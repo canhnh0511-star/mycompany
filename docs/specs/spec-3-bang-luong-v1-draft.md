@@ -287,7 +287,8 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
    `employee_technical_grade_assignments`, `payroll_period_locks`, `payroll_settings` (seed
    `default_monthly_advance`=1.000.000), `payroll_deductions`, mở rộng CHECK
    `attendance_records.attendance_type` thêm `seasonal_work`, seed `allowance_configs` dòng
-   `seasonal_work`. **✅ ĐÃ XONG** (migration 011 + entity, commit b6be99b — bản đầu tiên sai ở
+   `seasonal_work`. **✅ ĐÃ XONG** (migration 015 (đổi số từ 011 lúc merge — 011 đã bị nhánh khác
+   chiếm khi 2 nhánh phát triển song song, xem Phase 6) + entity, commit b6be99b — bản đầu tiên sai ở
    chỗ đặt technical_grade làm cột cố định trên `employees`, đã sửa lại thành bảng gán theo tháng).
 2. Backend: `PayrollService`/`PayrollController` (GET summary, GET detail, PATCH deduction, PATCH
    technical-grade, lock/unlock), tái dùng logic chọn rate-theo-thời-gian đã có ở
