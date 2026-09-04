@@ -45,7 +45,7 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
               component={RouterLink}
               to={`/bang-luong/${month}?ref=${workDate}`}
               variant="contained"
-              sx={{ mt: 3, bgcolor: green[800], '&:hover': { bgcolor: green[900] } }}
+              sx={{ mt: 3 }}
             >
               Xem bảng lương
             </Button>

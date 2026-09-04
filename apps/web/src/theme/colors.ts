@@ -78,9 +78,14 @@ export const pageBackground = '#F7F9F8';
 /**
  * Token màu riêng cho sidebar (spec §5) — không hard-code green[xxx] rải rác
  * trong Sidebar.tsx, đọc qua đây để đổi tone 1 chỗ khi cần.
+ *
+ * `background`: đo trung bình nhiều vùng trống sạch (không dính chữ/icon)
+ * trên ảnh reference ra ~#164C31 — rõ ràng SÁNG hơn `green[900]` (#0B3B2A)
+ * cũ đang dùng. green[900] quá tối so với reference, là 1 phần nguyên nhân
+ * "màu sắc hơi tối" vì đây là mảng màu lớn nhất trên trang.
  */
 export const sidebar = {
-  background: green[900],
+  background: '#164C31',
   activeBackground: green[50],
   activeText: green[800],
   text: '#FFFFFF',

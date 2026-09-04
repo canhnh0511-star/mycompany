@@ -10,9 +10,12 @@ export const SIDEBAR_WIDTH = uiTokens.sidebarWidth;
 export const theme = createTheme({
   palette: {
     mode: 'light',
+    // primary.main = green[600] — đo màu nút "Xem bảng lương" trên ảnh
+    // reference (~#3B7A56) khớp green[600] (#1E7A4D) hơn hẳn green[800] cũ
+    // (#0F5C3B, quá trầm) — xem colors.ts.
     primary: {
-      main: green[800],
-      dark: green[900],
+      main: green[600],
+      dark: green[800],
       light: green[100],
       contrastText: '#FFFFFF',
     },
