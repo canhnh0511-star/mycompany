@@ -292,9 +292,15 @@ PAYROLL-13  Đổi payroll_settings['default_monthly_advance'] → nhân viên C
 2. Backend: `PayrollService`/`PayrollController` (GET summary, GET detail, PATCH deduction, PATCH
    technical-grade, lock/unlock), tái dùng logic chọn rate-theo-thời-gian đã có ở
    `ReportController`/service liên quan (audit xác nhận: KHÔNG có sẵn — `ReportService` chỉ pivot
-   kg, không lookup rate theo ngày; viết mới, xem mục 3 công thức).
+   kg, không lookup rate theo ngày; viết mới, xem mục 3 công thức). **✅ ĐÃ XONG** — đơn giá cả
+   tháng chọn theo 1 mốc tham chiếu DUY NHẤT (ngày cuối tháng), đơn giản hóa có chủ đích cho v1 vì
+   không có sẵn cơ chế nào để tái dùng cho rate-theo-từng-ngày (xem javadoc `PayrollService`) — vẫn
+   là câu hỏi mở mục 8, không chặn MVP.
 3. Test: PAYROLL-01 → 13 (unit cho công thức tính, không cần integration DB thật cho phần rate
-   lookup nếu tách được thành pure function).
+   lookup nếu tách được thành pure function). **✅ ĐÃ XONG** — `PayrollServiceTest` (Mockito, 12
+   test, chạy pass trong sandbox không cần DB). PAYROLL-07 (lọc CANCELLED) và PAYROLL-08 (rate theo
+   ngày thực tế) KHÔNG test được ở mức unit vì nằm trong nội dung JPQL bị mock — cần integration
+   test DB thật sau nếu muốn phủ đầy đủ.
 4. Frontend: màn Bảng lương (web/desktop — có thể tái dùng phần lớn pattern từ `LookupScreen`/
    `ProductionReportScreen` hiện có), panel chi tiết nhân viên (giống ảnh 2) kèm sửa Trừ/Tạm ứng,
    export Excel.
