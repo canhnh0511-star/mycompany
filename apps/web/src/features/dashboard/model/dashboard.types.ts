@@ -86,7 +86,12 @@ export interface PayrollDistributionSlice {
 
 export interface PayrollSummaryData {
   month: string;
-  totalExpected: number;
+  /**
+   * Module 1 chưa tính lương tự động (cần rate_configs + allowance_configs + attendance +
+   * production + logic tính lương — việc của Module 3, ngoài phạm vi Module 1, xem CLAUDE.md mục 1).
+   * Backend luôn trả null cho field này — PayrollSummaryPanel tự hiện "Chưa có dữ liệu" khi null.
+   */
+  totalExpected?: number;
   employeeCount: number;
   needsReviewCount: number;
   distribution: PayrollDistributionSlice[];

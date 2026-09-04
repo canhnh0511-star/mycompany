@@ -85,4 +85,21 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
             GROUP BY pri.latexType.code
             """)
     List<ImageLatexTotalRow> sumKgByScanImage(@Param("scanImageId") UUID scanImageId);
+
+    // Home dashboard (Module 1.1) — sản lượng "hôm nay" tổng quan: tính CẢ draft lẫn approved (khác
+    // aggregateOfficialProduction chỉ APPROVED) vì đây là cái nhìn nhanh trong ngày cho Admin, không
+    // phải báo cáo chính thức chốt sổ (yêu cầu nghiệp vụ dashboard, không phải Official Production).
+    // status <> CANCELLED để loại bản ghi đã hủy. Group theo cả team/employee/latexType trong 1 query,
+    // service layer tự pivot cho KPI tổng quan / breakdown theo Tổ / đếm workforce present — cùng tinh
+    // thần aggregateOfficialProduction, tránh nhiều round-trip DB cho 1 lần load Home.
+    @Query("""
+            SELECT new com.mycompany.api.repository.OfficialProductionRow(
+                pr.team.id, pr.team.name, pr.employee.id, pri.latexType.code, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.status <> com.mycompany.api.entity.RecordStatus.CANCELLED
+              AND pr.recordDate = :date
+            GROUP BY pr.team.id, pr.team.name, pr.employee.id, pri.latexType.code
+            """)
+    List<OfficialProductionRow> aggregateActiveProductionByDate(@Param("date") LocalDate date);
 }

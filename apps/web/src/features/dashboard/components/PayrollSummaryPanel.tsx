@@ -35,7 +35,11 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
             <Typography variant="body2" color="text.secondary">
               Tổng dự kiến
             </Typography>
-            <Typography variant="h2">{formatCurrency(data.totalExpected)}</Typography>
+            {/* Module 1 chưa tính lương tự động (Module 3 ngoài phạm vi) — backend luôn trả null,
+                hiện "Chưa có dữ liệu" thay vì gọi formatCurrency(undefined) (tránh "NaN ₫"). */}
+            <Typography variant="h2">
+              {data.totalExpected != null ? formatCurrency(data.totalExpected) : 'Chưa có dữ liệu'}
+            </Typography>
             <Typography variant="caption" color="text.secondary">
               {data.employeeCount} nhân viên
               {data.needsReviewCount > 0 ? ` • ${data.needsReviewCount} cần kiểm tra` : ''}
