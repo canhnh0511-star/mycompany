@@ -67,6 +67,42 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 /**
+ * POST có kèm Bearer token — dùng cho các action ghi cần auth (vd chốt/mở lương). Khác `apiPost`
+ * (không token, chỉ dành riêng cho login) — dùng chung `handleResponse` nên 401/403 tự đưa về /login,
+ * đúng hành vi mong muốn cho mọi request SAU khi đã đăng nhập.
+ */
+export async function apiPostAuthed<T>(path: string, params?: QueryParams, body?: unknown): Promise<T> {
+  const token = getAccessToken();
+  const response = await fetch(buildUrl(path, params), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  return handleResponse<T>(response);
+}
+
+/** PATCH có kèm Bearer token — sửa 1 field (vd Trừ/Tạm ứng, Hạng kỹ thuật). */
+export async function apiPatch<T>(path: string, params: QueryParams | undefined, body: unknown): Promise<T> {
+  const token = getAccessToken();
+  const response = await fetch(buildUrl(path, params), {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  return handleResponse<T>(response);
+}
+
+/**
  * Token thiếu/hết hạn (CLAUDE.md §4 — access token duy nhất, hết hạn 1 ngày, không refresh token) ->
  * backend trả 401/403 (SecurityConfig chưa cấu hình authenticationEntryPoint riêng nên mặc định luôn
  * là 403, kể cả khi CHƯA đăng nhập lần nào — không phải lỗi CORS/backend, xem docs/adr liên quan).

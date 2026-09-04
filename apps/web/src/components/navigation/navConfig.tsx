@@ -46,7 +46,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Tiền & vận hành',
     items: [
-      { label: 'Bảng lương', path: '/bang-luong', icon: <PaymentsOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Bảng lương', path: '/bang-luong', icon: <PaymentsOutlinedIcon fontSize="small" />, status: 'ready' },
       { label: 'Bán mủ', path: '/ban-mu', icon: <ShoppingCartOutlinedIcon fontSize="small" />, status: 'pending' },
       { label: 'Chi phí', path: '/chi-phi', icon: <ReceiptLongOutlinedIcon fontSize="small" />, status: 'pending' },
     ],

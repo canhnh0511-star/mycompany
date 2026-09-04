@@ -12,7 +12,7 @@ import { AppSelect } from '@/components/AppSelect';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState, getErrorMessage } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
+import { SkeletonList } from '@/components/Skeleton';
 import { StatusBadge, type StatusTone } from '@/components/StatusBadge';
 import { useAppToast } from '@/components/useAppToast';
 import { useTeamsLookupQuery } from '@/features/admin-catalog/useCatalogLookups';
@@ -164,7 +164,7 @@ export function PayrollScreen() {
 
           {summary ? <SummaryCards summary={summary} /> : null}
 
-          {isLoading ? <LoadingState /> : null}
+          {isLoading ? <SkeletonList /> : null}
           {isError ? (
             <ErrorState message="Không tải được bảng lương." detail={getErrorMessage(error)} onRetry={refetch} />
           ) : null}
@@ -388,7 +388,7 @@ function PayrollDetailPanel({
             </Pressable>
           </HStack>
 
-          {isLoading ? <LoadingState /> : null}
+          {isLoading ? <SkeletonList /> : null}
           {isError ? <ErrorState message="Không tải được chi tiết." detail={getErrorMessage(error)} /> : null}
 
           {detail ? (

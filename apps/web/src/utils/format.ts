@@ -51,6 +51,12 @@ export function formatDateWithWeekday(value: Date | string): string {
   return `${formatDate(date)} (${WEEKDAY_LABELS[date.getDay()]})`;
 }
 
+/** "2026-08" -> "Tháng 08/2026". */
+export function formatMonthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-');
+  return `Tháng ${month}/${year}`;
+}
+
 /** Date -> "yyyy-MM-dd" (dùng làm query param / key, không phụ thuộc timezone). */
 export function toIsoDate(date: Date): string {
   const yyyy = date.getFullYear();
