@@ -1,0 +1,71 @@
+import { Box, Paper, Stack, Typography } from '@mui/material';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import { Link as RouterLink } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { green, neutral, red } from '../../theme/colors';
+
+interface SectionPanelProps {
+  title: string;
+  /** Số đếm nổi bật cạnh title (vd "Cần xử lý" — badge đỏ số lượng issue). */
+  badgeCount?: number;
+  actionLabel?: string;
+  actionHref?: string;
+  children: ReactNode;
+}
+
+/**
+ * Khung panel dùng chung cho các section Home (Cần xử lý / Tình hình theo tổ
+ * / Bảng lương / Phiếu mới nhất) — spec §17/§20/§23/§26 đều chung 1 header
+ * pattern: title (+ badge) trái, action link phải.
+ */
+export function SectionPanel({ title, badgeCount, actionLabel, actionHref, children }: SectionPanelProps) {
+  return (
+    <Paper variant="outlined" sx={{ borderRadius: 3, height: '100%' }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 3,
+          py: 2.25,
+          borderBottom: `1px solid ${neutral[200]}`,
+        }}
+      >
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Typography variant="h3">{title}</Typography>
+          {!!badgeCount && (
+            <Box
+              sx={{
+                minWidth: 20,
+                height: 20,
+                px: 0.5,
+                borderRadius: 999,
+                bgcolor: red[600],
+                color: '#FFFFFF',
+                fontSize: 12,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {badgeCount}
+            </Box>
+          )}
+        </Stack>
+        {actionLabel && actionHref && (
+          <Stack
+            component={RouterLink}
+            to={actionHref}
+            direction="row"
+            sx={{ alignItems: 'center', color: green[700], textDecoration: 'none', fontSize: 13.5, fontWeight: 600 }}
+          >
+            {actionLabel}
+            <ChevronRightRoundedIcon sx={{ fontSize: 18 }} />
+          </Stack>
+        )}
+      </Stack>
+      <Box sx={{ px: 3, py: 2.25 }}>{children}</Box>
+    </Paper>
+  );
+}
