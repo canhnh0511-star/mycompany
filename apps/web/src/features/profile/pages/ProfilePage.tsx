@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Box, Stack, TextField, Typography } from '@mui/material';
+import { Box, InputAdornment, Stack, TextField, Typography, alpha } from '@mui/material';
+import MailOutlineOutlinedIcon from '@mui/icons-material/MailOutlineOutlined';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
+import LocalPhoneOutlinedIcon from '@mui/icons-material/LocalPhoneOutlined';
+import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { ApiError } from '../../../api/client';
 import { LoadingButton } from '../../../components/common/LoadingButton';
 import { SectionPanel } from '../../../components/common/SectionPanel';
 import { WidgetErrorState } from '../../../components/feedback/WidgetErrorState';
 import { LoadingSkeleton } from '../../../components/feedback/LoadingSkeleton';
-import { green, neutral, text } from '../../../theme/colors';
+import { green, sidebar, text } from '../../../theme/colors';
 import { useChangePassword, useMe, useUpdateProfile } from '../hooks/useProfile';
+import hillsDecoration from '../../../assets/profile-hills-decoration.png';
+import leafBadgeIcon from '../../../assets/leaf-badge-icon.png';
 
 const ROLE_LABEL: Record<string, string> = { ADMIN: 'Quản lý', TEAM_LEAD: 'Tổ trưởng' };
 
 /**
  * Hồ sơ cá nhân — chỉ sửa tên/chức vụ/SĐT (không tự đổi email/role — UserController.updateMe) +
- * đổi mật khẩu riêng. Thiết kế lại theo phản hồi trực tiếp ("giống y chang app, không hợp web") —
- * trước đây 6 field xếp dọc 1 cột hẹp, field không sửa được vẫn vẽ khung input y hệt field sửa được
- * (không trung thực — nguyên tắc Rams). Giờ: header nhận diện (avatar/tên/vai trò), field CHỈ XEM
- * hiện dạng nhãn-giá trị thuần (không khung), field SỬA ĐƯỢC xếp 2 cột dùng đúng không gian ngang.
+ * đổi mật khẩu riêng. Layout theo đúng mockup người dùng cung cấp: banner nhận diện (avatar/tên/
+ * vai trò + khẩu hiệu) phía trên, lưới 2 cột bên dưới gồm cả field chỉ xem (Email/Vai trò — vẫn vẽ
+ * khung input nhưng `disabled` để phân biệt rõ không bấm sửa được) lẫn field sửa được, mỗi field có
+ * icon riêng cho dễ quét mắt.
  */
 export function ProfilePage() {
   const { data: user, isLoading, isError, refetch } = useMe();
@@ -39,47 +47,106 @@ export function ProfilePage() {
   );
 }
 
-/** Header nhận diện — trước đây hoàn toàn không có, trang chỉ là 1 chồng ô input vô danh. */
+/**
+ * Header nhận diện — banner thương hiệu (nền xanh đậm cùng tone `sidebar.background` đã dùng cho
+ * Sidebar/LoginPage, không phải màu mới) kèm hoạ tiết đồi núi + khẩu hiệu "Cùng phát triển nông
+ * nghiệp bền vững", theo đúng mockup người dùng cung cấp. Trước đây hoàn toàn không có, trang chỉ
+ * là 1 chồng ô input vô danh.
+ */
 function ProfileHeader({ fullName, email, role }: { fullName: string; email: string; role: string }) {
   const initial = fullName.trim().charAt(0).toUpperCase() || '?';
   return (
-    <Stack direction="row" spacing={2} sx={{ alignItems: 'center', px: 0.5 }}>
+    <Box
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '14px',
+        bgcolor: sidebar.background,
+        px: { xs: 2.5, sm: 3.5 },
+        py: 3,
+      }}
+    >
+      {/* Hoạ tiết đồi núi — nền trang trí, không mang thông tin, luôn đặt SAU nội dung
+          (aria-hidden, pointerEvents none) để không cản đọc/thao tác. */}
       <Box
+        component="img"
+        src={hillsDecoration}
+        alt=""
+        aria-hidden
         sx={{
-          width: 64,
-          height: 64,
-          borderRadius: '50%',
-          bgcolor: green[600],
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 26,
-          fontWeight: 700,
-          flexShrink: 0,
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'bottom',
+          opacity: 0.5,
+          pointerEvents: 'none',
         }}
-      >
-        {initial}
-      </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h2" sx={{ fontSize: 20 }}>{fullName}</Typography>
-        <Typography sx={{ fontSize: 13, color: text.secondary, mt: 0.25 }}>
-          {ROLE_LABEL[role] ?? role} · {email}
-        </Typography>
-      </Box>
-    </Stack>
-  );
-}
+      />
 
-/** 1 dòng "chỉ xem" — nhãn trái/giá trị phải, KHÔNG vẽ khung input (field này không sửa được, vẽ
- * thành ô input giả là không trung thực với người dùng — dù đã tô xám, vẫn trông như 1 ô có thể bấm
- * vào sửa). Thay bằng đúng những gì nó là: 1 dòng thông tin tĩnh. */
-function ReadOnlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', py: 1.25 }}>
-      <Typography sx={{ fontSize: 13, color: text.secondary }}>{label}</Typography>
-      <Typography sx={{ fontSize: 13.5, fontWeight: 500 }}>{value}</Typography>
-    </Stack>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2.5}
+        sx={{ position: 'relative', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+      >
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              bgcolor: green[600],
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 26,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {initial}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FFFFFF' }}>{fullName}</Typography>
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mt: 0.25, color: alpha('#FFFFFF', 0.78) }}>
+              <Typography sx={{ fontSize: 13 }}>{ROLE_LABEL[role] ?? role}</Typography>
+              <Typography sx={{ fontSize: 13 }}>·</Typography>
+              <Typography sx={{ fontSize: 13 }}>{email}</Typography>
+            </Stack>
+          </Box>
+        </Stack>
+
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{
+            alignItems: 'center',
+            flexShrink: 0,
+            maxWidth: { xs: '100%', sm: 240 },
+            px: 1.75,
+            py: 1.25,
+            borderRadius: '10px',
+            bgcolor: alpha('#FFFFFF', 0.1),
+            border: `1px solid ${alpha('#FFFFFF', 0.14)}`,
+          }}
+        >
+          <Box
+            component="img"
+            src={leafBadgeIcon}
+            alt=""
+            aria-hidden
+            sx={{ width: 28, height: 28, borderRadius: '7px', flexShrink: 0 }}
+          />
+          <Typography sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.35, color: '#FFFFFF' }}>
+            Cùng phát triển nông nghiệp bền vững
+          </Typography>
+        </Stack>
+      </Stack>
+    </Box>
   );
 }
 
@@ -125,26 +192,61 @@ function ProfileInfoPanel({
   return (
     <SectionPanel title="Thông tin cá nhân" description="Tên, chức vụ và số điện thoại hiển thị trong hệ thống.">
       <Stack>
-        <Stack divider={<Box sx={{ borderTop: `1px solid ${neutral[200]}` }} />}>
-          <ReadOnlyRow label="Email" value={email} />
-          <ReadOnlyRow label="Vai trò" value={ROLE_LABEL[role] ?? role} />
-        </Stack>
-
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
             columnGap: 2,
             rowGap: 2,
-            mt: 2.5,
           }}
         >
+          <TextField
+            label="Email"
+            size="small"
+            fullWidth
+            disabled
+            value={email}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <MailOutlineOutlinedIcon sx={{ fontSize: 18, color: text.muted }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <TextField
+            label="Vai trò"
+            size="small"
+            fullWidth
+            disabled
+            value={ROLE_LABEL[role] ?? role}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <ShieldOutlinedIcon sx={{ fontSize: 18, color: text.muted }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
           <TextField
             label="Họ tên"
             size="small"
             fullWidth
             value={fields.fullName}
             onChange={(event) => updateField({ fullName: event.target.value })}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonOutlineOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
           <TextField
             label="Chức vụ"
@@ -153,6 +255,15 @@ function ProfileInfoPanel({
             placeholder="VD: Giám đốc"
             value={fields.position}
             onChange={(event) => updateField({ position: event.target.value })}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <WorkOutlineOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
           <TextField
             label="Số điện thoại"
@@ -161,6 +272,15 @@ function ProfileInfoPanel({
             placeholder="09xxxxxxxx"
             value={fields.phone}
             onChange={(event) => updateField({ phone: event.target.value })}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LocalPhoneOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
         </Box>
 
@@ -170,6 +290,7 @@ function ProfileInfoPanel({
           <LoadingButton
             variant="contained"
             color="success"
+            startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
             loading={updateMutation.isPending}
             disabled={!fields.fullName.trim()}
             onClick={handleSave}
