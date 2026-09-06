@@ -33,7 +33,7 @@ export const reportsNavItem: NavItem = {
   label: 'Báo cáo',
   path: '/bao-cao',
   icon: <AssessmentOutlinedIcon fontSize="small" />,
-  status: 'pending',
+  status: 'ready',
 };
 
 /** "Ngày làm việc" trước đây nằm trong group "Công việc hằng ngày" cùng Phiếu/Sản lượng — group đó
@@ -48,8 +48,9 @@ export const workingDayNavItem: NavItem = {
 
 /** "Sản lượng" — mục cha expandable, 3 submenu theo đúng mockup đã duyệt. "Danh sách phiếu" GIỮ
  * NGUYÊN path `/san-luong` cũ (chỉ đổi nhãn từ "Sản lượng") — Home (`TeamStatusPanel`) đang deep-link
- * `/san-luong?date=...`, đổi path sẽ gãy link đó. "Báo cáo sản lượng" là path MỚI, chưa có mockup
- * nên vẫn `pending` (ComingSoonPage).
+ * `/san-luong?date=...`, đổi path sẽ gãy link đó. "Báo cáo sản lượng" dùng CHUNG component
+ * `ReportsPage` với mục "Báo cáo" ở group riêng bên dưới (ReportController chỉ có 1 bộ endpoint cho
+ * mỗi loại báo cáo — xây 2 UI khác nhau là trùng lặp không cần thiết).
  */
 export const productionNavParent = {
   label: 'Sản lượng',
@@ -59,7 +60,7 @@ export const productionNavParent = {
 export const productionNavChildren: NavItem[] = [
   { label: 'Nhập phiếu hàng ngày', path: '/phieu', icon: <DescriptionOutlinedIcon fontSize="small" />, status: 'ready' },
   { label: 'Danh sách phiếu', path: '/san-luong', icon: <FormatListBulletedOutlinedIcon fontSize="small" />, status: 'ready' },
-  { label: 'Báo cáo sản lượng', path: '/san-luong/bao-cao', icon: <TrendingUpOutlinedIcon fontSize="small" />, status: 'pending' },
+  { label: 'Báo cáo sản lượng', path: '/san-luong/bao-cao', icon: <TrendingUpOutlinedIcon fontSize="small" />, status: 'ready' },
 ];
 
 export const navGroups: NavGroup[] = [
