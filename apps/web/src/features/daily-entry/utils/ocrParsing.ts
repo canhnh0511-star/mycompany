@@ -82,6 +82,32 @@ export function parseOcrColumnTotals(raw: string | null): Record<string, number>
   }
 }
 
+/**
+ * rowIndex gốc trên phiếu giấy cho các nhân viên KHÔNG có `production_record` nào (dòng trống —
+ * nghỉ/không cạo, HOẶC đã gộp chung sản lượng vào dòng vợ/chồng — xem
+ * `ScanBatchService.captureProductionRecordRows`, `ConflictType.EMPTY_ROW_SKIPPED`). Trước đây bảng
+ * roster không có cách nào biết vị trí đúng của các dòng này trên ảnh (không record = không rowIndex),
+ * phải TỰ ĐOÁN bằng vị trí mặc định trong danh sách nhân viên — sai lệch so với ảnh gốc (phản hồi
+ * trực tiếp). Backend giờ luôn mở 1 conflict EMPTY_ROW_SKIPPED (blocking:false, không hiện thành cảnh
+ * báo — `ScanBatchAlertList` không render loại này) kèm `employeeId`/`rowIndex` cho MỌI dòng có tên
+ * trên phiếu dù không có số liệu, đọc thẳng ở đây để sắp bảng đúng hơn.
+ */
+export function getEmptyRowIndexByEmployeeId(batch: ScanBatch): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const conflict of batch.conflicts) {
+    if (conflict.conflictType !== 'EMPTY_ROW_SKIPPED' || !conflict.detail) continue;
+    try {
+      const parsed = JSON.parse(conflict.detail) as { employeeId?: string; rowIndex?: number };
+      if (parsed.employeeId && parsed.rowIndex != null) {
+        result.set(parsed.employeeId, parsed.rowIndex);
+      }
+    } catch {
+      /* bỏ qua nếu detail không parse được — dòng đó vẫn rơi về fallback theo vị trí mặc định */
+    }
+  }
+  return result;
+}
+
 /** `latexTypeCode` của mọi conflict TOTAL_MISMATCH đang OPEN trong batch — dùng để highlight cả cột
  * tương ứng trên bảng roster (`ProductionRosterTable`), không chỉ hiện text cảnh báo (phản hồi:
  * "phát hiện lệch tổng nhưng không highlight ô nào gây lệch"). */

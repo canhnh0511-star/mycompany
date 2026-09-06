@@ -23,7 +23,12 @@ function isRowEmpty(items: ProductionItemDraft[], notes: string): boolean {
   return items.every((item) => !item.kg) && !notes.trim();
 }
 
-function buildRow(employee: EmployeeOption, latexTypes: LatexTypeOption[], record: ProductionRecordResult | undefined): ProductionRowDraft {
+function buildRow(
+  employee: EmployeeOption,
+  latexTypes: LatexTypeOption[],
+  record: ProductionRecordResult | undefined,
+  emptyRowIndex: number | undefined,
+): ProductionRowDraft {
   const items: ProductionItemDraft[] = latexTypes.map((type) => {
     const existing = record?.items.find((i) => i.latexTypeId === type.id);
     return {
@@ -49,8 +54,37 @@ function buildRow(employee: EmployeeOption, latexTypes: LatexTypeOption[], recor
     // record nào). Phát hiện qua live test: bảng roster load lại data cũ từ OCR vẫn hiện "Chưa lưu"
     // dù đã nằm sẵn trong DB, gây hiểu lầm Admin tưởng chưa lưu gì.
     rowStatus: record ? 'saved' : 'idle',
-    rowIndex: record?.rowIndex ?? null,
+    // Ưu tiên rowIndex thật từ record; dòng chưa có record (nghỉ/gộp vợ chồng) rơi về rowIndex đọc
+    // từ conflict EMPTY_ROW_SKIPPED (xem `getEmptyRowIndexByEmployeeId`) — chỉ còn `null` khi nhân
+    // viên chưa từng xuất hiện trong ảnh nào (sortRowsLikePhoto tự xử lý fallback tiếp theo đó).
+    rowIndex: record?.rowIndex ?? emptyRowIndex ?? null,
+    // Điền ở bước enrich riêng (cần dữ liệu CẢ 2 dòng vợ/chồng, buildRow chỉ thấy 1 dòng tại 1 thời
+    // điểm) — xem `withSpouseCombinedLabel` ngay dưới đây.
+    combinedWithSpouseName: null,
   };
+}
+
+/**
+ * Gán `combinedWithSpouseName` cho các dòng trống (isAbsent) mà vợ/chồng đã CÓ dữ liệu — nghĩa là
+ * sản lượng của cặp này đã được ghi chung vào 1 dòng, không phải người này nghỉ (CLAUDE.md §5,
+ * ADR-0024). Chạy sau khi đã build xong TOÀN BỘ `rows` vì cần biết trạng thái dòng của người kia,
+ * điều `buildRow` (chỉ thấy 1 nhân viên tại 1 thời điểm) không tự làm được. Thuần suy luận ở
+ * FRONTEND từ `spouseEmployeeId` (không cần đọc conflict OCR) — áp dụng đúng cho cả nhập tay thuần,
+ * không riêng gì ảnh OCR (phản hồi trực tiếp: "các dòng vợ chồng thì không hiển là nghỉ/hoặc cạo do
+ * tính chung").
+ */
+function withSpouseCombinedLabel(rows: ProductionRowDraft[], employees: EmployeeOption[]): ProductionRowDraft[] {
+  const employeeById = new Map(employees.map((e) => [e.id, e]));
+  const rowById = new Map(rows.map((r) => [r.employeeId, r]));
+  return rows.map((row) => {
+    if (!row.isAbsent) return row;
+    const spouseId = employeeById.get(row.employeeId)?.spouseEmployeeId;
+    if (!spouseId) return row;
+    const spouseRow = rowById.get(spouseId);
+    if (!spouseRow || spouseRow.isAbsent) return row; // vợ/chồng cũng trống — nghỉ thật, giữ nguyên
+    const spouseName = employeeById.get(row.employeeId)?.spouseEmployeeName ?? spouseRow.employeeName;
+    return { ...row, combinedWithSpouseName: spouseName };
+  });
 }
 
 /**
@@ -91,6 +125,7 @@ export function ProductionRosterTable({
   teamId,
   recordDate,
   mismatchedLatexTypeCodes = [],
+  emptyRowIndexByEmployeeId,
 }: {
   teamId: string;
   recordDate: string;
@@ -99,6 +134,9 @@ export function ProductionRosterTable({
    * hoặc OCR đọc nhầm 1 dòng bất kỳ trong cột) để Admin biết đúng cột nào cần đối chiếu kỹ với ảnh
    * (phản hồi trực tiếp: "phát hiện lệch tổng nhưng không highlight ô nào gây lệch"). */
   mismatchedLatexTypeCodes?: string[];
+  /** rowIndex đọc từ conflict EMPTY_ROW_SKIPPED (`getEmptyRowIndexByEmployeeId`) cho các dòng chưa có
+   * production_record — nguồn bổ sung để sắp bảng đúng ảnh hơn cho dòng nghỉ/gộp vợ chồng. */
+  emptyRowIndexByEmployeeId?: Map<string, number>;
 }) {
   const { data: employees, isLoading: loadingEmployees } = useEmployees({ teamId, status: 'ACTIVE' });
   const { data: latexTypes, isLoading: loadingLatexTypes } = useLatexTypes();
@@ -132,16 +170,20 @@ export function ProductionRosterTable({
     setRows((prev) => {
       const prevByEmployee = new Map(prev.map((r) => [r.employeeId, r]));
       const built = employees.map((employee) => {
+        const emptyRowIndex = emptyRowIndexByEmployeeId?.get(employee.id);
         if (!rosterChanged && dirtyEmployeeIds.current.has(employee.id)) {
           // Dòng người dùng đang gõ dở — giữ nguyên state cục bộ, không ghi đè bằng dữ liệu server.
-          return prevByEmployee.get(employee.id) ?? buildRow(employee, latexTypes, recordByEmployee.get(employee.id));
+          return (
+            prevByEmployee.get(employee.id) ??
+            buildRow(employee, latexTypes, recordByEmployee.get(employee.id), emptyRowIndex)
+          );
         }
-        return buildRow(employee, latexTypes, recordByEmployee.get(employee.id));
+        return buildRow(employee, latexTypes, recordByEmployee.get(employee.id), emptyRowIndex);
       });
-      return sortRowsLikePhoto(built);
+      return sortRowsLikePhoto(withSpouseCombinedLabel(built, employees));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, latexTypes, records, rosterKey]);
+  }, [employees, latexTypes, records, rosterKey, emptyRowIndexByEmployeeId]);
 
   function updateItem(employeeId: string, itemIndex: number, patch: Partial<ProductionItemDraft>) {
     dirtyEmployeeIds.current.add(employeeId);
@@ -276,8 +318,14 @@ export function ProductionRosterTable({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 640 }}>
+      {/* Bảng cuộn DỌC riêng trong panel này (không cuộn cả trang) — khớp chiều cao panel ảnh bên
+          phải (`DailyEntryPage` đã bó buộc chiều cao cả 2 cột), dễ đối chiếu dòng phía dưới với ảnh
+          mà không phải cuộn mất control-card/ảnh khỏi màn hình (phản hồi trực tiếp: "danh sách đang
+          dài hơn khung xem ảnh... fix height bằng nhau và thêm scroll cho panel bên trái"). Header
+          `position: sticky` để cuộn xuống vẫn thấy tên cột — không thì mất hẳn ý nghĩa "dễ đối chiếu"
+          (cuộn xuống xong không biết cột nào là cột nào). */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <Table size="small" stickyHeader sx={{ minWidth: 640 }}>
           <TableHead>
             <TableRow>
               <TableCell sx={{ width: 44, bgcolor: tableHeader.sub }}>STT</TableCell>
@@ -328,7 +376,16 @@ export function ProductionRosterTable({
                     <Typography sx={{ fontSize: 13.5, fontWeight: 500, color: row.isAbsent ? text.secondary : text.primary }}>
                       {row.employeeName}
                     </Typography>
-                    {row.isAbsent && <Typography sx={{ fontSize: 11, color: text.muted }}>nghỉ / không cạo</Typography>}
+                    {/* "Gộp chung vợ/chồng" KHÔNG phải nghỉ thật — 2 nhãn loại trừ nhau (phản hồi
+                        trực tiếp: "các dòng vợ chồng thì không hiển là nghỉ/hoặc cạo do tính chung"). */}
+                    {row.isAbsent && row.combinedWithSpouseName && (
+                      <Typography sx={{ fontSize: 11, color: text.muted }}>
+                        tính chung với {row.combinedWithSpouseName}
+                      </Typography>
+                    )}
+                    {row.isAbsent && !row.combinedWithSpouseName && (
+                      <Typography sx={{ fontSize: 11, color: text.muted }}>nghỉ / không cạo</Typography>
+                    )}
                     {row.nameFlagged && (
                       <Typography sx={{ fontSize: 11, color: 'warning.dark' }}>OCR đọc tên chưa chắc</Typography>
                     )}

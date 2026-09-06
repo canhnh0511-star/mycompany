@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
@@ -9,7 +9,7 @@ import { toIsoDate } from '../../../utils/format';
 import { useTeams } from '../../../hooks/useLookups';
 import { ProductionRosterTable } from '../components/production/ProductionRosterTable';
 import { ScanBatchPhotoPanel } from '../components/production/ScanBatchPhotoPanel';
-import { getTotalMismatchLatexTypeCodes } from '../utils/ocrParsing';
+import { getEmptyRowIndexByEmployeeId, getTotalMismatchLatexTypeCodes } from '../utils/ocrParsing';
 import { useInvalidateRoster } from '../hooks/useProductionRecords';
 import {
   useCancelScanBatch,
@@ -54,6 +54,15 @@ export function DailyEntryPage() {
   const retryBatchMutation = useRetryScanBatch();
   const cancelBatchMutation = useCancelScanBatch();
   const invalidateRoster = useInvalidateRoster();
+
+  // Memo theo `batch` (không phải gọi thẳng trong JSX như `getTotalMismatchLatexTypeCodes`) — giá trị
+  // này chảy vào `useEffect` bên trong `ProductionRosterTable` (build lại `rows`), object mới mỗi lần
+  // render sẽ khiến effect đó chạy lại vô ích ở MỌI lần DailyEntryPage render, không riêng lúc batch
+  // thật sự đổi.
+  const emptyRowIndexByEmployeeId = useMemo(
+    () => (batch ? getEmptyRowIndexByEmployeeId(batch) : new Map<string, number>()),
+    [batch],
+  );
 
   const blocked = !!lookup?.blocked && batch?.status !== 'FAILED';
 
@@ -145,29 +154,49 @@ export function DailyEntryPage() {
 
         // Cột trái = control-card + banner + bảng xếp CHỒNG (mockup đã duyệt: control-card chỉ rộng
         // bằng cột trái, không full-width); grid alignItems 'stretch' để cột phải (ảnh) cao bằng
-        // toàn bộ cột trái, không dừng ngang hàng table như trước (đúng phản hồi "bên trái bên phải
-        // chưa = height với nhau").
+        // toàn bộ cột trái.
+        //
+        // Chiều cao 2 cột GIỚI HẠN theo viewport (thay vì để bảng roster tự giãn cao vô hạn theo số
+        // công nhân) — phản hồi trực tiếp: "danh sách đang dài hơn khung xem ảnh bên phải dẫn tới khi
+        // đối chiếu các dòng phía dưới bị khó khăn". `calc(100vh - 232px)` = chiều cao viewport trừ
+        // TopBar + padding `main` (MainLayout) + dòng mô tả trang + control-card + gap + footer —
+        // đo trực tiếp bằng DevTools trên layout thật (không phải số đoán), xem
+        // `docs/module-1-1-frontend-redesign-progress.md` nếu cần đối chiếu lại khi đổi layout khung
+        // ngoài. `minHeight: 480` để không co quá thấp trên màn hình thấp (vẫn đủ thấy vài dòng +
+        // cuộn được thay vì bẹp dí).
         return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'stretch' }}>
-            <Stack spacing={2.5}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' },
+              gap: 2.5,
+              alignItems: 'stretch',
+              height: { lg: 'calc(100vh - 232px)' },
+              minHeight: { lg: 480 },
+            }}
+          >
+            <Stack spacing={2.5} sx={{ minHeight: 0 }}>
               {controlCard}
               {uploadError && <Typography sx={{ fontSize: 13, color: 'error.main' }}>{uploadError}</Typography>}
-              <SectionPanel title="Danh sách công nhân" noContentPadding sx={{ flex: 1 }}>
+              <SectionPanel title="Danh sách công nhân" noContentPadding sx={{ flex: 1, minHeight: 0 }}>
                 <ProductionRosterTable
                   teamId={teamId}
                   recordDate={recordDate}
                   mismatchedLatexTypeCodes={batch ? getTotalMismatchLatexTypeCodes(batch) : []}
+                  emptyRowIndexByEmployeeId={emptyRowIndexByEmployeeId}
                 />
               </SectionPanel>
             </Stack>
 
-            <ScanBatchPhotoPanel
-              batch={batch}
-              loadingBatch={loadingBatch}
-              blocked={blocked}
-              onRetryBatch={() => activeBatchId && retryBatchMutation.mutate(activeBatchId)}
-              onCancelBatch={() => activeBatchId && cancelBatchMutation.mutate(activeBatchId)}
-            />
+            <Box sx={{ minHeight: 0, overflowY: 'auto' }}>
+              <ScanBatchPhotoPanel
+                batch={batch}
+                loadingBatch={loadingBatch}
+                blocked={blocked}
+                onRetryBatch={() => activeBatchId && retryBatchMutation.mutate(activeBatchId)}
+                onCancelBatch={() => activeBatchId && cancelBatchMutation.mutate(activeBatchId)}
+              />
+            </Box>
           </Box>
         );
       })()}

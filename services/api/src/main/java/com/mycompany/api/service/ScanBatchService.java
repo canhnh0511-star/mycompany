@@ -8,6 +8,7 @@ import com.mycompany.api.config.SupabaseStorageProperties;
 import com.mycompany.api.dto.CaptureImageRequest;
 import com.mycompany.api.dto.LatexItemRequest;
 import com.mycompany.api.dto.OcrDuplicateRow;
+import com.mycompany.api.dto.OcrEmptyRow;
 import com.mycompany.api.dto.OcrUnmatchedLine;
 import com.mycompany.api.dto.ResolveConflictRequest;
 import com.mycompany.api.dto.ResolveDateRequest;
@@ -481,18 +482,19 @@ public class ScanBatchService {
                         writeJsonOrNull(Map.of("employeeNameRaw", String.valueOf(rawName))), null, null);
                 // Nếu tên khớp 1 nhân viên CÓ vợ/chồng đang active — dòng trống này chính là dòng
                 // "đã gộp chung" (splitBetweenSpouses xử lý ở dòng của người kia), KHÔNG phải trường
-                // hợp mơ hồ "không cạo mủ". Không mở conflict cho case này nữa — báo "cần chú ý" ở
-                // đây là nhiễu, làm Admin tưởng lỗi trong khi hệ thống đã xử lý đúng (phát hiện khi
-                // test thật trên iPhone 2026-08-23). Chỉ mở conflict khi KHÔNG match được vợ/chồng —
-                // vẫn giữ tín hiệu cho trường hợp thật sự không có số liệu (nghỉ/không cạo mủ).
-                boolean explainedBySpouse = false;
+                // hợp mơ hồ "không cạo mủ". KHÔNG hiện thành cảnh báo cho case này (báo "cần chú ý" ở
+                // đây là nhiễu, làm Admin tưởng lỗi trong khi hệ thống đã xử lý đúng — phát hiện khi
+                // test thật trên iPhone 2026-08-23; ScanBatchAlertList chỉ render 4 loại conflict cụ
+                // thể, EMPTY_ROW_SKIPPED không nằm trong đó nên mở conflict này không tạo thêm nhiễu
+                // UI, chỉ là nơi LƯU LẠI rowIndex/employeeId cho dòng trống — trước đây bỏ qua hẳn
+                // case gộp chung khiến mất luôn rowIndex, bảng roster phải TỰ ĐOÁN vị trí dòng này
+                // (phản hồi trực tiếp: "API không trả ra index cho các dòng trống"). Luôn mở khi có
+                // tên (kể cả gộp chung), `blocking=false` nên không ảnh hưởng canApprove.
                 if (rawName != null && !rawName.isBlank()) {
                     Optional<Employee> maybeMatch = fuzzyMatcher.match(rawName, candidates);
-                    explainedBySpouse = maybeMatch.isPresent() && hasActiveSpouse(maybeMatch.get());
-                }
-                if (rawName != null && !rawName.isBlank() && !explainedBySpouse) {
+                    boolean explainedBySpouse = maybeMatch.isPresent() && hasActiveSpouse(maybeMatch.get());
                     conflictService.open(batch, image, null, null, ConflictType.EMPTY_ROW_SKIPPED, false,
-                            Map.of("employeeNameRaw", rawName, "rowIndex", rowIndex));
+                            new OcrEmptyRow(rawName, maybeMatch.map(Employee::getId).orElse(null), rowIndex, explainedBySpouse));
                 }
                 continue;
             }

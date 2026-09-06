@@ -41,8 +41,18 @@ export interface ProductionRowDraft {
   genericValueFlagged: boolean;
   rowStatus: RowStatus;
   rowError?: string;
-  /** Thứ tự dòng gốc trên phiếu giấy (từ `record.rowIndex`) — dùng để SẮP LẠI bảng khớp đúng thứ tự
-   * trong ảnh, dễ đối chiếu bằng mắt (phản hồi trực tiếp). `null` khi chưa có record nào (chưa từng
-   * xuất hiện trong ảnh nào) — các dòng này xếp CUỐI bảng, theo tên. */
+  /** Thứ tự dòng gốc trên phiếu giấy — ưu tiên từ `record.rowIndex` (đã có production_record), rơi
+   * về `EMPTY_ROW_SKIPPED` conflict (dòng có tên trên phiếu nhưng không có số liệu — nghỉ hoặc gộp
+   * chung vợ/chồng, xem `getEmptyRowIndexByEmployeeId`) nếu không có record. `null` chỉ khi CẢ 2
+   * nguồn đều không có (nhân viên chưa từng xuất hiện trong ảnh nào) — dùng vị trí mặc định trong
+   * danh sách nhân viên làm khóa sắp phụ, KHÔNG ép xếp cuối bảng (phản hồi trực tiếp, xem
+   * `sortRowsLikePhoto`). */
   rowIndex: number | null;
+  /** Tên vợ/chồng nếu dòng này trống DO sản lượng đã tính chung vào dòng vợ/chồng (CLAUDE.md §5,
+   * ADR-0024 — chia đôi kg chỉ áp dụng lúc tính lương, không đụng dữ liệu sản lượng thô) — `null` cho
+   * dòng trống thật sự (nghỉ/không cạo) hoặc dòng có dữ liệu. Suy ra ở FRONTEND (không cần đọc conflict
+   * OCR) bằng cách đối chiếu `spouseEmployeeId` với dữ liệu dòng vợ/chồng trong cùng bảng — áp dụng cho
+   * cả trường hợp nhập tay thuần, không riêng gì ảnh OCR (phản hồi trực tiếp: "các dòng vợ chồng thì
+   * không hiển là nghỉ/hoặc cạo do tính chung"). */
+  combinedWithSpouseName: string | null;
 }
