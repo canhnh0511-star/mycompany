@@ -5,13 +5,17 @@ import { RequireAuth } from '../components/common/RequireAuth';
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { PayrollPage } from '../features/payroll/pages/PayrollPage';
-import { navGroups, reportsNavItem } from '../components/navigation/navConfig';
+import { SalaryComponentsPage } from '../features/salary-components/pages/SalaryComponentsPage';
+import { DailyEntryPage } from '../features/daily-entry/pages/DailyEntryPage';
+import { ProfilePage } from '../features/profile/pages/ProfilePage';
+import { allNavItems } from '../components/navigation/navConfig';
 
 // Chỉ nav item status:'pending' mới auto-map sang ComingSoonPage (spec §44/§47) — item 'ready' phải
-// có route thật khai báo tường minh bên dưới, tránh 2 route cùng path (Bảng lương giờ đã ready).
-const pendingItems = [reportsNavItem, ...navGroups.flatMap((group) => group.items)].filter(
-  (item) => item.status === 'pending',
-);
+// có route thật khai báo tường minh bên dưới, tránh 2 route cùng path (Bảng lương/Thành phần lương/
+// Nhập phiếu hàng ngày giờ đã ready). Dùng `allNavItems` (đã gộp sẵn overview/report/Ngày làm việc/
+// submenu Sản lượng/group items) thay vì tự ghép lại từng phần — tránh sót mục khi navConfig đổi cấu
+// trúc (vd "Sản lượng" giờ là expandable, không còn nằm trong `navGroups`).
+const pendingItems = allNavItems.filter((item) => item.status === 'pending');
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -24,6 +28,9 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/bang-luong', element: <PayrollPage /> },
+      { path: '/thanh-phan-luong', element: <SalaryComponentsPage /> },
+      { path: '/phieu', element: <DailyEntryPage /> },
+      { path: '/ho-so', element: <ProfilePage /> },
       ...pendingItems.map((item) => ({
         path: item.path,
         element: <ComingSoonPage title={item.label} />,

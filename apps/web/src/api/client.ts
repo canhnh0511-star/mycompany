@@ -86,8 +86,18 @@ export async function apiPostAuthed<T>(path: string, params?: QueryParams, body?
   return handleResponse<T>(response);
 }
 
-/** PATCH có kèm Bearer token — sửa 1 field (vd Trừ/Tạm ứng, Hạng kỹ thuật). */
-export async function apiPatch<T>(path: string, params: QueryParams | undefined, body: unknown): Promise<T> {
+/**
+ * PATCH có kèm Bearer token — sửa 1 field (vd Trừ/Tạm ứng, Hạng kỹ thuật).
+ * `skipAuthRedirect` — dùng cho các endpoint mà 401 KHÔNG có nghĩa là "phiên đăng nhập hết hạn" (vd
+ * đổi mật khẩu sai mật khẩu hiện tại — `UserController.changePassword` trả 401 qua
+ * `BadCredentialsException` nhưng người dùng vẫn đang đăng nhập hợp lệ, không nên bị đá về /login).
+ */
+export async function apiPatch<T>(
+  path: string,
+  params: QueryParams | undefined,
+  body: unknown,
+  opts?: { skipAuthRedirect?: boolean },
+): Promise<T> {
   const token = getAccessToken();
   const response = await fetch(buildUrl(path, params), {
     method: 'PATCH',
@@ -99,7 +109,7 @@ export async function apiPatch<T>(path: string, params: QueryParams | undefined,
     body: JSON.stringify(body),
   });
 
-  return handleResponse<T>(response);
+  return handleResponse<T>(response, opts?.skipAuthRedirect);
 }
 
 /**
@@ -108,9 +118,10 @@ export async function apiPatch<T>(path: string, params: QueryParams | undefined,
  * là 403, kể cả khi CHƯA đăng nhập lần nào — không phải lỗi CORS/backend, xem docs/adr liên quan).
  * Xoá token cũ (nếu có) + đưa thẳng về /login thay vì để mọi widget hiện lỗi. Redirect cứng
  * (window.location) vì đây là code ngoài React tree, không có access tới react-router navigate.
+ * `skipAuthRedirect` — xem ghi chú ở `apiPatch`.
  */
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (response.status === 401 || response.status === 403) {
+async function handleResponse<T>(response: Response, skipAuthRedirect = false): Promise<T> {
+  if (!skipAuthRedirect && (response.status === 401 || response.status === 403)) {
     clearAccessToken();
     if (window.location.pathname !== '/login') {
       window.location.assign('/login');
@@ -121,13 +132,20 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const message = await safeErrorMessage(response);
     throw new ApiError(response.status, message);
   }
+  // 204 No Content (vd đổi mật khẩu) — không có body, `response.json()` sẽ ném lỗi parse nếu gọi.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
+/**
+ * Backend trả lỗi theo `ProblemDetail` (RFC 7807, GlobalExceptionHandler) — field chứa nội dung lỗi
+ * là `detail`, KHÔNG PHẢI `message` (bug cũ: luôn rơi vào fallback generic dù backend đã trả lý do cụ
+ * thể, vd "Mật khẩu hiện tại không đúng" hay lỗi chồng lấn effective date của rate config).
+ */
 async function safeErrorMessage(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as { message?: string };
-    return body.message ?? `Yêu cầu thất bại (${response.status})`;
+    const body = (await response.json()) as { detail?: string; message?: string };
+    return body.detail ?? body.message ?? `Yêu cầu thất bại (${response.status})`;
   } catch {
     return `Yêu cầu thất bại (${response.status})`;
   }
