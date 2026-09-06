@@ -11,6 +11,7 @@ import { ProfilePage } from '../features/profile/pages/ProfilePage';
 import { SystemConfigPage } from '../features/system-config/pages/SystemConfigPage';
 import { ProductionRecordsPage } from '../features/production-records/pages/ProductionRecordsPage';
 import { LatexSalePage } from '../features/latex-sales/pages/LatexSalePage';
+import { AttendancePage } from '../features/attendance/pages/AttendancePage';
 import { allNavItems } from '../components/navigation/navConfig';
 
 // Chỉ nav item status:'pending' mới auto-map sang ComingSoonPage (spec §44/§47) — item 'ready' phải
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: '/cau-hinh-he-thong', element: <SystemConfigPage /> },
       { path: '/san-luong', element: <ProductionRecordsPage /> },
       { path: '/ban-mu', element: <LatexSalePage /> },
+      { path: '/ngay-lam-viec', element: <AttendancePage /> },
       ...pendingItems.map((item) => ({
         path: item.path,
         element: <ComingSoonPage title={item.label} />,

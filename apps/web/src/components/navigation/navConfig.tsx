@@ -43,7 +43,7 @@ export const workingDayNavItem: NavItem = {
   label: 'Ngày làm việc',
   path: '/ngay-lam-viec',
   icon: <EventAvailableOutlinedIcon fontSize="small" />,
-  status: 'pending',
+  status: 'ready',
 };
 
 /** "Sản lượng" — mục cha expandable, 3 submenu theo đúng mockup đã duyệt. "Danh sách phiếu" GIỮ
