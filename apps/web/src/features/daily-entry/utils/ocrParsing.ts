@@ -2,9 +2,16 @@ import type { LatexTypeOption } from '../../../api/lookups.api';
 import type { ScanBatch } from '../model/scanBatch.types';
 
 /**
- * Parse `low_confidence_fields` (JSON string, mảng string — vd `["kg:cup","employee_name"]`) —
- * khớp prompt OCR đã sửa (mục A2, ClaudeOcrService): field không kèm loại mủ (không có ":") áp dụng
- * chung cho cả dòng, field có `:<latex_type_code>` chỉ áp dụng đúng loại mủ đó.
+ * Parse `low_confidence_fields` — JSON string dạng `{"fields": ["kg:cup","employee_name"]}`
+ * (ProductionRecordService.writeLowConfidenceFieldsOrNull — object bọc ngoài `{"fields": [...]}`,
+ * KHÔNG PHẢI mảng thuần) — field không kèm loại mủ (không có ":") áp dụng chung cho cả dòng, field
+ * có `:<latex_type_code>` chỉ áp dụng đúng loại mủ đó.
+ *
+ * Bug đã sửa (2026-09-06, phát hiện qua test thật): bản trước đọc thẳng `JSON.parse(raw)` rồi kiểm
+ * `Array.isArray` — vì raw thực tế là OBJECT (`{"fields": [...]}`) chứ không phải mảng thuần, check
+ * này luôn false → hàm luôn trả EMPTY, khiến toàn bộ tính năng tô ô OCR-không-chắc-chắn theo từng ô
+ * chưa từng hoạt động với dữ liệu thật (chỉ vô tình không lộ ra vì ảnh test trước đó không kích hoạt
+ * low-confidence field nào).
  */
 export interface ParsedLowConfidence {
   nameFlagged: boolean;
@@ -18,12 +25,13 @@ const EMPTY: ParsedLowConfidence = { nameFlagged: false, flaggedLatexTypeIds: []
 
 export function parseLowConfidenceFields(raw: string | null, latexTypes: LatexTypeOption[]): ParsedLowConfidence {
   if (!raw) return EMPTY;
-  let tokens: unknown;
+  let parsed: unknown;
   try {
-    tokens = JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     return EMPTY;
   }
+  const tokens = Array.isArray(parsed) ? parsed : (parsed as { fields?: unknown })?.fields;
   if (!Array.isArray(tokens)) return EMPTY;
 
   let nameFlagged = false;

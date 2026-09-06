@@ -227,6 +227,18 @@ export function ProductionRosterTable({
   );
 
   const mismatchedCodes = new Set(mismatchedLatexTypeCodes);
+  // OCR giờ tự đối chiếu tổng cột lúc đọc (ClaudeOcrService prompt) — nếu tìm được đúng dòng nghi
+  // ngờ, dòng đó đã nằm sẵn trong `flaggedLatexTypeIds` (cùng cơ chế "kg:cup" đã có). Cột nào có
+  // TOTAL_MISMATCH nhưng KHÔNG dòng nào được OCR chỉ đích danh → không xác định được dòng cụ thể
+  // (nhiều khả năng phiếu giấy tự cộng tay sai, không phải OCR đọc nhầm) → mới fallback tô cả cột
+  // (phản hồi: "highlight cả cột... có thể bổ sung xác định đúng dòng không").
+  const pinpointedEmployeeIdsByCode = new Map<string, Set<string>>();
+  for (const type of latexTypes) {
+    if (!mismatchedCodes.has(type.code)) continue;
+    const ids = new Set(rows.filter((r) => r.flaggedLatexTypeIds.includes(type.id)).map((r) => r.employeeId));
+    if (ids.size > 0) pinpointedEmployeeIdsByCode.set(type.code, ids);
+  }
+  const columnFallback = (code: string) => mismatchedCodes.has(code) && !pinpointedEmployeeIdsByCode.has(code);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -237,16 +249,24 @@ export function ProductionRosterTable({
               <TableCell sx={{ width: 44, bgcolor: tableHeader.sub }}>STT</TableCell>
               <TableCell sx={{ minWidth: 180, bgcolor: tableHeader.sub }}>Tên công nhân</TableCell>
               {latexTypes.map((type) => {
-                const columnMismatched = mismatchedCodes.has(type.code);
+                const pinpointed = pinpointedEmployeeIdsByCode.has(type.code);
+                const fallback = columnFallback(type.code);
                 return (
                   <TableCell
                     key={type.id}
                     align="right"
-                    sx={{ ...numColSx, bgcolor: columnMismatched ? red[50] : tableHeader.sub, color: columnMismatched ? red[700] : undefined }}
+                    sx={{ ...numColSx, bgcolor: fallback ? red[50] : tableHeader.sub, color: fallback ? red[700] : undefined }}
                   >
-                    {columnMismatched ? (
-                      <Tooltip title="Cột này đang lệch tổng so với ảnh gốc — đối chiếu lại từng dòng bên dưới với ảnh.">
+                    {fallback ? (
+                      <Tooltip title="Lệch tổng nhưng không xác định được đúng dòng nào — có thể phiếu giấy tự cộng tay sai. Đối chiếu lại cả cột với ảnh.">
                         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                          <ErrorOutlineOutlinedIcon sx={{ fontSize: 15 }} />
+                          {type.label} ({type.unit})
+                        </Box>
+                      </Tooltip>
+                    ) : pinpointed ? (
+                      <Tooltip title="Lệch tổng — OCR đã xác định đúng ô nghi ngờ, xem ô tô vàng bên dưới thay vì cả cột.">
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'warning.dark' }}>
                           <ErrorOutlineOutlinedIcon sx={{ fontSize: 15 }} />
                           {type.label} ({type.unit})
                         </Box>
@@ -285,9 +305,9 @@ export function ProductionRosterTable({
                 </TableCell>
                 {latexTypes.map((type, itemIndex) => {
                   const flagged = row.genericValueFlagged || row.flaggedLatexTypeIds.includes(type.id);
-                  const columnMismatched = mismatchedCodes.has(type.code);
+                  const fallback = columnFallback(type.code);
                   return (
-                    <TableCell key={type.id} sx={{ ...cellSx, ...(columnMismatched ? { bgcolor: red[50] } : null) }}>
+                    <TableCell key={type.id} sx={{ ...cellSx, ...(fallback ? { bgcolor: red[50] } : null) }}>
                       <DecimalField
                         size="small"
                         placeholder="—"
@@ -316,7 +336,7 @@ export function ProductionRosterTable({
                 <TableCell
                   key={latexTypes[i].id}
                   align="right"
-                  sx={{ ...numColSx, ...(mismatchedCodes.has(latexTypes[i].code) ? { bgcolor: red[50], color: red[700] } : null) }}
+                  sx={{ ...numColSx, ...(columnFallback(latexTypes[i].code) ? { bgcolor: red[50], color: red[700] } : null) }}
                 >
                   {total.toLocaleString('vi-VN')}
                 </TableCell>

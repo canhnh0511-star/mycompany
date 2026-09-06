@@ -297,7 +297,16 @@ public class ClaudeOcrService {
                     + "khi trả kết quả để chắc chắn không sót dòng nào. Trường nào không chắc chắn (chữ mờ/khó đọc) "
                     + "→ liệt kê tên trường vào low_confidence_fields của đúng dòng đó thay vì đoán bừa — dòng có "
                     + "NHIỀU loại mủ thì PHẢI ghi rõ đúng loại mủ nào không chắc chắn (vd 'kg:cup'), xem mô tả field "
-                    + "này trong schema. PHẢI gọi tool extract_production_records để trả kết quả.";
+                    + "này trong schema. Sau khi đọc xong TẤT CẢ các dòng và điền column_totals (nếu phiếu có dòng "
+                    + "Tổng cộng): TỰ CỘNG lại kg của từng loại mủ theo các rows[] vừa đọc và so với số trên "
+                    + "column_totals của ĐÚNG loại mủ đó. Nếu 2 số KHÔNG khớp — hãy xem lại chính XÁC dòng nào bạn "
+                    + "kém chắc chắn nhất khi đọc số của cột đó (chữ số mờ, nét chồng lấn, tẩy xóa...) và bổ sung "
+                    + "field đó (dạng 'kg:<loại_mủ>') vào low_confidence_fields của đúng dòng đó — kể cả khi ban "
+                    + "đầu bạn thấy tự tin, vì việc lệch tổng tự nó là bằng chứng cho thấy có ít nhất 1 số bị đọc "
+                    + "sai hoặc phiếu tự cộng tay sai. CHỈ đánh dấu dòng khi bạn thực sự nghi ngờ dòng đó cụ thể — "
+                    + "nếu không xác định được dòng nào khả nghi hơn dòng khác (vd tất cả đều đọc rõ ràng, khả năng "
+                    + "cao là phiếu giấy tự cộng tay sai) thì KHÔNG cần đánh dấu dòng nào, cứ để hệ thống tự cảnh "
+                    + "báo lệch tổng ở mức tổng thể. PHẢI gọi tool extract_production_records để trả kết quả.";
         }
         return common
                 + "Đây PHẢI là sổ bán mủ theo Tổ cho người mua ngoài: có tên người mua, tên người đại diện Tổ ký "
