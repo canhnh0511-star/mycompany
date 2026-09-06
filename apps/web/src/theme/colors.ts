@@ -132,3 +132,17 @@ export const sidebar = {
   text: '#FFFFFF',
   textMuted: 'rgba(255, 255, 255, 0.7)',
 } as const;
+
+/**
+ * Sequential green scale cho Heatmap "Sản lượng theo ngày/theo Tổ" (Báo cáo sản lượng spec §12.3) —
+ * hài hòa cùng `green` ở trên, KHÔNG dùng rainbow. `noData` dùng `neutral[100]` (trung tính, tách biệt
+ * rõ với ô có dữ liệu thấp nhất).
+ */
+export const heatmapScale = {
+  noData: neutral[100],
+  veryLow: '#E8F4EC',
+  low: '#CDE8D5',
+  medium: '#9FD1AD',
+  high: '#56AD74',
+  veryHigh: '#198754',
+} as const;
