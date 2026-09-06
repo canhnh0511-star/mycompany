@@ -9,6 +9,7 @@ import { toIsoDate } from '../../../utils/format';
 import { useTeams } from '../../../hooks/useLookups';
 import { ProductionRosterTable } from '../components/production/ProductionRosterTable';
 import { ScanBatchPhotoPanel } from '../components/production/ScanBatchPhotoPanel';
+import { getTotalMismatchLatexTypeCodes } from '../utils/ocrParsing';
 import { useInvalidateRoster } from '../hooks/useProductionRecords';
 import {
   useCancelScanBatch,
@@ -152,7 +153,11 @@ export function DailyEntryPage() {
               {controlCard}
               {uploadError && <Typography sx={{ fontSize: 13, color: 'error.main' }}>{uploadError}</Typography>}
               <SectionPanel title="Danh sách công nhân" noContentPadding sx={{ flex: 1 }}>
-                <ProductionRosterTable teamId={teamId} recordDate={recordDate} />
+                <ProductionRosterTable
+                  teamId={teamId}
+                  recordDate={recordDate}
+                  mismatchedLatexTypeCodes={batch ? getTotalMismatchLatexTypeCodes(batch) : []}
+                />
               </SectionPanel>
             </Stack>
 

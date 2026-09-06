@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography } from '@mui/material';
+import { Box, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import { LoadingButton } from '../../../../components/common/LoadingButton';
 import { DecimalField } from '../../../../components/common/DecimalField';
 import { LoadingSkeleton } from '../../../../components/feedback/LoadingSkeleton';
 import { WidgetErrorState } from '../../../../components/feedback/WidgetErrorState';
 import { WidgetEmptyState } from '../../../../components/feedback/WidgetEmptyState';
 import { useEmployees, useLatexTypes } from '../../../../hooks/useLookups';
-import { amber, borderStrong, neutral, tableHeader, tableRow, text } from '../../../../theme/colors';
+import { amber, borderStrong, neutral, red, tableHeader, tableRow, text } from '../../../../theme/colors';
 import { ApiError } from '../../../../api/client';
 import { useCreateProductionRecordsBatch, useProductionRecordsByTeamAndDate, useUpdateProductionRecord } from '../../hooks/useProductionRecords';
 import { parseLowConfidenceFields } from '../../utils/ocrParsing';
@@ -63,7 +64,19 @@ function buildRow(employee: EmployeeOption, latexTypes: LatexTypeOption[], recor
  * đè dòng người dùng đang gõ dở ở chỗ khác (CLAUDE.md §5: "bảng kết quả CÓ THỂ CHỈNH SỬA — đọc trực
  * tiếp từ draft row", nhưng vẫn phải tôn trọng chỉnh sửa tại chỗ chưa lưu).
  */
-export function ProductionRosterTable({ teamId, recordDate }: { teamId: string; recordDate: string }) {
+export function ProductionRosterTable({
+  teamId,
+  recordDate,
+  mismatchedLatexTypeCodes = [],
+}: {
+  teamId: string;
+  recordDate: string;
+  /** `latexTypeCode` của các cột đang có cảnh báo "Lệch tổng" (TOTAL_MISMATCH) đang OPEN — tô cả
+   * CỘT (không phải 1 ô cụ thể, vì không biết chắc dòng nào sai — có thể do cộng tay sai ở giấy gốc
+   * hoặc OCR đọc nhầm 1 dòng bất kỳ trong cột) để Admin biết đúng cột nào cần đối chiếu kỹ với ảnh
+   * (phản hồi trực tiếp: "phát hiện lệch tổng nhưng không highlight ô nào gây lệch"). */
+  mismatchedLatexTypeCodes?: string[];
+}) {
   const { data: employees, isLoading: loadingEmployees } = useEmployees({ teamId, status: 'ACTIVE' });
   const { data: latexTypes, isLoading: loadingLatexTypes } = useLatexTypes();
   const { data: records, isLoading: loadingRecords, isError, refetch } = useProductionRecordsByTeamAndDate(teamId, recordDate);
@@ -213,6 +226,8 @@ export function ProductionRosterTable({ teamId, recordDate }: { teamId: string; 
     }, 0),
   );
 
+  const mismatchedCodes = new Set(mismatchedLatexTypeCodes);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ overflowX: 'auto' }}>
@@ -221,11 +236,27 @@ export function ProductionRosterTable({ teamId, recordDate }: { teamId: string; 
             <TableRow>
               <TableCell sx={{ width: 44, bgcolor: tableHeader.sub }}>STT</TableCell>
               <TableCell sx={{ minWidth: 180, bgcolor: tableHeader.sub }}>Tên công nhân</TableCell>
-              {latexTypes.map((type) => (
-                <TableCell key={type.id} align="right" sx={{ ...numColSx, bgcolor: tableHeader.sub }}>
-                  {type.label} ({type.unit})
-                </TableCell>
-              ))}
+              {latexTypes.map((type) => {
+                const columnMismatched = mismatchedCodes.has(type.code);
+                return (
+                  <TableCell
+                    key={type.id}
+                    align="right"
+                    sx={{ ...numColSx, bgcolor: columnMismatched ? red[50] : tableHeader.sub, color: columnMismatched ? red[700] : undefined }}
+                  >
+                    {columnMismatched ? (
+                      <Tooltip title="Cột này đang lệch tổng so với ảnh gốc — đối chiếu lại từng dòng bên dưới với ảnh.">
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                          <ErrorOutlineOutlinedIcon sx={{ fontSize: 15 }} />
+                          {type.label} ({type.unit})
+                        </Box>
+                      </Tooltip>
+                    ) : (
+                      `${type.label} (${type.unit})`
+                    )}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -254,8 +285,9 @@ export function ProductionRosterTable({ teamId, recordDate }: { teamId: string; 
                 </TableCell>
                 {latexTypes.map((type, itemIndex) => {
                   const flagged = row.genericValueFlagged || row.flaggedLatexTypeIds.includes(type.id);
+                  const columnMismatched = mismatchedCodes.has(type.code);
                   return (
-                    <TableCell key={type.id} sx={cellSx}>
+                    <TableCell key={type.id} sx={{ ...cellSx, ...(columnMismatched ? { bgcolor: red[50] } : null) }}>
                       <DecimalField
                         size="small"
                         placeholder="—"
@@ -281,7 +313,11 @@ export function ProductionRosterTable({ teamId, recordDate }: { teamId: string; 
             <TableRow sx={{ '& td': { borderTop: `2px solid ${borderStrong}`, fontWeight: 700 } }}>
               <TableCell colSpan={2}>Tổng cộng</TableCell>
               {totals.map((total, i) => (
-                <TableCell key={latexTypes[i].id} align="right" sx={numColSx}>
+                <TableCell
+                  key={latexTypes[i].id}
+                  align="right"
+                  sx={{ ...numColSx, ...(mismatchedCodes.has(latexTypes[i].code) ? { bgcolor: red[50], color: red[700] } : null) }}
+                >
                   {total.toLocaleString('vi-VN')}
                 </TableCell>
               ))}

@@ -1,4 +1,5 @@
 import type { LatexTypeOption } from '../../../api/lookups.api';
+import type { ScanBatch } from '../model/scanBatch.types';
 
 /**
  * Parse `low_confidence_fields` (JSON string, mảng string — vd `["kg:cup","employee_name"]`) —
@@ -71,4 +72,21 @@ export function parseOcrColumnTotals(raw: string | null): Record<string, number>
   } catch {
     return {};
   }
+}
+
+/** `latexTypeCode` của mọi conflict TOTAL_MISMATCH đang OPEN trong batch — dùng để highlight cả cột
+ * tương ứng trên bảng roster (`ProductionRosterTable`), không chỉ hiện text cảnh báo (phản hồi:
+ * "phát hiện lệch tổng nhưng không highlight ô nào gây lệch"). */
+export function getTotalMismatchLatexTypeCodes(batch: ScanBatch): string[] {
+  const codes = new Set<string>();
+  for (const conflict of batch.conflicts) {
+    if (conflict.status !== 'OPEN' || conflict.conflictType !== 'TOTAL_MISMATCH' || !conflict.detail) continue;
+    try {
+      const parsed = JSON.parse(conflict.detail) as { latexTypeCode?: string };
+      if (parsed.latexTypeCode) codes.add(parsed.latexTypeCode);
+    } catch {
+      /* bỏ qua nếu detail không parse được — không có cột nào để highlight */
+    }
+  }
+  return [...codes];
 }
