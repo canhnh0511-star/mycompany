@@ -19,7 +19,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 1 ảnh chụp/upload trong 1 ScanBatch — first-class, thay cho photo_url string rời rạc trên từng
@@ -87,6 +89,13 @@ public class ScanImage {
     // Admin đối chiếu bằng mắt với số dòng thật trên phiếu giấy (migration 011).
     @Column(name = "ocr_row_count")
     private Integer ocrRowCount;
+
+    // "Tổng cộng" OCR đọc được trên phiếu theo TỪNG loại mủ (JSON, giữ nguyên dạng column_totals của
+    // tool schema) — lưu LUÔN mỗi lần xử lý xong, không chỉ khi phát hiện lệch (migration 016) — để
+    // panel "Thông tin ảnh/OCR" hiển thị được kể cả khi khớp hoàn toàn, không riêng lúc TOTAL_MISMATCH.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ocr_column_totals")
+    private String ocrColumnTotals;
 
     // Set khi status=PENDING_MOVE, trỏ Supplement batch đích (Spec 1 mục 5/5.1). Không map @ManyToOne
     // trực tiếp sang ScanBatch — chỉ cần id để tránh vòng lặp lazy-load 2 chiều không cần thiết.

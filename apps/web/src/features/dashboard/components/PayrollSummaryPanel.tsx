@@ -21,7 +21,10 @@ export function PayrollSummaryPanel({ workDate, month }: { workDate: string; mon
   const monthLabel = `${month.slice(5, 7)}/${month.slice(0, 4)}`;
 
   return (
-    <SectionPanel title={`Bảng lương tháng ${monthLabel}`} actionLabel="Xem chi tiết" actionHref={`/bang-luong/${month}`}>
+    <SectionPanel
+      title={`Bảng lương tháng ${monthLabel}`}
+      action={{ label: 'Xem chi tiết', href: `/bang-luong/${month}` }}
+    >
       {isLoading ? (
         <LoadingSkeleton rows={3} rowHeight={32} />
       ) : isError || !data ? (

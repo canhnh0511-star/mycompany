@@ -38,6 +38,7 @@ import com.mycompany.api.repository.EmployeeRepository;
 import com.mycompany.api.repository.ImageLatexTotalRow;
 import com.mycompany.api.repository.OcrCallLogRepository;
 import com.mycompany.api.repository.ProductionRecordItemRepository;
+import com.mycompany.api.repository.ProductionRecordRepository;
 import com.mycompany.api.repository.ScanBatchAuditLogRepository;
 import com.mycompany.api.repository.ScanBatchRepository;
 import com.mycompany.api.repository.ScanImageRepository;
@@ -70,11 +71,14 @@ import org.springframework.stereotype.Service;
  * Thuật toán create/merge/reuse (mục 2-3, ủy quyền {@link ScanBatchCreationService} — xem javadoc
  * class đó về LÝ DO tách riêng, không chỉ tổ chức code), date verification (mục 4), resolve mismatch
  * + PENDING_MOVE (mục 5), recompute batch status (mục 5.2, ủy quyền BatchStatusRecomputeService),
- * conflict detection (mục 6), approve/cancel/retry (mục 1). Riêng production_records: nếu nhân viên
- * khớp có khai báo sẵn vợ/chồng (employees.spouse_employee_id), 1 dòng OCR tự tách thành 2 draft
- * chia đôi kg (xem splitBetweenSpouses, port từ OcrCaptureService cũ khi verify Phase 1/2 trên DB
- * thật — ADR-0021 addendum) — Claude KHÔNG biết khái niệm này, việc tách xử lý hoàn toàn ở tầng
- * service.
+ * conflict detection (mục 6), approve/cancel/retry (mục 1). Riêng production_records: KHÔNG còn tự
+ * chia đôi kg cho vợ/chồng ở tầng này nữa (ADR-0024, 2026-09-06) — 1 dòng OCR luôn tạo đúng 1 draft
+ * với nguyên số liệu đọc được, khớp trực tiếp với ảnh gốc để Admin đối chiếu; việc chia đôi cho cặp
+ * vợ/chồng (employees.spouse_employee_id) chuyển sang tính ở PayrollService lúc tính lương. Ngoại lệ
+ * DUY NHẤT còn tách ngay tại đây: phiếu ghi thẳng "Tên chồng - Tên vợ" chung 1 dòng (xem
+ * matchCoupleNamePair/splitBetweenSpouses) — bắt buộc phải tách vì bản thân dòng phiếu đã gộp chung,
+ * không có dòng thô nào khác để giữ nguyên. Claude KHÔNG biết khái niệm vợ/chồng, việc này xử lý
+ * hoàn toàn ở tầng service.
  *
  * <p>KHÔNG @Transactional ở method orchestration cấp cao (captureImage/processOcr/...) — cùng lý do
  * đã ghi ở OcrCaptureService gốc: nếu bọc cả method, exception ở 1 bước con (vd tạo draft record thất
@@ -116,6 +120,7 @@ public class ScanBatchService {
     private final EmployeeFuzzyMatcher fuzzyMatcher;
     private final ProductionRecordService productionRecordService;
     private final ProductionRecordItemRepository productionRecordItemRepository;
+    private final ProductionRecordRepository productionRecordRepository;
     private final LatexSaleService latexSaleService;
     private final ObjectMapper objectMapper;
     private final LatexTypeItemParser itemParser;
@@ -365,6 +370,12 @@ public class ScanBatchService {
         if (!columnTotals.isArray() || columnTotals.isEmpty()) {
             return;
         }
+        // Lưu LUÔN "Tổng trên ảnh" OCR đọc được — trước đây chỉ dùng tạm trong method này để so
+        // sánh rồi bỏ, không có nơi nào đọc lại được khi KHÔNG lệch (migration 016) — panel "Thông
+        // tin ảnh/OCR" phía frontend cần hiển thị số này bất kể có lệch hay không.
+        image.setOcrColumnTotals(columnTotals.toString());
+        scanImageRepository.save(image);
+
         // Bỏ qua CHỈ khi ảnh còn UNKNOWN_EMPLOYEE hoặc POTENTIAL_DUPLICATE_OCR_ROW đang mở — 2 loại DUY
         // NHẤT khiến 1 dòng CHƯA tạo được record (xem createProductionDraft/captureProductionRecordRows),
         // nên kg của chúng chưa cộng vào tổng hệ thống, tự gây lệch dù không hề đọc nhầm cột. Các loại
@@ -440,6 +451,9 @@ public class ScanBatchService {
     private void captureProductionRecordRows(JsonNode input, LocalDate effectiveDate, ScanBatch batch, ScanImage image, User currentUser) {
         List<Employee> candidates = employeeRepository.findByTeamIdAndStatus(batch.getTeam().getId(), EmployeeStatus.ACTIVE);
         JsonNode rows = input.path("rows");
+        // "Trùng danh sách nhân viên" (mục A3) — gom lại nhân viên ĐÃ tạo record thành công cho ảnh
+        // này, so với ảnh khác cùng batch sau khi xử lý xong toàn bộ dòng (detectDuplicateEmployeeRoster).
+        Set<UUID> capturedEmployeeIds = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             JsonNode row = rows.get(i);
             // *2 để chừa 1 chỗ trống ngay sau cho vợ/chồng tách từ CÙNG dòng này (splitBetweenSpouses)
@@ -473,7 +487,7 @@ public class ScanBatchService {
                 boolean explainedBySpouse = false;
                 if (rawName != null && !rawName.isBlank()) {
                     Optional<Employee> maybeMatch = fuzzyMatcher.match(rawName, candidates);
-                    explainedBySpouse = maybeMatch.isPresent() && resolveActiveSpouse(maybeMatch.get()) != null;
+                    explainedBySpouse = maybeMatch.isPresent() && hasActiveSpouse(maybeMatch.get());
                 }
                 if (rawName != null && !rawName.isBlank() && !explainedBySpouse) {
                     conflictService.open(batch, image, null, null, ConflictType.EMPTY_ROW_SKIPPED, false,
@@ -500,6 +514,8 @@ public class ScanBatchService {
                                         "reason", "kg/DRC ngoài khoảng hợp lệ"));
                     }
                     splitBetweenSpouses(batch, image, effectiveDate, first, second, items, notes, rawName, lowConfidence, rowIndex, currentUser);
+                    capturedEmployeeIds.add(first.getId());
+                    capturedEmployeeIds.add(second.getId());
                     continue;
                 }
                 // CLAUDE.md §9 — không tự đoán, lưu nguyên dữ liệu để Admin chọn thủ công qua
@@ -513,13 +529,53 @@ public class ScanBatchService {
                         Map.of("employeeName", matched.get().getFullName(), "reason", "kg/DRC ngoài khoảng hợp lệ"));
             }
 
+            // Trước đây tự chia đôi kg ngay tại đây khi nhân viên khớp có cấu hình vợ/chồng đang
+            // active (xem resolveActiveSpouse/splitBetweenSpouses, đã xóa) — bỏ theo ADR-0024
+            // (2026-09-06): chia đôi lúc tạo draft làm dữ liệu không còn khớp trực tiếp với số ghi
+            // trên ảnh gốc (vd ảnh ghi "18,5", bảng lại hiện "9,2"/"9,3"), khó đối chiếu bằng mắt.
+            // Giữ NGUYÊN số liệu như OCR đọc được; chia đôi cho vợ/chồng chuyển sang tính ở
+            // PayrollService, chỉ ảnh hưởng số tiền lương — không đụng dữ liệu sản lượng thô.
             Employee employee = matched.get();
-            Employee spouse = resolveActiveSpouse(employee);
-            if (spouse == null) {
-                createProductionDraft(batch, image, effectiveDate, employee, items, notes, lowConfidence, rowIndex, currentUser);
-            } else {
-                splitBetweenSpouses(batch, image, effectiveDate, employee, spouse, items, notes, rawName, lowConfidence, rowIndex, currentUser);
-            }
+            createProductionDraft(batch, image, effectiveDate, employee, items, notes, lowConfidence, rowIndex, currentUser);
+            capturedEmployeeIds.add(employee.getId());
+        }
+        detectDuplicateEmployeeRoster(batch, image, capturedEmployeeIds);
+    }
+
+    // Ngưỡng "trùng danh sách nhân viên" — cố ý cao (>=50%) để không báo nhiễu cho trường hợp 2 ảnh
+    // hợp lệ CÙNG batch chỉ tình cờ có vài người trùng tên (vd đổi Tổ giữa 2 trang chụp thật hiếm).
+    private static final double DUPLICATE_ROSTER_OVERLAP_THRESHOLD = 0.5;
+
+    // "Trùng danh sách nhân viên" (mục A3, khác DUPLICATE_IMAGE theo content-hash đã có ở processOcr)
+    // — ảnh thứ 2 CÙNG batch có tỉ lệ lớn nhân viên trùng với ảnh khác đã xử lý trước, dấu hiệu upload
+    // nhầm cùng 1 phiếu giấy 2 lần (khác ảnh nhưng cùng nội dung, vd chụp lại do mờ) — dùng lại đúng
+    // ConflictType.DUPLICATE_IMAGE (không cần enum/migration CHECK constraint mới), chỉ khác `detail.
+    // reason` để phân biệt với duplicate theo content-hash. Resolve OVERRIDE (không phải trùng, đây là
+    // trang bổ sung của cùng Tổ/ngày — vẫn 1 batch, KHÔNG phải luồng Supplement) / DISCARD (đúng là
+    // trùng, hủy dữ liệu ảnh này) dùng chung action đã có, không cần action mới.
+    private void detectDuplicateEmployeeRoster(ScanBatch batch, ScanImage image, Set<UUID> capturedEmployeeIds) {
+        if (capturedEmployeeIds.isEmpty()) {
+            return;
+        }
+        // Ảnh trùng byte-for-byte (processOcr, content-hash) coi như đã đủ tín hiệu "trùng ảnh" rồi
+        // — không mở thêm 1 conflict DUPLICATE_IMAGE thứ 2 (theo roster) cho cùng ảnh, tránh 2 thẻ
+        // cảnh báo trùng lặp ý nghĩa hiện cùng lúc cho Admin.
+        boolean alreadyFlaggedDuplicate = conflictService.openForImage(image.getId()).stream()
+                .anyMatch(c -> c.getConflictType() == ConflictType.DUPLICATE_IMAGE);
+        if (alreadyFlaggedDuplicate) {
+            return;
+        }
+        Set<UUID> otherImagesEmployeeIds = new HashSet<>(
+                productionRecordRepository.findDistinctEmployeeIdsFromOtherImages(batch.getId(), image.getId()));
+        if (otherImagesEmployeeIds.isEmpty()) {
+            return;
+        }
+        long overlapCount = capturedEmployeeIds.stream().filter(otherImagesEmployeeIds::contains).count();
+        double overlapRatio = (double) overlapCount / capturedEmployeeIds.size();
+        if (overlapRatio >= DUPLICATE_ROSTER_OVERLAP_THRESHOLD) {
+            conflictService.open(batch, image, null, null, ConflictType.DUPLICATE_IMAGE, true,
+                    Map.of("reason", "employee_roster_overlap", "overlapCount", overlapCount,
+                            "imageRowCount", capturedEmployeeIds.size()));
         }
     }
 
@@ -544,12 +600,12 @@ public class ScanBatchService {
         return Optional.of(new Employee[] {first.get(), second.get()});
     }
 
-    // Vợ/chồng cùng làm cạo mủ (CLAUDE.md §5, port từ OcrCaptureService cũ — xem ADR-0021 addendum) —
-    // spouse phải đang active mới tách đôi; nếu đã nghỉ việc thì coi như không có, giữ nguyên hành vi
-    // cũ (1 dòng → 1 draft).
-    private Employee resolveActiveSpouse(Employee employee) {
+    // Không còn dùng để chia đôi kg (đã bỏ, ADR-0024) — CHỈ còn dùng để biết dòng trống có phải "đã
+    // gộp chung vào dòng vợ/chồng" hay không, tránh mở conflict EMPTY_ROW_SKIPPED gây nhiễu cho
+    // trường hợp bình thường này (xem chỗ gọi ở captureProductionRecordRows).
+    private boolean hasActiveSpouse(Employee employee) {
         Employee spouse = employee.getSpouseEmployee();
-        return spouse != null && spouse.getStatus() == EmployeeStatus.ACTIVE ? spouse : null;
+        return spouse != null && spouse.getStatus() == EmployeeStatus.ACTIVE;
     }
 
     // Phiếu giấy đôi khi chỉ ghi 1 dòng cho 1 người nhưng thực ra sản lượng đó là CHUNG của 2 vợ
@@ -961,7 +1017,7 @@ public class ScanBatchService {
                 image.getDateResolution() != null ? image.getDateResolution().name() : null,
                 image.getOcrDetectedDate(), image.getEffectiveWorkDate(),
                 image.getPendingMoveTargetBatchId(), image.getErrorMessage(), image.getCreatedAt(),
-                image.getOcrRowCount());
+                image.getOcrRowCount(), image.getOcrColumnTotals());
     }
 
     private ScanBatchConflictResponse toConflictResponse(ScanBatchConflict c) {

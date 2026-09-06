@@ -7,9 +7,12 @@ import com.mycompany.api.dto.ProductionDailyTrendResponse;
 import com.mycompany.api.dto.ProductionReportResponse;
 import com.mycompany.api.dto.ProductionReportRow;
 import com.mycompany.api.dto.ProductionReportTeamSubtotal;
+import com.mycompany.api.entity.Employee;
+import com.mycompany.api.entity.EmployeeStatus;
 import com.mycompany.api.entity.LatexType;
 import com.mycompany.api.exception.InvalidRequestException;
 import com.mycompany.api.repository.DailyTotalRow;
+import com.mycompany.api.repository.EmployeeRepository;
 import com.mycompany.api.repository.LatexSaleAggregateRow;
 import com.mycompany.api.repository.LatexSaleItemRepository;
 import com.mycompany.api.repository.LatexTypeRepository;
@@ -19,9 +22,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +38,11 @@ import org.springframework.transaction.annotation.Transactional;
  * CONFIRMED (xem 2 aggregate query ở repository) — dữ liệu draft/cancelled không lọt vào báo cáo.
  * Pivot list phẳng từ query group-by thành ma trận (Map theo latex_type code) bằng Java thuần —
  * dataset nhỏ (1 công ty, theo tháng), không cần thêm query riêng cho subtotal/grand total.
+ *
+ * <p>Vợ/chồng cùng cạo mủ (ADR-0024, mở rộng 2026-09-06): áp dụng chia đôi kg CÙNG công thức với
+ * {@link PayrollService} (xem {@link SpouseKgSplitter}) — dữ liệu thô production_records không tự
+ * chia (ScanBatchService), report tự gộp+chia đôi ở đây trước khi trả ra, khớp đúng cách Bảng lương
+ * đang tính, tránh 2 màn hình cho ra 2 con số kg khác nhau cho cùng 1 cặp vợ/chồng.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,6 +52,7 @@ public class ReportService {
     private final ProductionRecordItemRepository productionRecordItemRepository;
     private final LatexSaleItemRepository latexSaleItemRepository;
     private final LatexTypeRepository latexTypeRepository;
+    private final EmployeeRepository employeeRepository;
 
     public ProductionReportResponse productionReport(LocalDate fromDate, LocalDate toDate, UUID teamId, UUID employeeId) {
         validateDateRange(fromDate, toDate);
@@ -63,6 +74,10 @@ public class ReportService {
                     return new ProductionReportRow(
                             first.teamId(), first.teamName(), first.employeeId(), first.employeeName(), kgByType, total);
                 })
+                .sorted(Comparator.comparing(ProductionReportRow::teamName).thenComparing(ProductionReportRow::employeeName))
+                .toList();
+
+        rows = applySpouseSplit(rows, fromDate, toDate, employeeId).stream()
                 .sorted(Comparator.comparing(ProductionReportRow::teamName).thenComparing(ProductionReportRow::employeeName))
                 .toList();
 
@@ -138,6 +153,62 @@ public class ReportService {
 
         return new LatexSaleReportResponse(
                 fromDate, toDate, codesOf(latexTypes), labelsOf(latexTypes), rows, grandTotalByType, grandTotalKg);
+    }
+
+    /**
+     * Gộp+chia đôi kg cho cặp vợ/chồng đang active (ADR-0024) — ghi đè dòng của cả 2 người bằng số
+     * đã chia đôi, và THÊM dòng mới nếu 1 người chưa có dòng nào (vd cả tháng phiếu chỉ ghi tên
+     * người kia, CLAUDE.md §5) vì trước đây họ không xuất hiện trong `rows` (không có raw aggregate
+     * nào). Khi `employeeIdFilter` khác null (đang xem báo cáo drill-down đúng 1 người) — CHỈ cập
+     * nhật dòng của đúng người được yêu cầu, không tự thêm dòng cho vợ/chồng (giữ đúng hợp đồng lọc
+     * theo 1 nhân viên, khác view toàn Tổ).
+     */
+    private List<ProductionReportRow> applySpouseSplit(
+            List<ProductionReportRow> rows, LocalDate fromDate, LocalDate toDate, UUID employeeIdFilter) {
+        Map<UUID, ProductionReportRow> rowByEmployee = new LinkedHashMap<>();
+        for (ProductionReportRow row : rows) {
+            rowByEmployee.put(row.employeeId(), row);
+        }
+
+        Set<UUID> processedPairs = new HashSet<>();
+        for (ProductionReportRow row : List.copyOf(rowByEmployee.values())) {
+            Employee employee = employeeRepository.findById(row.employeeId()).orElse(null);
+            Employee spouse = employee == null ? null : employee.getSpouseEmployee();
+            if (spouse == null || spouse.getStatus() != EmployeeStatus.ACTIVE) {
+                continue;
+            }
+            UUID pairKey = employee.getId().compareTo(spouse.getId()) <= 0 ? employee.getId() : spouse.getId();
+            if (!processedPairs.add(pairKey)) {
+                continue;
+            }
+
+            // KHÔNG dùng lại kgByLatexType đã có trong `rows` — có thể đã bị lọc theo teamId/employeeId
+            // của filter đang xem (vd Admin lọc đúng 1 Tổ nhưng vợ/chồng lại thuộc Tổ khác) — tính lại
+            // KHÔNG lọc gì để tổng luôn đúng bất kể đang xem theo bộ lọc nào (giống PayrollService).
+            Map<String, BigDecimal> kgA = rawKgByType(employee.getId(), fromDate, toDate);
+            Map<String, BigDecimal> kgB = rawKgByType(spouse.getId(), fromDate, toDate);
+            if (kgA.isEmpty() && kgB.isEmpty()) {
+                continue;
+            }
+            boolean employeeGetsFloor = employee.getId().compareTo(spouse.getId()) <= 0;
+
+            rowByEmployee.put(employee.getId(), toRow(employee, SpouseKgSplitter.combinedHalf(kgA, kgB, employeeGetsFloor)));
+            if (employeeIdFilter == null) {
+                rowByEmployee.put(spouse.getId(), toRow(spouse, SpouseKgSplitter.combinedHalf(kgA, kgB, !employeeGetsFloor)));
+            }
+        }
+        return new ArrayList<>(rowByEmployee.values());
+    }
+
+    private Map<String, BigDecimal> rawKgByType(UUID employeeId, LocalDate fromDate, LocalDate toDate) {
+        return productionRecordItemRepository.aggregateForReport(fromDate, toDate, null, employeeId).stream()
+                .collect(Collectors.toMap(ProductionAggregateRow::latexTypeCode, ProductionAggregateRow::totalKg));
+    }
+
+    private ProductionReportRow toRow(Employee employee, Map<String, BigDecimal> kgByType) {
+        BigDecimal total = kgByType.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new ProductionReportRow(employee.getTeam().getId(), employee.getTeam().getName(),
+                employee.getId(), employee.getFullName(), kgByType, total);
     }
 
     private List<LatexType> sortedLatexTypes() {

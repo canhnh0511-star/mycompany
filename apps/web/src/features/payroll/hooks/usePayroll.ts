@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getPayrollDetail,
   getPayrollSummary,
-  getTeams,
   lockPayroll,
   unlockPayroll,
   updateDeduction,
@@ -10,6 +9,8 @@ import {
   type PayrollFilters,
 } from '../api/payroll.api';
 import type { TechnicalGrade } from '../model/payroll.types';
+
+export { useTeams } from '../../../hooks/useLookups';
 
 const summaryKey = (filters: PayrollFilters) => ['payroll', 'summary', filters] as const;
 const detailKey = (employeeId: string, yearMonth: string) => ['payroll', 'detail', employeeId, yearMonth] as const;
@@ -27,10 +28,6 @@ export function usePayrollDetail(employeeId: string | null, yearMonth: string) {
     queryFn: () => getPayrollDetail(employeeId as string, yearMonth),
     enabled: employeeId !== null,
   });
-}
-
-export function useTeams() {
-  return useQuery({ queryKey: ['teams'], queryFn: getTeams });
 }
 
 /** Sau mọi mutation ghi (sửa/chốt/mở), invalidate CẢ summary lẫn detail — bảng và panel chi tiết

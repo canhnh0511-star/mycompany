@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from 'react';
 import { Box, Menu, MenuItem, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import ExpandMoreOutlinedIcon from '@mui/icons-material/ExpandMoreOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import { useCurrentUser } from '../../features/auth/hooks/useCurrentUser';
@@ -32,7 +32,7 @@ export function UserMenu() {
         }}
       >
         <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{user?.fullName ?? 'David Dũng'}</Typography>
-        <ExpandMoreRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+        <ExpandMoreOutlinedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
       </Stack>
       <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
         <MenuItem

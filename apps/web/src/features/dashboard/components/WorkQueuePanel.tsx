@@ -12,7 +12,11 @@ export function WorkQueuePanel({ workDate }: { workDate: string }) {
   const { data, isLoading, isError, refetch } = useWorkQueue(workDate);
 
   return (
-    <SectionPanel title="Cần xử lý" badgeCount={data?.length} actionLabel="Xem tất cả" actionHref={`/phieu?date=${workDate}`}>
+    <SectionPanel
+      title="Cần xử lý"
+      badgeCount={data?.length}
+      action={{ label: 'Xem tất cả', href: `/phieu?date=${workDate}` }}
+    >
       {isLoading ? (
         <LoadingSkeleton rows={4} rowHeight={40} />
       ) : isError ? (

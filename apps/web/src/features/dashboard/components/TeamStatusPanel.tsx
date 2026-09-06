@@ -10,7 +10,10 @@ export function TeamStatusPanel({ workDate }: { workDate: string }) {
   const { data, isLoading, isError, refetch } = useTeamStatus(workDate);
 
   return (
-    <SectionPanel title="Tình hình theo tổ (hôm nay)" actionLabel="Xem chi tiết" actionHref={`/san-luong?date=${workDate}`}>
+    <SectionPanel
+      title="Tình hình theo tổ (hôm nay)"
+      action={{ label: 'Xem chi tiết', href: `/san-luong?date=${workDate}` }}
+    >
       {isLoading ? (
         <LoadingSkeleton rows={4} rowHeight={36} />
       ) : isError ? (

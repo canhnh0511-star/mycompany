@@ -1,12 +1,12 @@
 import { Box, Stack, Typography, alpha } from '@mui/material';
 import { NavLink } from 'react-router-dom';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import ExpandMoreOutlinedIcon from '@mui/icons-material/ExpandMoreOutlined';
 import logoMark from '../../assets/logo-mark.png';
 import { sidebar } from '../../theme/colors';
 import { uiTokens } from '../../theme/tokens';
 import { SIDEBAR_WIDTH } from '../../theme/theme';
 import { overviewNavItem, sidebarSections } from './navConfig';
-import type { NavItem } from '../../types/nav';
+import type { NavExpandableParent, NavItem } from '../../types/nav';
 import { useCurrentUser } from '../../features/auth/hooks/useCurrentUser';
 
 /** Tên thương hiệu tĩnh (logo sidebar) — độc lập với user đang đăng nhập. */
@@ -45,6 +45,36 @@ function NavRow({ item }: { item: NavItem }) {
       <Typography variant="body2" sx={{ color: 'inherit', fontWeight: 'inherit' }}>
         {item.label}
       </Typography>
+    </Box>
+  );
+}
+
+/**
+ * Mục cha "expandable" (vd "Sản lượng") — style GIỐNG `NavRow` (icon+label, cùng size/màu) nhưng
+ * KHÔNG phải link (không `NavLink`, không route riêng — bản thân nhãn này không phải 1 trang, xem
+ * `NavExpandableParent`) + chevron tĩnh báo hiệu "đang mở" (v1 luôn mở, không cần bấm để thu gọn,
+ * khớp mockup đã duyệt).
+ */
+function NavParentRow({ parent }: { parent: NavExpandableParent }) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        px: 1.5,
+        py: 1,
+        borderRadius: `${uiTokens.radius.nav}px`,
+        color: sidebar.text,
+        fontSize: 14,
+        fontWeight: 500,
+      }}
+    >
+      <Box sx={{ display: 'flex', color: 'inherit' }}>{parent.icon}</Box>
+      <Typography variant="body2" sx={{ color: 'inherit', fontWeight: 'inherit', flex: 1 }}>
+        {parent.label}
+      </Typography>
+      <ExpandMoreOutlinedIcon sx={{ fontSize: 18, color: alpha('#FFFFFF', 0.6), transform: 'rotate(180deg)' }} />
     </Box>
   );
 }
@@ -113,12 +143,32 @@ export function Sidebar() {
           <NavRow item={overviewNavItem} />
         </Stack>
 
-        {sidebarSections.map((section) =>
-          section.kind === 'item' ? (
-            <Stack spacing={0.5} key={section.item.path}>
-              <NavRow item={section.item} />
-            </Stack>
-          ) : (
+        {sidebarSections.map((section) => {
+          if (section.kind === 'item') {
+            return (
+              <Stack spacing={0.5} key={section.item.path}>
+                <NavRow item={section.item} />
+              </Stack>
+            );
+          }
+          if (section.kind === 'expandable') {
+            return (
+              <Stack spacing={0.25} key={section.parent.label}>
+                <NavParentRow parent={section.parent} />
+                {/* Thụt vào + vạch dọc mờ bên trái — đúng `.nav-children` trong mockup, phân biệt
+                    với cách group thường (chỉ nhãn viết hoa, không có vạch) render bên dưới. */}
+                <Stack
+                  spacing={0.25}
+                  sx={{ pl: 2, ml: 1.75, borderLeft: `1px solid ${alpha('#FFFFFF', 0.16)}` }}
+                >
+                  {section.children.map((item) => (
+                    <NavRow item={item} key={item.path} />
+                  ))}
+                </Stack>
+              </Stack>
+            );
+          }
+          return (
             <Stack spacing={0.5} key={section.group.label}>
               <Typography
                 sx={{
@@ -136,8 +186,8 @@ export function Sidebar() {
                 <NavRow item={item} key={item.path} />
               ))}
             </Stack>
-          ),
-        )}
+          );
+        })}
       </Stack>
 
       {/* Footer — user */}
@@ -167,7 +217,7 @@ export function Sidebar() {
               {user?.position || 'Quản lý'}
             </Typography>
           </Box>
-          <ExpandMoreRoundedIcon fontSize="small" sx={{ color: alpha('#FFFFFF', 0.6) }} />
+          <ExpandMoreOutlinedIcon fontSize="small" sx={{ color: alpha('#FFFFFF', 0.6) }} />
         </Stack>
       </Box>
     </Box>

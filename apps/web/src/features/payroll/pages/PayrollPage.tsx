@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Snackbar, Stack, Typography } from '@mui/material';
+import { Box, Snackbar, Stack, Typography, useMediaQuery } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined';
 import { LoadingButton } from '../../../components/common/LoadingButton';
@@ -28,6 +28,9 @@ export function PayrollPage() {
   const [query, setQuery] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Ngưỡng 1440px (UI audit vòng 2): đủ rộng để đứng cạnh bảng lương (minWidth 1400) + panel 380px
+  // mà không tràn ngang kép. Dưới ngưỡng này panel chuyển sang Drawer thay vì chiếm chỗ cố định.
+  const canShowInlinePanel = useMediaQuery('(min-width:1440px)');
 
   const filters = useMemo(
     () => ({ yearMonth, teamId: teamId || undefined, status: status || undefined, query: query || undefined }),
@@ -51,7 +54,11 @@ export function PayrollPage() {
 
       <PayrollKpiRow summary={summary} isLoading={isLoading} />
 
-      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} sx={{ alignItems: { lg: 'center' }, justifyContent: 'space-between' }}>
+      {/* Breakpoint khớp với breakpoint nội bộ của PayrollFilterBar (md) — UI audit vòng 3: trước
+          đây khối này chỉ xuống dòng ở `lg` (1200px) trong khi filter bar bên trong đã chuyển
+          sang row đủ 4 field từ `md` (900px), tạo 1 khoảng rộng 900-1199px vừa đủ để mọi thứ cố
+          nhồi 1 hàng ngang (filter bar row + nút "Chốt lương") mà không có chỗ co giãn, dễ vỡ layout. */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
         <Box sx={{ flex: 1 }}>
           <PayrollFilterBar
             yearMonth={yearMonth}
@@ -89,15 +96,26 @@ export function PayrollPage() {
             onSelectEmployee={setSelectedEmployeeId}
           />
         </Box>
-        {selectedEmployeeId && (
+        {selectedEmployeeId && canShowInlinePanel && (
           <PayrollDetailPanel
             employeeId={selectedEmployeeId}
             yearMonth={yearMonth}
             locked={locked}
             onClose={() => setSelectedEmployeeId(null)}
+            variant="inline"
           />
         )}
       </Stack>
+
+      {selectedEmployeeId && !canShowInlinePanel && (
+        <PayrollDetailPanel
+          employeeId={selectedEmployeeId}
+          yearMonth={yearMonth}
+          locked={locked}
+          onClose={() => setSelectedEmployeeId(null)}
+          variant="drawer"
+        />
+      )}
 
       <Snackbar
         open={!!notice}

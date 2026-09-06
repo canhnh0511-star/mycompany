@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Box,
   Button,
+  Drawer,
   IconButton,
   MenuItem,
   Paper,
@@ -10,15 +11,17 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import { MoneyField } from '../../../components/common/MoneyField';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { LoadingSkeleton } from '../../../components/feedback/LoadingSkeleton';
 import { WidgetErrorState } from '../../../components/feedback/WidgetErrorState';
 import { formatCurrency, formatNumber } from '../../../utils/format';
 import { green, neutral, red } from '../../../theme/colors';
 import { uiTokens } from '../../../theme/tokens';
+import { eyebrowSx } from '../../../theme/typography';
 import {
   PAYROLL_ROW_STATUS_LABEL,
   TECHNICAL_GRADE_LABEL,
@@ -53,32 +56,35 @@ function lineRow(label: string, quantity: number, unit: string, unitPrice: numbe
   );
 }
 
+/**
+ * `variant` (UI audit vòng 2 — responsive Payroll detail panel):
+ * - `inline` (>=1440px, PayrollPage tự quyết định qua media query): panel đứng cố định bên phải
+ *   bảng, đúng layout gốc đã duyệt — bảng vốn đã `minWidth: 1400` (PayrollTable), chỉ đủ chỗ cho
+ *   panel ở màn thật rộng.
+ * - `drawer` (<1440px — laptop/tablet/mobile web): bảng chiếm full-width, panel trồi lên dạng
+ *   Drawer từ phải khi click 1 dòng, full-screen trên mobile — tránh vừa cuộn ngang bảng vừa cuộn
+ *   ngang trang (UI audit mục 3/High).
+ * Nội dung/State/API bên trong (PanelContent) dùng chung 100% cho cả 2 variant — chỉ khác lớp vỏ.
+ */
 export function PayrollDetailPanel({
   employeeId,
   yearMonth,
   locked,
   onClose,
+  variant = 'inline',
 }: {
   employeeId: string;
   yearMonth: string;
   locked: boolean;
   onClose: () => void;
+  variant?: 'inline' | 'drawer';
 }) {
   const { data: detail, isLoading, isError, refetch } = usePayrollDetail(employeeId, yearMonth);
   const updateDeduction = useUpdateDeductionMutation(yearMonth);
   const updateGrade = useUpdateTechnicalGradeMutation(yearMonth);
 
-  return (
-    <Paper
-      variant="outlined"
-      sx={{
-        borderRadius: `${uiTokens.radius.panel}px`,
-        width: 380,
-        flexShrink: 0,
-        alignSelf: 'flex-start',
-        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
-      }}
-    >
+  const body = (
+    <>
       {isLoading && (
         <Box sx={{ p: 2.5 }}>
           <LoadingSkeleton rows={8} />
@@ -101,6 +107,40 @@ export function PayrollDetailPanel({
           savingGrade={updateGrade.isPending}
         />
       )}
+    </>
+  );
+
+  if (variant === 'drawer') {
+    return (
+      <Drawer
+        anchor="right"
+        open
+        onClose={onClose}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: { xs: '100%', sm: 420 },
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+          },
+        }}
+      >
+        {body}
+      </Drawer>
+    );
+  }
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        borderRadius: `${uiTokens.radius.panel}px`,
+        width: 380,
+        flexShrink: 0,
+        alignSelf: 'flex-start',
+        boxShadow: uiTokens.shadow.panel,
+      }}
+    >
+      {body}
     </Paper>
   );
 }
@@ -149,7 +189,7 @@ function PanelContent({
           <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{detail.teamName}</Typography>
         </Box>
         <IconButton size="small" onClick={onClose} aria-label="Đóng">
-          <CloseRoundedIcon sx={{ fontSize: 20 }} />
+          <CloseOutlinedIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Stack>
 
@@ -164,9 +204,7 @@ function PanelContent({
       </Stack>
 
       <Box sx={{ px: 2.5, pb: 2 }}>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 1 }}>
-          THU NHẬP THEO SẢN LƯỢNG
-        </Typography>
+        <Typography sx={{ ...eyebrowSx, mb: 1 }}>Thu nhập theo sản lượng</Typography>
         <Stack spacing={1}>
           {incomeLines.length > 0 ? (
             incomeLines.map((line) => lineRow(line.label, line.quantity, line.unit, line.unitPrice, line.amount))
@@ -177,9 +215,7 @@ function PanelContent({
       </Box>
 
       <Box sx={{ px: 2.5, pb: 2 }}>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 1 }}>
-          CÔNG VIỆC &amp; PHỤ CẤP
-        </Typography>
+        <Typography sx={{ ...eyebrowSx, mb: 1 }}>Công việc &amp; phụ cấp</Typography>
         <Stack spacing={1}>
           {workLines.map((line) => lineRow(line.label, line.quantity, line.unit, line.unitPrice, line.amount))}
 
@@ -210,9 +246,7 @@ function PanelContent({
       </Box>
 
       <Box sx={{ px: 2.5, pb: 2 }}>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 1 }}>
-          KHẤU TRỪ
-        </Typography>
+        <Typography sx={{ ...eyebrowSx, mb: 1 }}>Khấu trừ</Typography>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
             <Typography sx={{ fontSize: 13.5 }}>Tạm ứng</Typography>
@@ -224,12 +258,11 @@ function PanelContent({
           </Stack>
           {editingDeduction ? (
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <TextField
+              <MoneyField
                 size="small"
-                type="number"
                 autoFocus
                 value={deductionInput}
-                onChange={(event) => setDeductionInput(event.target.value)}
+                onValueChange={setDeductionInput}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') handleSaveDeduction();
                   if (event.key === 'Escape') setEditingDeduction(false);

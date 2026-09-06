@@ -25,7 +25,7 @@ function Kpi({ tone, icon, primary, secondary }: { tone: Tone; icon: ReactNode; 
       sx={{
         borderRadius: `${uiTokens.radius.card}px`,
         p: 2,
-        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
+        boxShadow: uiTokens.shadow.panel,
         flex: '1 1 0',
         minWidth: 0,
       }}

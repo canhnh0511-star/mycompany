@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { Box, Button } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
-import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
+import ExpandMoreOutlinedIcon from '@mui/icons-material/ExpandMoreOutlined';
 import { formatDateWithWeekday, toIsoDate } from '../../utils/format';
 import { neutral } from '../../theme/colors';
 
@@ -26,8 +26,8 @@ export function DateSelector() {
     <Box sx={{ position: 'relative' }}>
       <Button
         onClick={handlePick}
-        startIcon={<CalendarTodayRoundedIcon sx={{ fontSize: 16 }} />}
-        endIcon={<ExpandMoreRoundedIcon sx={{ fontSize: 18 }} />}
+        startIcon={<CalendarTodayOutlinedIcon sx={{ fontSize: 16 }} />}
+        endIcon={<ExpandMoreOutlinedIcon sx={{ fontSize: 18 }} />}
         sx={{
           color: 'text.primary',
           borderColor: neutral[200],

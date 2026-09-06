@@ -87,7 +87,7 @@ public class ClaudeOcrService {
                       "low_confidence_fields": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Tên các trường không chắc chắn của DÒNG NÀY do chữ viết mờ/khó đọc, vd 'employee_name', 'kg', 'drc_percent'"
+                        "description": "Tên các trường không chắc chắn của DÒNG NÀY do chữ viết mờ/khó đọc, vd 'employee_name', 'kg', 'drc_percent'. NẾU dòng này có NHIỀU loại mủ (nhiều phần tử trong items[]) và chỉ 1/vài loại không chắc chắn — PHẢI ghi rõ đúng loại mủ đó bằng cách nối thêm ':' + latex_type_code, vd 'kg:cup' (chỉ mủ chén không chắc), 'drc_percent:water' — để hệ thống tô đúng ô nghi ngờ thay vì cả dòng. Dòng chỉ có 1 loại mủ thì ghi bình thường không cần hậu tố (vd 'kg')."
                       }
                     },
                     "required": ["employee_name_raw", "items"]
@@ -295,8 +295,9 @@ public class ClaudeOcrService {
                     + "liệu đã gộp chung vào dòng đó) — với dòng này vẫn tạo 1 phần tử, employee_name_raw = tên đọc "
                     + "được, items = mảng rỗng []. Đếm lại số dòng rows[] so với số STT lớn nhất trên phiếu trước "
                     + "khi trả kết quả để chắc chắn không sót dòng nào. Trường nào không chắc chắn (chữ mờ/khó đọc) "
-                    + "→ liệt kê tên trường vào low_confidence_fields của đúng dòng đó thay vì đoán bừa. PHẢI gọi "
-                    + "tool extract_production_records để trả kết quả.";
+                    + "→ liệt kê tên trường vào low_confidence_fields của đúng dòng đó thay vì đoán bừa — dòng có "
+                    + "NHIỀU loại mủ thì PHẢI ghi rõ đúng loại mủ nào không chắc chắn (vd 'kg:cup'), xem mô tả field "
+                    + "này trong schema. PHẢI gọi tool extract_production_records để trả kết quả.";
         }
         return common
                 + "Đây PHẢI là sổ bán mủ theo Tổ cho người mua ngoài: có tên người mua, tên người đại diện Tổ ký "

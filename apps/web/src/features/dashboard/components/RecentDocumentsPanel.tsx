@@ -15,7 +15,7 @@ export function RecentDocumentsPanel({ workDate }: { workDate: string }) {
   const navigate = useNavigate();
 
   return (
-    <SectionPanel title="Phiếu mới nhất" actionLabel="Xem tất cả" actionHref={`/phieu?date=${workDate}`}>
+    <SectionPanel title="Phiếu mới nhất" action={{ label: 'Xem tất cả', href: `/phieu?date=${workDate}` }}>
       {isLoading ? (
         <LoadingSkeleton rows={4} rowHeight={36} />
       ) : isError ? (

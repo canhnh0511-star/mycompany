@@ -31,4 +31,16 @@ export const uiTokens = {
     xl: 24,
     xxl: 32,
   },
+  /**
+   * box-shadow dùng chung (UI audit vòng 1, mục 2) — trước đây chuỗi
+   * `'0 1px 2px rgba(16, 24, 40, 0.04)'` bị copy-paste y hệt ở 5 nơi
+   * (KpiCard, PayrollKpiRow, SectionPanel, ConfigPanel, PayrollDetailPanel).
+   * Mọi Paper/Card dạng panel phẳng phải đọc `shadow.panel` thay vì viết lại.
+   */
+  shadow: {
+    /** shadow rất nhẹ cho panel/card phẳng (KPI card, SectionPanel, ConfigPanel, detail panel) */
+    panel: '0 1px 2px rgba(16, 24, 40, 0.04)',
+    /** shadow đậm hơn riêng cho card đăng nhập (nổi hẳn trên nền trang) */
+    loginCard: '0 8px 28px rgba(16, 24, 40, 0.08)',
+  },
 } as const;

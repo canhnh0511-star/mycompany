@@ -1,5 +1,5 @@
 import { Button, InputAdornment, MenuItem, Stack, TextField } from '@mui/material';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import { neutral } from '../../../theme/colors';
 import { PAYROLL_ROW_STATUS_LABEL } from '../model/payroll.types';
@@ -78,7 +78,7 @@ export function PayrollFilterBar({
           input: {
             startAdornment: (
               <InputAdornment position="start">
-                <SearchRoundedIcon sx={{ fontSize: 18, color: neutral[400] }} />
+                <SearchOutlinedIcon sx={{ fontSize: 18, color: neutral[400] }} />
               </InputAdornment>
             ),
           },

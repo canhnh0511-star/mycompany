@@ -301,6 +301,39 @@ class PayrollServiceTest {
         assertThat(defaulted.deductionIsOverride()).isFalse();
     }
 
+    // PAYROLL-14 (ADR-0024) — nhân viên có vợ/chồng đang active: dữ liệu thô ghi hết dưới 1 người
+    // (đúng thực tế phiếu giấy chỉ ghi 1 dòng có số liệu, dòng kia bỏ trống — CLAUDE.md §5), KHÔNG
+    // còn bị chia ở tầng OCR (ScanBatchService), nhưng lúc TÍNH LƯƠNG phải gộp kg 2 người rồi chia
+    // đôi cho cả 2, tổng 2 bên cộng lại phải đúng bằng số gốc.
+    @Test
+    void summary_employeeHasActiveSpouse_splitsCombinedKgInHalf() {
+        Employee spouse = Employee.builder().id(UUID.randomUUID()).fullName("Điểu Thị Hoa").team(team)
+                .status(EmployeeStatus.ACTIVE).build();
+        employee.setSpouseEmployee(spouse);
+        spouse.setSpouseEmployee(employee);
+        when(employeeRepository.findByStatus(EmployeeStatus.ACTIVE)).thenReturn(List.of(employee, spouse));
+
+        when(productionRecordItemRepository.aggregateForReport(FROM, TO, null, null)).thenReturn(List.of(
+                new ProductionAggregateRow(employee.getId(), employee.getFullName(), team.getId(), team.getName(), "water", BigDecimal.valueOf(21))));
+        when(productionRecordItemRepository.aggregateForReport(FROM, TO, null, employee.getId())).thenReturn(List.of(
+                new ProductionAggregateRow(employee.getId(), employee.getFullName(), team.getId(), team.getName(), "water", BigDecimal.valueOf(21))));
+        when(productionRecordItemRepository.aggregateForReport(FROM, TO, null, spouse.getId())).thenReturn(List.of());
+        when(productionRecordRepository.countStatusByEmployee(FROM, TO, null, null)).thenReturn(List.of(
+                new EmployeeRecordStatusRow(employee.getId(), RecordStatus.APPROVED, 1L)));
+        when(attendanceRecordRepository.aggregateForPayroll(FROM, TO, null, null)).thenReturn(List.of());
+
+        PayrollSummaryResponse response = service.summary(YEAR_MONTH, null, null, null);
+
+        PayrollRowResponse employeeRow = response.rows().stream()
+                .filter(r -> r.employeeId().equals(employee.getId())).findFirst().orElseThrow();
+        PayrollRowResponse spouseRow = response.rows().stream()
+                .filter(r -> r.employeeId().equals(spouse.getId())).findFirst().orElseThrow();
+
+        assertThat(employeeRow.waterKg().add(spouseRow.waterKg())).isEqualByComparingTo("21");
+        assertThat(employeeRow.waterKg()).isEqualByComparingTo("10.5");
+        assertThat(spouseRow.waterKg()).isEqualByComparingTo("10.5");
+    }
+
     // updateTechnicalGrade — PATCH grade=null xóa dòng gán đã có
     @Test
     void updateTechnicalGrade_withNull_deletesExistingAssignment() {

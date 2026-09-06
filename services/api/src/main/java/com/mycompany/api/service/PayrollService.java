@@ -45,10 +45,12 @@ import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +67,13 @@ import org.springframework.transaction.annotation.Transactional;
  * trong codebase để tái dùng (ReportService chỉ pivot kg, không có phép nhân tiền nào). Nếu giá đổi
  * GIỮA tháng, kết quả có thể lệch nhẹ so với tính đúng-theo-từng-ngày — trường hợp hiếm, đã ghi rõ
  * là câu hỏi mở CHƯA chặn MVP (spec mục 8).
+ *
+ * <p>Vợ/chồng cùng cạo mủ (ADR-0024, 2026-09-06): dữ liệu thô trong production_records KHÔNG còn tự
+ * chia đôi (đã bỏ ở ScanBatchService để khớp trực tiếp với ảnh phiếu gốc khi Admin đối chiếu) — kg
+ * theo loại mủ của 1 nhân viên có {@code spouse_employee_id} đang active được TỰ ĐỘNG gộp với kg thô
+ * của người kia rồi chia đôi NGAY TẠI ĐÂY, chỉ ảnh hưởng số tiền lương tính ra (xem
+ * {@link SpouseKgSplitter}, dùng chung với {@link ReportService} — 2026-09-06 mở rộng áp dụng luôn
+ * cho báo cáo sản lượng theo nhân viên, không còn là ngoại lệ như ghi chú ban đầu ở ADR-0024).
  */
 @Service
 @RequiredArgsConstructor
@@ -106,6 +115,9 @@ public class PayrollService {
                 .aggregateForReport(fromDate, toDate, teamId, null).stream()
                 .collect(Collectors.groupingBy(ProductionAggregateRow::employeeId,
                         Collectors.toMap(ProductionAggregateRow::latexTypeCode, ProductionAggregateRow::totalKg)));
+        // Bulk query trên chỉ đúng cho nhân viên KHÔNG có vợ/chồng (đa số) — với cặp có
+        // spouse_employee_id active, ghi đè lại 2 entry này bằng số đã gộp+chia đôi (ADR-0024).
+        applySpouseSplit(kgByEmployee, employees, fromDate, toDate);
 
         Map<UUID, Map<RecordStatus, Long>> statusByEmployee = productionRecordRepository
                 .countStatusByEmployee(fromDate, toDate, teamId, null).stream()
@@ -159,7 +171,7 @@ public class PayrollService {
         Employee employee = findEmployeeOrThrow(employeeId);
 
         RateContext rates = loadRateContext(toDate);
-        PayrollAmounts amounts = computeAmountsForEmployee(employeeId, fromDate, toDate, yearMonth, rates);
+        PayrollAmounts amounts = computeAmountsForEmployee(employee, fromDate, toDate, yearMonth, rates);
 
         List<PayrollLineItem> lines = new java.util.ArrayList<>();
         addLine(lines, "Mủ nước", amounts.waterKg(), "kg", amounts.waterRate(), amounts.waterAmount());
@@ -228,7 +240,7 @@ public class PayrollService {
         LocalDate toDate = ym.atEndOfMonth();
         Employee employee = findEmployeeOrThrow(employeeId);
         RateContext rates = loadRateContext(toDate);
-        return toRowResponse(employee, computeAmountsForEmployee(employeeId, fromDate, toDate, yearMonth, rates));
+        return toRowResponse(employee, computeAmountsForEmployee(employee, fromDate, toDate, yearMonth, rates));
     }
 
     // ============================================================= Chốt lương (cờ đơn giản theo THÁNG)
@@ -258,10 +270,9 @@ public class PayrollService {
     /** Truy vấn riêng cho 1 nhân viên (dùng ở detail/PATCH) — kém hiệu quả hơn đường bulk của
      * summary() (query riêng thay vì map đã gom sẵn) nhưng chỉ 1 nhân viên nên chấp nhận được. */
     private PayrollAmounts computeAmountsForEmployee(
-            UUID employeeId, LocalDate fromDate, LocalDate toDate, String yearMonth, RateContext rates) {
-        Map<String, BigDecimal> kgByType = productionRecordItemRepository
-                .aggregateForReport(fromDate, toDate, null, employeeId).stream()
-                .collect(Collectors.toMap(ProductionAggregateRow::latexTypeCode, ProductionAggregateRow::totalKg));
+            Employee employee, LocalDate fromDate, LocalDate toDate, String yearMonth, RateContext rates) {
+        UUID employeeId = employee.getId();
+        Map<String, BigDecimal> kgByType = employeeKg(employee, fromDate, toDate);
         Map<RecordStatus, Long> statusCounts = productionRecordRepository
                 .countStatusByEmployee(fromDate, toDate, null, employeeId).stream()
                 .collect(Collectors.toMap(EmployeeRecordStatusRow::status, EmployeeRecordStatusRow::count));
@@ -273,6 +284,51 @@ public class PayrollService {
         PayrollDeduction deduction =
                 payrollDeductionRepository.findByEmployeeIdAndYearMonth(employeeId, yearMonth).orElse(null);
         return computeAmounts(kgByType, statusCounts, attendance, grade, deduction, defaultAdvance(), rates);
+    }
+
+    /** kg theo loại mủ của 1 nhân viên — nếu có vợ/chồng (`spouse_employee_id`) đang active, gộp kg
+     * thô của cả 2 người rồi chia đôi (ADR-0024) thay vì đọc thẳng số của riêng người này. */
+    private Map<String, BigDecimal> employeeKg(Employee employee, LocalDate fromDate, LocalDate toDate) {
+        Map<String, BigDecimal> ownKg = rawKgByType(employee.getId(), fromDate, toDate);
+        Employee spouse = employee.getSpouseEmployee();
+        if (spouse == null || spouse.getStatus() != EmployeeStatus.ACTIVE) {
+            return ownKg;
+        }
+        Map<String, BigDecimal> spouseKg = rawKgByType(spouse.getId(), fromDate, toDate);
+        boolean employeeGetsFloor = employee.getId().compareTo(spouse.getId()) <= 0;
+        return SpouseKgSplitter.combinedHalf(ownKg, spouseKg, employeeGetsFloor);
+    }
+
+    private Map<String, BigDecimal> rawKgByType(UUID employeeId, LocalDate fromDate, LocalDate toDate) {
+        return productionRecordItemRepository.aggregateForReport(fromDate, toDate, null, employeeId).stream()
+                .collect(Collectors.toMap(ProductionAggregateRow::latexTypeCode, ProductionAggregateRow::totalKg));
+    }
+
+    /** Áp dụng chia đôi vợ/chồng lên map kg đã gom sẵn theo bulk query của summary() — chỉ ghi đè 2
+     * entry của mỗi cặp có `spouse_employee_id` đang active, các nhân viên khác giữ nguyên số bulk đã
+     * tính (đa số, tránh N+1 query không cần thiết). `processedPairs` khử trùng lặp — mỗi cặp chỉ xử
+     * lý 1 lần dù duyệt qua cả 2 người trong `employees`. */
+    private void applySpouseSplit(
+            Map<UUID, Map<String, BigDecimal>> kgByEmployee, List<Employee> employees, LocalDate fromDate, LocalDate toDate) {
+        Set<UUID> processedPairs = new HashSet<>();
+        for (Employee employee : employees) {
+            Employee spouse = employee.getSpouseEmployee();
+            if (spouse == null || spouse.getStatus() != EmployeeStatus.ACTIVE) {
+                continue;
+            }
+            UUID pairKey = employee.getId().compareTo(spouse.getId()) <= 0 ? employee.getId() : spouse.getId();
+            if (!processedPairs.add(pairKey)) {
+                continue;
+            }
+            // KHÔNG dùng lại kgByEmployee đã gom sẵn — map đó có thể đã bị lọc theo teamId của filter
+            // đang xem (vd Admin lọc "Tổ 1" nhưng vợ/chồng lại thuộc Tổ khác) — tính lại KHÔNG lọc Tổ
+            // để tổng luôn đúng bất kể đang xem theo bộ lọc nào.
+            Map<String, BigDecimal> kgA = rawKgByType(employee.getId(), fromDate, toDate);
+            Map<String, BigDecimal> kgB = rawKgByType(spouse.getId(), fromDate, toDate);
+            boolean employeeGetsFloor = employee.getId().compareTo(spouse.getId()) <= 0;
+            kgByEmployee.put(employee.getId(), SpouseKgSplitter.combinedHalf(kgA, kgB, employeeGetsFloor));
+            kgByEmployee.put(spouse.getId(), SpouseKgSplitter.combinedHalf(kgA, kgB, !employeeGetsFloor));
+        }
     }
 
     private PayrollAmounts computeAmounts(

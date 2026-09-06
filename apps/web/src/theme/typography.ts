@@ -30,3 +30,19 @@ export const typography: ThemeOptions['typography'] = {
   caption: { fontSize: 12.5, fontWeight: 400, lineHeight: 1.5 },
   button: { fontWeight: 600, textTransform: 'none' },
 };
+
+/**
+ * "Eyebrow" label dùng chung (UI audit vòng 1, mục 4) — nhãn nhỏ viết hoa phía
+ * trên 1 khối nội dung (vd nhóm nav trong Sidebar, tiêu đề nhóm trong
+ * PayrollDetailPanel: "Thu nhập theo sản lượng"...). Text truyền vào PHẢI viết
+ * chữ thường bình thường (có dấu tiếng Việt) — `textTransform: 'uppercase'` ở
+ * đây tự lo việc viết hoa, không gõ cứng uppercase trong JSX (mất khả năng
+ * đọc trong code + không đồng bộ letterSpacing giữa các nơi dùng).
+ */
+export const eyebrowSx = {
+  fontSize: 12.5,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.6px',
+  color: 'text.secondary',
+} as const;

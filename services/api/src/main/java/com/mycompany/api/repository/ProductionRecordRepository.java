@@ -84,4 +84,16 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
               AND pr.lowConfidenceFields IS NOT NULL
             """)
     List<UUID> findDistinctNeedsReviewEmployeeIdsInRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    // "Trùng danh sách nhân viên" (khác content-hash DUPLICATE_IMAGE hiện có) — nhân viên đã có
+    // record active từ 1 ẢNH KHÁC trong CÙNG batch, dùng để so tỉ lệ trùng với danh sách ảnh mới.
+    @Query("""
+            SELECT DISTINCT pr.employee.id
+            FROM ProductionRecord pr
+            WHERE pr.scanBatch.id = :scanBatchId
+              AND pr.scanImage.id <> :scanImageId
+              AND pr.status <> com.mycompany.api.entity.RecordStatus.CANCELLED
+            """)
+    List<UUID> findDistinctEmployeeIdsFromOtherImages(
+            @Param("scanBatchId") UUID scanBatchId, @Param("scanImageId") UUID scanImageId);
 }

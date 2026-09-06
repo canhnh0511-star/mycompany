@@ -34,6 +34,8 @@ import leafDecoration from '../../../assets/leaf-decoration.png';
 import { login } from '../api/login.api';
 import { setAccessToken } from '../../../api/tokenStorage';
 import { ApiError } from '../../../api/client';
+import { green, neutral, pageBackground, text } from '../../../theme/colors';
+import { uiTokens } from '../../../theme/tokens';
 
 const schema = z.object({
   identifier: z.string().min(1, 'Nhập tên đăng nhập'),
@@ -101,8 +103,7 @@ export function LoginPage() {
         minHeight: '100vh',
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: '36% 64%', lg: '40% 60%' },
-        background:
-          'radial-gradient(circle at 90% 32%, rgba(15,104,70,.035), transparent 26%), #fbfcfb',
+        background: `radial-gradient(circle at 90% 32%, rgba(15,104,70,.035), transparent 26%), ${pageBackground}`,
       }}
     >
       {/* Panel trái — thương hiệu, chỉ hiện ở desktop/tablet rộng (CSS gốc: .page{display:block},
@@ -129,7 +130,7 @@ export function LoginPage() {
             pt: 16.5,
             px: { md: 4, lg: 5.5 },
             pb: 9.75,
-            color: '#FFFFFF',
+            color: 'common.white',
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -258,14 +259,14 @@ export function LoginPage() {
               px: 6.25,
               pb: 5.375,
               borderRadius: '14px',
-              borderColor: '#dde2e0',
-              boxShadow: '0 8px 28px rgba(16, 24, 40, 0.08)',
+              borderColor: neutral[200],
+              boxShadow: uiTokens.shadow.loginCard,
             }}
           >
             <Typography sx={{ fontSize: 31, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.15 }}>
               Đăng nhập
             </Typography>
-            <Typography sx={{ fontSize: 16, lineHeight: 1.5, color: '#717784', mt: 1.25, mb: 4.375 }}>
+            <Typography sx={{ fontSize: 16, lineHeight: 1.5, color: text.secondary, mt: 1.25, mb: 4.375 }}>
               Đăng nhập để quản lý hoạt động nông trường
             </Typography>
 
@@ -273,7 +274,7 @@ export function LoginPage() {
               {serverError && <Alert severity="error">{serverError}</Alert>}
 
               <Box>
-                <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: '#111827', mb: 1.25 }}>
+                <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: text.primary, mb: 1.25 }}>
                   Tên đăng nhập
                 </Typography>
                 <TextField
@@ -285,15 +286,15 @@ export function LoginPage() {
                   helperText={errors.identifier?.message}
                   sx={{
                     '& .MuiOutlinedInput-root': { height: 56, borderRadius: '8px' },
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#d8dde3' },
-                    '& input': { fontSize: 15, color: '#111827' },
-                    '& input::placeholder': { color: '#9aa1ad', opacity: 1 },
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: neutral[200] },
+                    '& input': { fontSize: 15, color: text.primary },
+                    '& input::placeholder': { color: text.muted, opacity: 1 },
                   }}
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <PersonOutlineOutlinedIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+                          <PersonOutlineOutlinedIcon sx={{ color: text.secondary, fontSize: 20 }} />
                         </InputAdornment>
                       ),
                     },
@@ -303,7 +304,7 @@ export function LoginPage() {
               </Box>
 
               <Box>
-                <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: '#111827', mb: 1.25 }}>
+                <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, color: text.primary, mb: 1.25 }}>
                   Mật khẩu
                 </Typography>
                 <TextField
@@ -315,15 +316,15 @@ export function LoginPage() {
                   helperText={errors.password?.message}
                   sx={{
                     '& .MuiOutlinedInput-root': { height: 56, borderRadius: '8px' },
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#d8dde3' },
-                    '& input': { fontSize: 15, color: '#111827' },
-                    '& input::placeholder': { color: '#9aa1ad', opacity: 1 },
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: neutral[200] },
+                    '& input': { fontSize: 15, color: text.primary },
+                    '& input::placeholder': { color: text.muted, opacity: 1 },
                   }}
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <LockOutlinedIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+                          <LockOutlinedIcon sx={{ color: text.secondary, fontSize: 20 }} />
                         </InputAdornment>
                       ),
                       endAdornment: (
@@ -335,9 +336,9 @@ export function LoginPage() {
                             edge="end"
                           >
                             {showPassword ? (
-                              <VisibilityOffOutlinedIcon sx={{ fontSize: 20, color: '#717784' }} />
+                              <VisibilityOffOutlinedIcon sx={{ fontSize: 20, color: text.secondary }} />
                             ) : (
-                              <VisibilityOutlinedIcon sx={{ fontSize: 20, color: '#717784' }} />
+                              <VisibilityOutlinedIcon sx={{ fontSize: 20, color: text.secondary }} />
                             )}
                           </IconButton>
                         </InputAdornment>
@@ -354,9 +355,9 @@ export function LoginPage() {
               >
                 <FormControlLabel
                   sx={{ ml: 0 }}
-                  control={<Checkbox size="small" sx={{ color: '#7b818b', p: 0 }} />}
+                  control={<Checkbox size="small" sx={{ color: text.secondary, p: 0 }} />}
                   label={
-                    <Typography sx={{ fontSize: 14, color: '#252a31', ml: 1.25 }}>
+                    <Typography sx={{ fontSize: 14, color: text.primary, ml: 1.25 }}>
                       Ghi nhớ đăng nhập
                     </Typography>
                   }
@@ -368,7 +369,7 @@ export function LoginPage() {
                   sx={{
                     fontSize: 14,
                     fontWeight: 500,
-                    color: '#0f6b49',
+                    color: green[700],
                     background: 'none',
                     border: 'none',
                     p: 0,
@@ -383,27 +384,26 @@ export function LoginPage() {
               <Button
                 type="submit"
                 variant="contained"
+                color="success"
                 disabled={isSubmitting}
                 sx={{
                   height: 54,
                   borderRadius: '7px',
-                  bgcolor: '#0b6f47',
                   fontSize: 15,
                   fontWeight: 700,
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12)',
-                  '&:hover': { bgcolor: '#0a5f3d' },
                 }}
               >
                 {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </Button>
 
-              <Divider sx={{ '&::before, &::after': { borderColor: '#e1e4e8' }, mt: 0.5, mb: 0 }}>
-                <Typography sx={{ fontSize: 14, lineHeight: 1.15, color: '#8a909b' }}>hoặc</Typography>
+              <Divider sx={{ '&::before, &::after': { borderColor: neutral[200] }, mt: 0.5, mb: 0 }}>
+                <Typography sx={{ fontSize: 14, lineHeight: 1.15, color: text.muted }}>hoặc</Typography>
               </Divider>
 
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-                <HeadsetMicOutlinedIcon sx={{ fontSize: 16, color: '#0f6b49' }} />
-                <Typography sx={{ fontSize: 14, lineHeight: 1.15, color: '#767d86' }}>Cần hỗ trợ?</Typography>
+                <HeadsetMicOutlinedIcon sx={{ fontSize: 16, color: green[700] }} />
+                <Typography sx={{ fontSize: 14, lineHeight: 1.15, color: text.secondary }}>Cần hỗ trợ?</Typography>
                 <Typography
                   component="button"
                   type="button"
@@ -412,7 +412,7 @@ export function LoginPage() {
                     fontSize: 14,
                     lineHeight: 1.15,
                     fontWeight: 500,
-                    color: '#0f6b49',
+                    color: green[700],
                     background: 'none',
                     border: 'none',
                     p: 0,
@@ -436,13 +436,13 @@ export function LoginPage() {
             height: 118,
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderTop: '1px solid #e2e6e4',
+            borderTop: `1px solid ${neutral[200]}`,
           }}
         >
-          <Typography sx={{ fontSize: 12.5, color: '#7c838e' }}>
+          <Typography sx={{ fontSize: 12.5, color: text.secondary }}>
             © {new Date().getFullYear()} David Dũng. All rights reserved.
           </Typography>
-          <Typography sx={{ fontSize: 12.5, color: '#7c838e' }}>Phiên bản 1.0.0</Typography>
+          <Typography sx={{ fontSize: 12.5, color: text.secondary }}>Phiên bản 1.0.0</Typography>
         </Stack>
       </Box>
 

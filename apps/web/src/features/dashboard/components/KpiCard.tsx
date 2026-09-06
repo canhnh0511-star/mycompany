@@ -44,7 +44,7 @@ export function KpiCard({ title, value, helperLines, trend, icon, tone, muted }:
         borderRadius: `${uiTokens.radius.card}px`,
         p: 2,
         height: '100%',
-        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
+        boxShadow: uiTokens.shadow.panel,
       }}
     >
       <Stack spacing={1.25} sx={{ height: '100%' }}>

@@ -1,15 +1,7 @@
 import { apiGet, apiPatch, apiPostAuthed } from '../../../api/client';
 import type { PayrollDetail, PayrollSummary, TechnicalGrade } from '../model/payroll.types';
-
-export interface TeamOption {
-  id: string;
-  name: string;
-}
-
-/** Danh sách Tổ cho dropdown lọc — khớp services/api dto/TeamResponse.java. */
-export function getTeams(): Promise<TeamOption[]> {
-  return apiGet<TeamOption[]>('/api/v1/teams');
-}
+// Lookup dùng chung (Bảng lương/Thành phần lương/Phiếu đều cần) — xem `src/api/lookups.api.ts`.
+export type { TeamOption } from '../../../api/lookups.api';
 
 export interface PayrollFilters {
   yearMonth: string;
