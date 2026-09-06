@@ -58,7 +58,7 @@ export const productionNavParent = {
 
 export const productionNavChildren: NavItem[] = [
   { label: 'Nhập phiếu hàng ngày', path: '/phieu', icon: <DescriptionOutlinedIcon fontSize="small" />, status: 'ready' },
-  { label: 'Danh sách phiếu', path: '/san-luong', icon: <FormatListBulletedOutlinedIcon fontSize="small" />, status: 'pending' },
+  { label: 'Danh sách phiếu', path: '/san-luong', icon: <FormatListBulletedOutlinedIcon fontSize="small" />, status: 'ready' },
   { label: 'Báo cáo sản lượng', path: '/san-luong/bao-cao', icon: <TrendingUpOutlinedIcon fontSize="small" />, status: 'pending' },
 ];
 
