@@ -9,6 +9,7 @@ import { toIsoDate } from '../../../utils/format';
 import { useTeams } from '../../../hooks/useLookups';
 import { ProductionRosterTable } from '../components/production/ProductionRosterTable';
 import { ScanBatchPhotoPanel } from '../components/production/ScanBatchPhotoPanel';
+import { useInvalidateRoster } from '../hooks/useProductionRecords';
 import {
   useCancelScanBatch,
   useCaptureScanImage,
@@ -51,6 +52,7 @@ export function DailyEntryPage() {
   const captureMutation = useCaptureScanImage();
   const retryBatchMutation = useRetryScanBatch();
   const cancelBatchMutation = useCancelScanBatch();
+  const invalidateRoster = useInvalidateRoster();
 
   const blocked = !!lookup?.blocked && batch?.status !== 'FAILED';
 
@@ -61,6 +63,11 @@ export function DailyEntryPage() {
       try {
         const result = await captureMutation.mutateAsync({ documentType: 'PRODUCTION_RECORD', workDate: recordDate, teamId, file });
         setCapturedBatchId(result.id);
+        // OCR tạo production_records MỚI thẳng trong DB (ADR-0006) qua route capture-image riêng,
+        // KHÔNG qua useCreateProductionRecordsBatch — phải tự invalidate roster ở đây, nếu không bảng
+        // chỉ hiện đúng dữ liệu OCR ở lần MỞ TRANG SAU, không phải ngay khi vừa xử lý xong ảnh (bug
+        // phát hiện khi làm Bán mủ, Phase 4, cùng kiến trúc).
+        invalidateRoster();
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : 'Tải ảnh lên thất bại, thử lại giúp tôi.');
         break;

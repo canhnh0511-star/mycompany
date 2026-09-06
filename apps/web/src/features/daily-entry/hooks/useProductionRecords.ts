@@ -19,7 +19,12 @@ export function useProductionRecordsByTeamAndDate(teamId: string | null, date: s
   });
 }
 
-function useInvalidateRoster() {
+// Export — DailyEntryPage cũng cần gọi trực tiếp sau khi OCR đọc xong 1 ảnh (xem ghi chú ở đó): OCR
+// tạo record MỚI thẳng trong DB (ADR-0006) nhưng KHÔNG đi qua `useCreateProductionRecordsBatch`
+// (route capture-image riêng, `useScanBatch.ts`), nên trước đây không có gì invalidate query này —
+// bảng roster chỉ vô tình hiện đúng dữ liệu OCR ở lần mở trang SAU, không phải ngay khi vừa xử lý
+// xong ảnh trong cùng phiên (bug phát hiện khi làm lại luồng tương tự cho Bán mủ, Phase 4).
+export function useInvalidateRoster() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: ['production-records', 'roster'] });
 }
