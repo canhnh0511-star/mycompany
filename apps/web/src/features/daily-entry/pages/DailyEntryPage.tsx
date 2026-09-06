@@ -28,7 +28,10 @@ import {
 export function DailyEntryPage() {
   const [searchParams] = useSearchParams();
   const [recordDate, setRecordDate] = useState(searchParams.get('date') ?? toIsoDate(new Date()));
-  const [teamId, setTeamId] = useState('');
+  // Đọc `teamId` từ query string (khác trước đây chỉ đọc `date`) — cho phép deep-link thẳng vào
+  // đúng Tổ, vd từ "Danh sách phiếu" (`/san-luong`) bấm 1 dòng aggregate Tổ+Ngày sang đây. Không
+  // ảnh hưởng hành vi cũ khi mở `/phieu` không kèm param (mặc định vẫn rỗng, y hệt trước).
+  const [teamId, setTeamId] = useState(searchParams.get('teamId') ?? '');
   const { data: teams } = useTeams();
 
   // Batch Admin tự tạo trong phiên này (sau khi capture ảnh đầu tiên) — ưu tiên hơn batch cũ tìm

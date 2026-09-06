@@ -1,38 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import * as api from '../api/productionRecordsList.api';
 
-export { useTeams, useEmployees } from '../../../hooks/useLookups';
+// Bỏ `useEmployees` (khác bản cũ) — filter theo 1 nhân viên không còn khớp ý nghĩa của bảng aggregate
+// theo Tổ+Ngày (xem `ProductionRecordsFilterBar.tsx`).
+export { useTeams } from '../../../hooks/useLookups';
 export { useLatexTypes } from '../../../hooks/useLookups';
 
-export function useProductionRecordsList(filters: api.ProductionRecordsFilters, page: number) {
+// Không nhận `page` nữa — bảng luôn fetch 1 lần với size đủ rộng rồi aggregate ở FE toàn bộ
+// (xem comment `AGGREGATE_FETCH_SIZE` ở `productionRecordsList.api.ts`), không phân trang server.
+export function useProductionRecordsList(filters: api.ProductionRecordsFilters) {
   return useQuery({
-    queryKey: ['production-records-list', filters, page],
-    queryFn: () => api.listProductionRecords(filters, page),
+    queryKey: ['production-records-list', filters],
+    queryFn: () => api.listProductionRecords(filters),
   });
-}
-
-export function useProductionRecord(id: string | null) {
-  return useQuery({
-    queryKey: ['production-record', id],
-    queryFn: () => api.getProductionRecord(id as string),
-    enabled: !!id,
-  });
-}
-
-function useInvalidateList() {
-  const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: ['production-records-list'] });
-    queryClient.invalidateQueries({ queryKey: ['production-record'] });
-  };
-}
-
-export function useApproveProductionRecord() {
-  const invalidate = useInvalidateList();
-  return useMutation({ mutationFn: api.approveProductionRecord, onSuccess: invalidate });
-}
-
-export function useCancelProductionRecord() {
-  const invalidate = useInvalidateList();
-  return useMutation({ mutationFn: api.cancelProductionRecord, onSuccess: invalidate });
 }

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Box, Stack, useMediaQuery } from '@mui/material';
-import { useSearchParams } from 'react-router-dom';
+import { Stack } from '@mui/material';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SectionPanel } from '../../../components/common/SectionPanel';
 import { toIsoDate } from '../../../utils/format';
 import { ProductionRecordsFilterBar } from '../components/ProductionRecordsFilterBar';
 import { ProductionRecordsTable } from '../components/ProductionRecordsTable';
-import { ProductionRecordDetailPanel } from '../components/ProductionRecordDetailPanel';
-import { useEmployees, useProductionRecordsList, useTeams } from '../hooks/useProductionRecordsList';
+import { useLatexTypes, useProductionRecordsList, useTeams } from '../hooks/useProductionRecordsList';
+import { aggregateByTeamDate } from '../utils/aggregateByTeamDate';
 
 function daysAgoIso(days: number): string {
   const d = new Date();
@@ -15,44 +15,50 @@ function daysAgoIso(days: number): string {
 }
 
 /**
- * Danh sách phiếu (/san-luong) — tra cứu/lọc/duyệt/hủy Production Records + xem lịch sử chỉnh sửa.
- * Path giữ nguyên từ nav cũ (`TeamStatusPanel` ở Home deep-link `/san-luong?date=...`) — đọc
- * `date` từ query string để mặc định khoảng ngày = đúng ngày đó khi đi từ Home vào.
+ * Danh sách phiếu (/san-luong) — tra cứu/lọc Production Records, aggregate 1 dòng / (Tổ, Ngày)
+ * (yêu cầu đổi màn hình — trước đây 1 dòng / nhân viên / ngày). Path giữ nguyên từ nav cũ
+ * (`TeamStatusPanel` ở Home deep-link `/san-luong?date=...`) — đọc `date` từ query string để mặc
+ * định khoảng ngày = đúng ngày đó khi đi từ Home vào.
+ *
+ * Bấm vào 1 dòng -> điều hướng sang `/phieu?date=...&teamId=...` (Nhập phiếu hàng ngày), tái dùng
+ * đúng UI lúc nhập liệu thay vì xây thêm 1 panel chi tiết kiểu khác (yêu cầu đổi màn hình). Vì vậy
+ * bỏ hẳn `ProductionRecordDetailPanel` cũ cùng 2 action "Duyệt phiếu"/"Hủy" theo TỪNG record — hành
+ * động đó không còn khớp 1 dòng aggregate cả Tổ, và trong thực tế đã có đường khác để xử lý DRAFT:
+ * record nhập tay tự động confirmed (`CreateProductionRecordRequest`), record từ OCR được duyệt qua
+ * "Duyệt phiếu" cấp BATCH ngay tại `/phieu` (`ScanBatchPhotoPanel`) — không mất khả năng duyệt/hủy
+ * nào đang thực sự được dùng.
  */
 export function ProductionRecordsPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dateParam = searchParams.get('date');
 
   const [teamId, setTeamId] = useState(searchParams.get('teamId') ?? '');
-  const [employeeId, setEmployeeId] = useState('');
   const [fromDate, setFromDate] = useState(dateParam ?? daysAgoIso(6));
   const [toDate, setToDate] = useState(dateParam ?? toIsoDate(new Date()));
   const [status, setStatus] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const canShowInlinePanel = useMediaQuery('(min-width:1440px)');
 
   const filters = useMemo(
     () => ({
       teamId: teamId || undefined,
-      employeeId: employeeId || undefined,
       fromDate,
       toDate,
       status: status || undefined,
     }),
-    [teamId, employeeId, fromDate, toDate, status],
+    [teamId, fromDate, toDate, status],
   );
 
-  const { data, isLoading, isError, refetch } = useProductionRecordsList(filters, 0);
+  const { data, isLoading, isError, refetch } = useProductionRecordsList(filters);
   const { data: teams } = useTeams();
-  const { data: employees } = useEmployees(teamId ? { teamId } : undefined);
+  const { data: latexTypes } = useLatexTypes();
+
+  const rows = useMemo(() => (data ? aggregateByTeamDate(data.content) : undefined), [data]);
 
   return (
     <Stack spacing={2.5}>
       <ProductionRecordsFilterBar
         teamId={teamId}
         onTeamIdChange={setTeamId}
-        employeeId={employeeId}
-        onEmployeeIdChange={setEmployeeId}
         fromDate={fromDate}
         onFromDateChange={setFromDate}
         toDate={toDate}
@@ -60,30 +66,18 @@ export function ProductionRecordsPage() {
         status={status}
         onStatusChange={setStatus}
         teams={teams ?? []}
-        employees={employees ?? []}
       />
 
-      <Stack direction="row" spacing={2.5} sx={{ alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <SectionPanel title="Danh sách phiếu" noContentPadding>
-            <ProductionRecordsTable
-              records={data?.content}
-              isLoading={isLoading}
-              isError={isError}
-              onRetry={() => refetch()}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
-          </SectionPanel>
-        </Box>
-        {selectedId && canShowInlinePanel && (
-          <ProductionRecordDetailPanel recordId={selectedId} onClose={() => setSelectedId(null)} variant="inline" />
-        )}
-      </Stack>
-
-      {selectedId && !canShowInlinePanel && (
-        <ProductionRecordDetailPanel recordId={selectedId} onClose={() => setSelectedId(null)} variant="drawer" />
-      )}
+      <SectionPanel title="Danh sách phiếu" noContentPadding>
+        <ProductionRecordsTable
+          rows={rows}
+          latexTypes={latexTypes ?? []}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={() => refetch()}
+          onSelect={(row) => navigate(`/phieu?date=${row.recordDate}&teamId=${row.teamId}`)}
+        />
+      </SectionPanel>
     </Stack>
   );
 }

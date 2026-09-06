@@ -1,15 +1,16 @@
 import { MenuItem, Stack, TextField } from '@mui/material';
-import type { EmployeeOption, TeamOption } from '../../../api/lookups.api';
+import type { TeamOption } from '../../../api/lookups.api';
 import { RECORD_STATUS_LABEL } from '../api/productionRecordsList.api';
 
 const selectSx = { minWidth: 160, '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' } } as const;
 const dateSx = { minWidth: 150, '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' } } as const;
 
+// Bỏ filter "Nhân viên" (khác bản cũ) — bảng giờ aggregate 1 dòng / (Tổ, Ngày), lọc theo 1 nhân
+// viên rồi vẫn hiện tổng cả Tổ sẽ gây hiểu nhầm số liệu; Tổ/khoảng ngày/trạng thái vẫn khớp ý nghĩa
+// nên giữ nguyên.
 export function ProductionRecordsFilterBar({
   teamId,
   onTeamIdChange,
-  employeeId,
-  onEmployeeIdChange,
   fromDate,
   onFromDateChange,
   toDate,
@@ -17,12 +18,9 @@ export function ProductionRecordsFilterBar({
   status,
   onStatusChange,
   teams,
-  employees,
 }: {
   teamId: string;
   onTeamIdChange: (value: string) => void;
-  employeeId: string;
-  onEmployeeIdChange: (value: string) => void;
   fromDate: string;
   onFromDateChange: (value: string) => void;
   toDate: string;
@@ -30,7 +28,6 @@ export function ProductionRecordsFilterBar({
   status: string;
   onStatusChange: (value: string) => void;
   teams: TeamOption[];
-  employees: EmployeeOption[];
 }) {
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { md: 'center' }, flexWrap: 'wrap' }}>
@@ -39,29 +36,12 @@ export function ProductionRecordsFilterBar({
         size="small"
         label="Tổ"
         value={teamId}
-        onChange={(event) => {
-          onTeamIdChange(event.target.value);
-          onEmployeeIdChange(''); // đổi Tổ -> reset Nhân viên đã chọn (khác Tổ mới thì không còn hợp lệ)
-        }}
+        onChange={(event) => onTeamIdChange(event.target.value)}
         sx={selectSx}
       >
         <MenuItem value="">Tất cả Tổ</MenuItem>
         {teams.map((team) => (
           <MenuItem key={team.id} value={team.id}>{team.name}</MenuItem>
-        ))}
-      </TextField>
-
-      <TextField
-        select
-        size="small"
-        label="Nhân viên"
-        value={employeeId}
-        onChange={(event) => onEmployeeIdChange(event.target.value)}
-        sx={selectSx}
-      >
-        <MenuItem value="">Tất cả</MenuItem>
-        {employees.map((emp) => (
-          <MenuItem key={emp.id} value={emp.id}>{emp.fullName}</MenuItem>
         ))}
       </TextField>
 
