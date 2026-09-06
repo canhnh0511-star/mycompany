@@ -101,4 +101,51 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
             """)
     List<UUID> findDistinctEmployeeIdsFromOtherImages(
             @Param("scanBatchId") UUID scanBatchId, @Param("scanImageId") UUID scanImageId);
+
+    // Dashboard "Báo cáo sản lượng" §12 (heatmap) — số nhân viên có sản lượng APPROVED / (Tổ, ngày).
+    // Tách khỏi aggregateTeamDateLatex (item-level) vì đây là COUNT DISTINCT ở header, cộng dồn nhiều
+    // dòng item/employee sẽ sai nếu tính ở tầng item.
+    @Query("""
+            SELECT new com.mycompany.api.repository.TeamDateCountRow(
+                pr.team.id, pr.recordDate, COUNT(DISTINCT pr.employee.id))
+            FROM ProductionRecord pr
+            WHERE pr.status = com.mycompany.api.entity.RecordStatus.APPROVED
+              AND pr.recordDate BETWEEN :fromDate AND :toDate
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+            GROUP BY pr.team.id, pr.recordDate
+            """)
+    List<TeamDateCountRow> countApprovedEmployeesByTeamDate(
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+
+    // Dashboard "Báo cáo sản lượng" §12 (heatmap "N phiếu") — đếm SỐ PHIẾU (không phân biệt
+    // draft/approved, loại CANCELLED — CLAUDE.md §4 "xóa" không còn tồn tại về nghiệp vụ) / (Tổ, ngày).
+    @Query("""
+            SELECT new com.mycompany.api.repository.TeamDateCountRow(
+                pr.team.id, pr.recordDate, COUNT(pr))
+            FROM ProductionRecord pr
+            WHERE pr.status <> com.mycompany.api.entity.RecordStatus.CANCELLED
+              AND pr.recordDate BETWEEN :fromDate AND :toDate
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+            GROUP BY pr.team.id, pr.recordDate
+            """)
+    List<TeamDateCountRow> countDocumentsByTeamDate(
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+
+    // Alert "Phiếu chưa chốt" (spec §10.1.D) — record DRAFT trong khoảng ngày lọc.
+    List<ProductionRecord> findByStatusAndRecordDateBetweenAndTeamId(
+            RecordStatus status, LocalDate fromDate, LocalDate toDate, UUID teamId);
+
+    List<ProductionRecord> findByStatusAndRecordDateBetween(
+            RecordStatus status, LocalDate fromDate, LocalDate toDate);
+
+    // Alert "Thiếu dữ liệu" (spec §10.1.B) — nhân viên nào ĐÃ có record (không CANCELLED) đúng 1 ngày,
+    // dùng so sánh với danh sách nhân viên ACTIVE của Tổ để suy ra ai còn thiếu (ProductionDashboardService).
+    @Query("""
+            SELECT DISTINCT pr.employee.id
+            FROM ProductionRecord pr
+            WHERE pr.recordDate = :date
+              AND pr.status <> com.mycompany.api.entity.RecordStatus.CANCELLED
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+            """)
+    List<UUID> findDistinctEmployeeIdsWithRecordOnDate(@Param("date") LocalDate date, @Param("teamId") UUID teamId);
 }
