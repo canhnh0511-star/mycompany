@@ -65,7 +65,14 @@ export function toIsoDate(date: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Nhận cả 2 dạng: `LocalDate` thuần "yyyy-MM-dd" (recordDate...) VÀ `Instant` đầy đủ có giờ/timezone
+ * "yyyy-MM-ddTHH:mm:ss.SSSSSSZ" (createdAt/editedAt...). Trước đây chỉ tách theo "-" nên Instant lọt
+ * "T…Z" vào phần ngày, `dd` thành NaN -> toàn bộ Date invalid, hiện "NaN/NaN/NaN" (bug phát hiện qua
+ * trải nghiệm thật ở Cấu hình hệ thống > Tổ > cột "Ngày tạo", cùng lỗi ở EditHistoryTimeline).
+ */
 function parseIsoDate(value: string): Date {
+  if (value.includes('T')) return new Date(value);
   const [yyyy, mm, dd] = value.split('-').map(Number);
   return new Date(yyyy, (mm ?? 1) - 1, dd ?? 1);
 }
