@@ -41,4 +41,8 @@ export interface ProductionRowDraft {
   genericValueFlagged: boolean;
   rowStatus: RowStatus;
   rowError?: string;
+  /** Thứ tự dòng gốc trên phiếu giấy (từ `record.rowIndex`) — dùng để SẮP LẠI bảng khớp đúng thứ tự
+   * trong ảnh, dễ đối chiếu bằng mắt (phản hồi trực tiếp). `null` khi chưa có record nào (chưa từng
+   * xuất hiện trong ảnh nào) — các dòng này xếp CUỐI bảng, theo tên. */
+  rowIndex: number | null;
 }

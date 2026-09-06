@@ -49,7 +49,20 @@ function buildRow(employee: EmployeeOption, latexTypes: LatexTypeOption[], recor
     // record nào). Phát hiện qua live test: bảng roster load lại data cũ từ OCR vẫn hiện "Chưa lưu"
     // dù đã nằm sẵn trong DB, gây hiểu lầm Admin tưởng chưa lưu gì.
     rowStatus: record ? 'saved' : 'idle',
+    rowIndex: record?.rowIndex ?? null,
   };
+}
+
+/** Sắp bảng khớp đúng thứ tự dòng trong ảnh gốc (rowIndex) thay vì thứ tự tạo nhân viên trong hệ
+ * thống — dễ đối chiếu bằng mắt (phản hồi trực tiếp). Dòng chưa có rowIndex (chưa từng xuất hiện
+ * trong ảnh nào — nhập tay thuần hoặc thật sự chưa có dữ liệu) xếp CUỐI, theo tên. */
+function sortRowsLikePhoto(rows: ProductionRowDraft[]): ProductionRowDraft[] {
+  return [...rows].sort((a, b) => {
+    if (a.rowIndex != null && b.rowIndex != null) return a.rowIndex - b.rowIndex;
+    if (a.rowIndex != null) return -1;
+    if (b.rowIndex != null) return 1;
+    return a.employeeName.localeCompare(b.employeeName, 'vi');
+  });
 }
 
 /**
@@ -98,13 +111,14 @@ export function ProductionRosterTable({
     const recordByEmployee = new Map(records.content.map((r) => [r.employeeId, r]));
     setRows((prev) => {
       const prevByEmployee = new Map(prev.map((r) => [r.employeeId, r]));
-      return employees.map((employee) => {
+      const built = employees.map((employee) => {
         if (!rosterChanged && dirtyEmployeeIds.current.has(employee.id)) {
           // Dòng người dùng đang gõ dở — giữ nguyên state cục bộ, không ghi đè bằng dữ liệu server.
           return prevByEmployee.get(employee.id) ?? buildRow(employee, latexTypes, recordByEmployee.get(employee.id));
         }
         return buildRow(employee, latexTypes, recordByEmployee.get(employee.id));
       });
+      return sortRowsLikePhoto(built);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, latexTypes, records, rosterKey]);

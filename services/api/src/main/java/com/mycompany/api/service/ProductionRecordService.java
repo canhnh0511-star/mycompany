@@ -23,7 +23,9 @@ import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.exception.InvalidRequestException;
 import com.mycompany.api.repository.EmployeeRepository;
 import com.mycompany.api.repository.LatexTypeRepository;
+import com.mycompany.api.repository.OcrCallLogRepository;
 import com.mycompany.api.repository.ProductionRecordRepository;
+import com.mycompany.api.repository.ScanImageRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +56,8 @@ public class ProductionRecordService {
     private final ProductionRecordRepository productionRecordRepository;
     private final EmployeeRepository employeeRepository;
     private final LatexTypeRepository latexTypeRepository;
+    private final OcrCallLogRepository ocrCallLogRepository;
+    private final ScanImageRepository scanImageRepository;
     private final EditHistoryService editHistoryService;
     private final BatchRowValidator batchRowValidator;
     private final RequiresNewTransactionRunner transactionRunner;
@@ -179,6 +183,51 @@ public class ProductionRecordService {
                 .build();
         addItems(record, items);
         return toResponse(productionRecordRepository.saveAndFlush(record));
+    }
+
+    // Resolve conflict POTENTIAL_DUPLICATE_OCR_ROW, action=OVERRIDE (mục A3 mở rộng, phản hồi test
+    // thật 2026-09-06): Admin xác nhận số liệu ảnh MỚI đúng hơn bản ghi ACTIVE hiện có (thường do ảnh
+    // trước đã tạo record cho nhân viên/ngày này) — GHI ĐÈ toàn bộ items/notes/nguồn ảnh bằng dữ liệu
+    // OCR mới, đưa lại về DRAFT để Admin xem/duyệt lại (dữ liệu vừa đổi thực chất, không khác gì 1 lần
+    // OCR mới — ADR-0006). Khác `update()` (Admin tự sửa tay 1 field) — đây là REPLACE toàn bộ nguồn.
+    // Nhận ID (không nhận thẳng entity OcrCallLog/ScanImage) — caller (ScanBatchService.resolveConflict,
+    // KHÔNG @Transactional vì open-in-view=false) chỉ có thể đưa proxy LAZY chưa init; đụng bất kỳ
+    // getter nào trên proxy đó NGOÀI transaction này sẽ ném LazyInitializationException (đã xảy ra
+    // thật khi test — proxy tạo ở 1 session đã đóng không init lại được ở transaction khác). Tự
+    // findById lại NGAY TRONG transaction này để chắc chắn có session đang mở.
+    @Transactional
+    public void overwriteActiveRecord(UUID employeeId, LocalDate recordDate, String notes,
+            List<LatexItemRequest> items, List<String> lowConfidenceFields, UUID ocrCallLogId,
+            UUID scanImageId, Integer rowIndex, User currentUser) {
+        ProductionRecord record = productionRecordRepository
+                .findByEmployeeIdAndRecordDateAndStatusNot(employeeId, recordDate, RecordStatus.CANCELLED)
+                .orElseThrow(() -> new NoSuchElementException(
+                        "Không tìm thấy bản ghi active cho nhân viên id=" + employeeId + " ngày " + recordDate));
+        boolean shouldLog = record.getStatus() != RecordStatus.DRAFT;
+        ProductionRecordResponse before = shouldLog ? toResponse(record) : null;
+
+        OcrCallLog ocrCallLog = ocrCallLogRepository.findById(ocrCallLogId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy ocr_call_log id=" + ocrCallLogId));
+        ScanImage scanImage = scanImageId != null
+                ? scanImageRepository.findById(scanImageId)
+                        .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_image id=" + scanImageId))
+                : null;
+
+        record.setNotes(notes);
+        record.setSource(RecordSource.OCR_IMPORT);
+        record.setStatus(RecordStatus.DRAFT);
+        record.setPhotoUrl(ocrCallLog.getPhotoUrl());
+        record.setOcrCallLog(ocrCallLog);
+        record.setLowConfidenceFields(writeLowConfidenceFieldsOrNull(lowConfidenceFields));
+        record.setScanImage(scanImage);
+        record.setScanBatch(scanImage != null ? scanImage.getScanBatch() : null);
+        record.setRowIndex(rowIndex);
+        replaceItems(record, items);
+
+        ProductionRecordResponse after = toResponse(productionRecordRepository.save(record));
+        if (shouldLog) {
+            editHistoryService.recordEdit(TABLE_NAME, record.getId(), currentUser, before, after);
+        }
     }
 
     // ---- 0021-scan-batch-model: thao tác cấp batch, gọi từ ScanBatchService ----

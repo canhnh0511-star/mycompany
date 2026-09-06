@@ -22,6 +22,11 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
     boolean existsByEmployeeIdAndRecordDateAndStatusNotAndIdNot(
             UUID employeeId, LocalDate recordDate, RecordStatus status, UUID id);
 
+    // Tìm lại bản ghi ACTIVE hiện tại — dùng khi Admin chọn "Ghi đè bằng số liệu mới" cho conflict
+    // POTENTIAL_DUPLICATE_OCR_ROW (resolveConflict/OVERRIDE), cần record thật để thay items.
+    java.util.Optional<ProductionRecord> findByEmployeeIdAndRecordDateAndStatusNot(
+            UUID employeeId, LocalDate recordDate, RecordStatus status);
+
     // 0021-scan-batch-model — trace/reparent record theo ScanImage/ScanBatch.
     List<ProductionRecord> findByScanImageId(UUID scanImageId);
 

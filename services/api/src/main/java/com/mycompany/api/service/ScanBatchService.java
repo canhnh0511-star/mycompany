@@ -7,6 +7,7 @@ import com.mycompany.api.config.AnthropicProperties;
 import com.mycompany.api.config.SupabaseStorageProperties;
 import com.mycompany.api.dto.CaptureImageRequest;
 import com.mycompany.api.dto.LatexItemRequest;
+import com.mycompany.api.dto.OcrDuplicateRow;
 import com.mycompany.api.dto.OcrUnmatchedLine;
 import com.mycompany.api.dto.ResolveConflictRequest;
 import com.mycompany.api.dto.ResolveDateRequest;
@@ -639,9 +640,13 @@ public class ScanBatchService {
             // dòng khác trong cùng ảnh + không tạo được conflict để user review (vi phạm best-effort
             // per-row, ADR-0007) — phát hiện khi test thật trên iPhone (2026-08-22), lỗi 409 sau khi
             // OCR chạy xong ~12-25s vì đợi Claude Vision trả kết quả trước khi mới chạm tới check này.
+            // Lưu NGUYÊN số liệu dòng này (không chỉ tên) — cùng pattern OcrUnmatchedLine — để Admin có
+            // thể GHI ĐÈ lên bản ghi cũ sau này (resolveConflict/OVERRIDE) thay vì chỉ biết tên nhân
+            // viên suông rồi không làm gì được với số liệu ảnh mới (phát hiện qua test thật 2026-09-06:
+            // trước đây conflict này hoàn toàn không hiện trên UI, dữ liệu ảnh mới bị bỏ qua âm thầm).
             conflictService.open(batch, image, null, null, ConflictType.POTENTIAL_DUPLICATE_OCR_ROW, true,
-                    Map.of("employeeName", employee.getFullName(),
-                            "reason", "đã có bản ghi sản lượng active khác cho nhân viên/ngày này"));
+                    new OcrDuplicateRow(employee.getId(), employee.getFullName(), effectiveDate, items, notes,
+                            lowConfidence, rowIndex));
         }
     }
 
@@ -821,9 +826,31 @@ public class ScanBatchService {
         ScanBatch batch = getBatchOrThrow(conflict.getScanBatch().getId());
 
         switch (request.action()) {
-            case "OVERRIDE" -> conflictService.resolve(conflict, ConflictStatus.OVERRIDDEN, "OVERRIDE", currentUser);
+            case "OVERRIDE" -> {
+                // POTENTIAL_DUPLICATE_OCR_ROW: "Ghi đè bằng số liệu mới" — Admin xác nhận số liệu ảnh
+                // MỚI đúng hơn, áp dụng luôn lên bản ghi active hiện có (đưa lại về DRAFT để duyệt lại,
+                // xem ProductionRecordService.overwriteActiveRecord). Loại conflict khác (DUPLICATE_IMAGE
+                // — "không trùng, tiếp tục điền") chỉ cần đánh dấu đã xử lý, không có hành động ghi dữ
+                // liệu nào thêm (ảnh vẫn xử lý bình thường như mọi ảnh khác).
+                if (conflict.getConflictType() == ConflictType.POTENTIAL_DUPLICATE_OCR_ROW) {
+                    OcrDuplicateRow detail = readDuplicateRowDetail(conflict.getDetail());
+                    // getImageOrThrow trả entity THẬT (không phải proxy) — .getOcrCallLog().getId() sau
+                    // đó AN TOÀN (Hibernate proxy giữ sẵn FK, không cần init) dù session đã đóng ngay
+                    // sau khi hàm này return; productionRecordService tự findById lại OcrCallLog/ScanImage
+                    // NGAY TRONG transaction riêng của nó (overwriteActiveRecord), không dùng lại proxy.
+                    ScanImage image = getImageOrThrow(conflict.getScanImage().getId());
+                    productionRecordService.overwriteActiveRecord(detail.employeeId(), detail.recordDate(),
+                            detail.notes(), detail.items(), detail.lowConfidenceFields(),
+                            image.getOcrCallLog().getId(), image.getId(), detail.rowIndex(), currentUser);
+                }
+                conflictService.resolve(conflict, ConflictStatus.OVERRIDDEN, "OVERRIDE", currentUser);
+            }
             case "DISCARD" -> {
-                if (conflict.getScanImage() != null) {
+                // cancelDraftsForImage CHỈ áp dụng cho DUPLICATE_IMAGE ("đúng là trùng — bỏ ảnh": hủy
+                // TOÀN BỘ record của ảnh đó). POTENTIAL_DUPLICATE_OCR_ROW dùng CHUNG action DISCARD
+                // nhưng nghĩa khác hẳn — "giữ dữ liệu cũ" cho ĐÚNG 1 nhân viên này, không được hủy lây
+                // sang các dòng khác cùng ảnh (bug suýt xảy ra nếu dùng chung nhánh không phân biệt).
+                if (conflict.getConflictType() == ConflictType.DUPLICATE_IMAGE && conflict.getScanImage() != null) {
                     cancelDraftsForImage(batch, conflict.getScanImage().getId(), currentUser);
                 }
                 conflictService.resolve(conflict, ConflictStatus.RESOLVED, "DISCARD", currentUser);
@@ -836,7 +863,11 @@ public class ScanBatchService {
                     throw new InvalidRequestException("employeeId bắt buộc cho action=ASSIGN_EMPLOYEE");
                 }
                 OcrUnmatchedLine detail = readUnmatchedLineDetail(conflict.getDetail());
-                ScanImage image = conflict.getScanImage();
+                // getImageOrThrow (không dùng thẳng conflict.getScanImage()) — cùng lý do đã ghi ở
+                // getImageOrThrow: proxy LAZY, open-in-view=false, .getEffectiveWorkDate()/.getOcrCallLog()
+                // bên dưới sẽ ném LazyInitializationException nếu không query lại (bug tiềm ẩn từ trước,
+                // lộ ra khi sửa nhánh OVERRIDE cạnh đây — 2026-09-06).
+                ScanImage image = getImageOrThrow(conflict.getScanImage().getId());
                 productionRecordService.createDraftFromOcr(image.getEffectiveWorkDate(), request.employeeId(),
                         detail.notes(), detail.items(), image.getOcrCallLog(), detail.lowConfidenceFields(), image,
                         detail.rowIndex(), currentUser);
@@ -855,6 +886,14 @@ public class ScanBatchService {
             return objectMapper.readValue(json, OcrUnmatchedLine.class);
         } catch (Exception e) {
             throw new IllegalStateException("Không đọc được conflict detail (UNKNOWN_EMPLOYEE): " + json, e);
+        }
+    }
+
+    private OcrDuplicateRow readDuplicateRowDetail(String json) {
+        try {
+            return objectMapper.readValue(json, OcrDuplicateRow.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Không đọc được conflict detail (POTENTIAL_DUPLICATE_OCR_ROW): " + json, e);
         }
     }
 
@@ -981,6 +1020,17 @@ public class ScanBatchService {
     private ScanBatch getBatchOrThrow(UUID batchId) {
         return scanBatchRepository.findByIdWithTeam(batchId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_batch với id=" + batchId));
+    }
+
+    // Cùng lý do getBatchOrThrow — conflict.getScanImage() là quan hệ LAZY, open-in-view=false
+    // (application.yml) nên resolveConflict() (không @Transactional) không có session mở để init
+    // proxy: `.getId()` trên proxy AN TOÀN (Hibernate giữ sẵn FK, không cần query), nhưng đụng field
+    // khác (vd getOcrCallLog()) ném LazyInitializationException ngay — lộ ra thành lỗi 500 chung
+    // chung khi test resolve OVERRIDE cho POTENTIAL_DUPLICATE_OCR_ROW (2026-09-06). Query lại bằng
+    // repository cho chắc thay vì đụng trực tiếp `conflict.getScanImage()`.
+    private ScanImage getImageOrThrow(UUID imageId) {
+        return scanImageRepository.findById(imageId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy scan_image với id=" + imageId));
     }
 
     private ScanBatchResponse buildResponse(UUID batchId) {

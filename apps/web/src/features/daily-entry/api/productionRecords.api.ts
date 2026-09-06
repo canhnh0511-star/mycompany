@@ -30,6 +30,10 @@ export interface ProductionRecordResult {
   items: { latexTypeId: string; latexTypeCode: string; kg: number; drcPercent: number | null }[];
   /** JSON string mảng field OCR đọc không chắc — xem `utils/ocrParsing.ts::parseLowConfidenceFields`. */
   lowConfidenceFields: string | null;
+  /** Thứ tự dòng gốc trên phiếu giấy (null cho record nhập tay) — dùng để sắp bảng roster ĐÚNG thứ
+   * tự như ảnh, dễ đối chiếu bằng mắt (phản hồi trực tiếp — trước đây bảng luôn sắp theo thứ tự tạo
+   * nhân viên trong hệ thống, không khớp thứ tự dòng trên phiếu giấy). */
+  rowIndex: number | null;
 }
 
 export function createProductionRecordsBatch(

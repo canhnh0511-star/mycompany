@@ -24,7 +24,9 @@ import com.mycompany.api.entity.User;
 import com.mycompany.api.exception.ConflictException;
 import com.mycompany.api.repository.EmployeeRepository;
 import com.mycompany.api.repository.LatexTypeRepository;
+import com.mycompany.api.repository.OcrCallLogRepository;
 import com.mycompany.api.repository.ProductionRecordRepository;
+import com.mycompany.api.repository.ScanImageRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -54,6 +56,10 @@ class ProductionRecordServiceTest {
     @Mock
     private LatexTypeRepository latexTypeRepository;
     @Mock
+    private OcrCallLogRepository ocrCallLogRepository;
+    @Mock
+    private ScanImageRepository scanImageRepository;
+    @Mock
     private EditHistoryService editHistoryService;
     @Mock
     private SupabaseStorageService storageService;
@@ -72,8 +78,8 @@ class ProductionRecordServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProductionRecordService(productionRecordRepository, employeeRepository,
-                latexTypeRepository, editHistoryService, batchRowValidator, transactionRunner, objectMapper,
-                storageService);
+                latexTypeRepository, ocrCallLogRepository, scanImageRepository, editHistoryService,
+                batchRowValidator, transactionRunner, objectMapper, storageService);
 
         currentUser = User.builder().id(UUID.randomUUID()).fullName("Admin").build();
         Team team = Team.builder().id(UUID.randomUUID()).name("Tổ 1").build();

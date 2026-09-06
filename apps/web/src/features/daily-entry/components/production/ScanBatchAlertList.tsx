@@ -2,6 +2,7 @@ import { Box, Stack, Typography } from '@mui/material';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import { LoadingButton } from '../../../../components/common/LoadingButton';
 import { neutral, red } from '../../../../theme/colors';
 import { useLatexTypes } from '../../../../hooks/useLookups';
@@ -10,6 +11,7 @@ import {
   useResolveScanBatchConflict,
   useResolveScanImageDate,
 } from '../../hooks/useScanBatch';
+import { useInvalidateRoster } from '../../hooks/useProductionRecords';
 import type { ScanBatch } from '../../model/scanBatch.types';
 
 /** `conflict.detail` là JSON thô từ backend (vd `{"latexTypeCode":"water","ocrTotal":95,
@@ -29,15 +31,29 @@ function describeTotalMismatch(detail: string | null, latexTypeLabel: (code: str
   }
 }
 
+/** `conflict.detail` của POTENTIAL_DUPLICATE_OCR_ROW — khớp `OcrDuplicateRow.java`. Chỉ cần đúng
+ * `employeeName` để hiển thị, `employeeId`/`items`... đã được backend tự đọc lại lúc resolve. */
+function parseDuplicateRowEmployeeName(detail: string | null): string {
+  if (!detail) return 'Không rõ nhân viên';
+  try {
+    const parsed = JSON.parse(detail) as { employeeName?: string };
+    return parsed.employeeName ?? 'Không rõ nhân viên';
+  } catch {
+    return 'Không rõ nhân viên';
+  }
+}
+
 /**
- * "Cảnh báo cần xác nhận" — gộp 3 loại conflict (lệch ngày/trùng danh sách nhân viên/lệch tổng)
- * thành 1 danh sách inline (mockup đã duyệt), KHÔNG dùng popup chặn như bản trước. Mỗi loại tự chứa
- * action giải quyết của nó, dùng lại nguyên hook đã có từ trước — không cần hook/action mới.
+ * "Cảnh báo cần xác nhận" — gộp 4 loại conflict (lệch ngày/trùng danh sách nhân viên/lệch tổng/
+ * trùng dòng với bản ghi đã có) thành 1 danh sách inline (mockup đã duyệt), KHÔNG dùng popup chặn
+ * như bản trước. Mỗi loại tự chứa action giải quyết của nó, dùng lại nguyên hook đã có từ trước —
+ * không cần hook/action mới.
  */
 export function ScanBatchAlertList({ batch }: { batch: ScanBatch }) {
   const resolveDateMutation = useResolveScanImageDate();
   const resolveConflictMutation = useResolveScanBatchConflict();
   const recheckTotalMutation = useRecheckScanBatchTotal();
+  const invalidateRoster = useInvalidateRoster();
   const { data: latexTypes } = useLatexTypes();
   const latexTypeLabel = (code: string) => latexTypes?.find((t) => t.code === code)?.label ?? code;
 
@@ -46,11 +62,18 @@ export function ScanBatchAlertList({ batch }: { batch: ScanBatch }) {
   );
   const duplicateConflicts = batch.conflicts.filter((c) => c.status === 'OPEN' && c.conflictType === 'DUPLICATE_IMAGE');
   const totalMismatchConflicts = batch.conflicts.filter((c) => c.status === 'OPEN' && c.conflictType === 'TOTAL_MISMATCH');
+  // "Trùng dòng với bản ghi đã có" (mục A3 mở rộng) — trước đây KHÔNG hiện ở đâu trên UI dù backend
+  // đánh dấu blocking:true, khiến số liệu ảnh sau (thường là "trang bổ sung" hợp lệ) bị bỏ qua âm
+  // thầm không ai hay (phát hiện qua test thật 2026-09-06 với ảnh phiếu thật, 2 ảnh cùng Tổ/ngày).
+  const duplicateRowConflicts = batch.conflicts.filter(
+    (c) => c.status === 'OPEN' && c.conflictType === 'POTENTIAL_DUPLICATE_OCR_ROW',
+  );
 
-  const totalCount = dateMismatchImages.length + duplicateConflicts.length + totalMismatchConflicts.length;
+  const totalCount =
+    dateMismatchImages.length + duplicateConflicts.length + totalMismatchConflicts.length + duplicateRowConflicts.length;
   if (totalCount === 0) return null;
 
-  const blockingCount = dateMismatchImages.length + duplicateConflicts.length;
+  const blockingCount = dateMismatchImages.length + duplicateConflicts.length + duplicateRowConflicts.length;
 
   return (
     <Box>
@@ -156,6 +179,63 @@ export function ScanBatchAlertList({ batch }: { batch: ScanBatch }) {
             </Stack>
           </Stack>
         ))}
+
+        {duplicateRowConflicts.length > 0 && (
+          <Stack spacing={1} sx={{ p: 1.75 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+              <GroupsOutlinedIcon sx={{ fontSize: 16, color: red[600], mt: 0.25 }} />
+              <Typography sx={{ fontSize: 12.5 }}>
+                <b>{duplicateRowConflicts.length}</b> công nhân đã có sản lượng ngày này (từ ảnh trước) — ảnh này cũng
+                đọc được số liệu cho họ. Chọn giữ số liệu cũ hay dùng số liệu mới cho từng người:
+              </Typography>
+            </Stack>
+            <Stack spacing={0.5} sx={{ pl: 3, maxHeight: 260, overflowY: 'auto' }}>
+              {duplicateRowConflicts.map((conflict) => (
+                <Stack
+                  key={conflict.id}
+                  direction="row"
+                  spacing={1}
+                  sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}
+                >
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <PersonOutlineOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {parseDuplicateRowEmployeeName(conflict.detail)}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                    <LoadingButton
+                      size="small"
+                      variant="outlined"
+                      loading={resolveConflictMutation.isPending}
+                      onClick={() => resolveConflictMutation.mutate({ conflictId: conflict.id, action: 'DISCARD' })}
+                    >
+                      Giữ dữ liệu cũ
+                    </LoadingButton>
+                    <LoadingButton
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      loading={resolveConflictMutation.isPending}
+                      onClick={() =>
+                        // OVERRIDE ở đây THỰC SỰ ghi đè số liệu bản ghi active hiện có (khác OVERRIDE của
+                        // DUPLICATE_IMAGE/TOTAL_MISMATCH chỉ đánh dấu đã xử lý) — bảng roster phải tự
+                        // refetch mới thấy số mới, invalidate thủ công vì query roster độc lập với cache
+                        // của scan-batch (xem ghi chú tương tự ở DailyEntryPage sau khi capture ảnh).
+                        resolveConflictMutation.mutate(
+                          { conflictId: conflict.id, action: 'OVERRIDE' },
+                          { onSuccess: invalidateRoster },
+                        )
+                      }
+                    >
+                      Ghi đè bằng số liệu mới
+                    </LoadingButton>
+                  </Stack>
+                </Stack>
+              ))}
+            </Stack>
+          </Stack>
+        )}
       </Stack>
     </Box>
   );
