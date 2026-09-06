@@ -4,34 +4,36 @@ import { LoadingSkeleton } from '../../../components/feedback/LoadingSkeleton';
 import { WidgetEmptyState } from '../../../components/feedback/WidgetEmptyState';
 import { WidgetErrorState } from '../../../components/feedback/WidgetErrorState';
 import { formatDate, formatNumber } from '../../../utils/format';
-import { green, tableHeader, tableRow } from '../../../theme/colors';
-import { RECORD_STATUS_LABEL, type ProductionRecordFull } from '../api/productionRecordsList.api';
+import { tableHeader, tableRow } from '../../../theme/colors';
+import type { LatexTypeOption } from '../../../api/lookups.api';
+import { RECORD_STATUS_LABEL } from '../api/productionRecordsList.api';
+import type { ProductionRecordsAggregateRow } from '../utils/aggregateByTeamDate';
 
 const STATUS_TONE: Record<string, StatusTone> = { DRAFT: 'warning', APPROVED: 'success', CANCELLED: 'neutral' };
-const SOURCE_LABEL: Record<string, string> = { manual: 'Nhập tay', ocr_import: 'Ảnh (OCR)' };
 
-function totalKg(row: ProductionRecordFull): number {
-  return row.items.reduce((sum, item) => sum + item.kg, 0);
-}
-
+/**
+ * Bảng "Danh sách phiếu" — 1 dòng / (Tổ, Ngày), KHÔNG còn 1 dòng / nhân viên như bản cũ. Cột loại
+ * mủ lấy ĐỘNG từ `useLatexTypes()` (không hard-code water/cup/strip/coagulated) — danh mục loại mủ
+ * là danh mục MỞ (CLAUDE.md §4), thêm loại mủ mới không cần sửa bảng này.
+ */
 export function ProductionRecordsTable({
-  records,
+  rows,
+  latexTypes,
   isLoading,
   isError,
   onRetry,
-  selectedId,
   onSelect,
 }: {
-  records: ProductionRecordFull[] | undefined;
+  rows: ProductionRecordsAggregateRow[] | undefined;
+  latexTypes: LatexTypeOption[];
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (row: ProductionRecordsAggregateRow) => void;
 }) {
   if (isLoading) return <LoadingSkeleton rows={6} rowHeight={36} />;
   if (isError) return <WidgetErrorState message="Không tải được danh sách phiếu." onRetry={onRetry} />;
-  if (!records || records.length === 0) {
+  if (!rows || rows.length === 0) {
     return <WidgetEmptyState title="Chưa có phiếu nào" description="Không có phiếu nào khớp bộ lọc hiện tại." />;
   }
 
@@ -40,29 +42,35 @@ export function ProductionRecordsTable({
       <TableHead>
         <TableRow sx={{ bgcolor: tableHeader.sub }}>
           <TableCell>Ngày</TableCell>
-          <TableCell>Nhân viên</TableCell>
-          <TableCell>Tổ</TableCell>
-          <TableCell align="right">Tổng kg</TableCell>
-          <TableCell>Nguồn</TableCell>
+          <TableCell>Tên tổ</TableCell>
+          {latexTypes.map((latexType) => (
+            <TableCell key={latexType.id} align="right">
+              {latexType.label} ({latexType.unit})
+            </TableCell>
+          ))}
+          <TableCell>Ngày upload</TableCell>
           <TableCell>Trạng thái</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
-        {records.map((row, index) => (
+        {rows.map((row, index) => (
           <TableRow
-            key={row.id}
-            onClick={() => onSelect(row.id)}
+            key={row.key}
+            onClick={() => onSelect(row)}
             sx={{
               cursor: 'pointer',
-              bgcolor: row.id === selectedId ? green[50] : index % 2 === 1 ? tableRow.zebra : 'background.paper',
-              '&:hover': { bgcolor: row.id === selectedId ? green[50] : tableRow.hover },
+              bgcolor: index % 2 === 1 ? tableRow.zebra : 'background.paper',
+              '&:hover': { bgcolor: tableRow.hover },
             }}
           >
             <TableCell>{formatDate(row.recordDate)}</TableCell>
-            <TableCell sx={{ fontWeight: 500 }}>{row.employeeName}</TableCell>
-            <TableCell>{row.teamName}</TableCell>
-            <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatNumber(totalKg(row))}</TableCell>
-            <TableCell>{SOURCE_LABEL[row.source] ?? row.source}</TableCell>
+            <TableCell sx={{ fontWeight: 500 }}>{row.teamName}</TableCell>
+            {latexTypes.map((latexType) => (
+              <TableCell key={latexType.id} align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                {formatNumber(row.totalKgByLatexTypeId[latexType.id] ?? 0)}
+              </TableCell>
+            ))}
+            <TableCell>{formatDate(row.latestCreatedAt)}</TableCell>
             <TableCell>
               <StatusBadge label={RECORD_STATUS_LABEL[row.status] ?? row.status} tone={STATUS_TONE[row.status] ?? 'neutral'} />
             </TableCell>
