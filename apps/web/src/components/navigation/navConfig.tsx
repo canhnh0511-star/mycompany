@@ -75,7 +75,7 @@ export const navGroups: NavGroup[] = [
     label: 'Cài đặt',
     items: [
       { label: 'Thành phần lương', path: '/thanh-phan-luong', icon: <TuneOutlinedIcon fontSize="small" />, status: 'ready' },
-      { label: 'Cấu hình hệ thống', path: '/cau-hinh-he-thong', icon: <SettingsOutlinedIcon fontSize="small" />, status: 'pending' },
+      { label: 'Cấu hình hệ thống', path: '/cau-hinh-he-thong', icon: <SettingsOutlinedIcon fontSize="small" />, status: 'ready' },
       { label: 'Hồ sơ', path: '/ho-so', icon: <PersonOutlineOutlinedIcon fontSize="small" />, status: 'ready' },
     ],
   },

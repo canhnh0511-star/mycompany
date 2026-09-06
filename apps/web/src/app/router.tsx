@@ -8,6 +8,7 @@ import { PayrollPage } from '../features/payroll/pages/PayrollPage';
 import { SalaryComponentsPage } from '../features/salary-components/pages/SalaryComponentsPage';
 import { DailyEntryPage } from '../features/daily-entry/pages/DailyEntryPage';
 import { ProfilePage } from '../features/profile/pages/ProfilePage';
+import { SystemConfigPage } from '../features/system-config/pages/SystemConfigPage';
 import { allNavItems } from '../components/navigation/navConfig';
 
 // Chỉ nav item status:'pending' mới auto-map sang ComingSoonPage (spec §44/§47) — item 'ready' phải
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
       { path: '/thanh-phan-luong', element: <SalaryComponentsPage /> },
       { path: '/phieu', element: <DailyEntryPage /> },
       { path: '/ho-so', element: <ProfilePage /> },
+      { path: '/cau-hinh-he-thong', element: <SystemConfigPage /> },
       ...pendingItems.map((item) => ({
         path: item.path,
         element: <ComingSoonPage title={item.label} />,
