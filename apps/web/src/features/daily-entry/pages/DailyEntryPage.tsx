@@ -133,7 +133,12 @@ export function DailyEntryPage() {
                   variant="contained"
                   color="success"
                   startIcon={<CloudUploadOutlinedIcon />}
-                  disabled={!teamId || blocked || captureMutation.isPending}
+                  // `blocked` (từ lookup) không tự cập nhật NGAY trong phiên vừa bấm "Duyệt phiếu"
+                  // (lookup bị tắt hẳn sau khi đã có `capturedBatchId` — xem `lookupEnabled` ở trên),
+                  // nên phải tự kiểm tra thêm `batch?.status === 'APPROVED'` ở đây — nếu không, sau khi
+                  // duyệt phiếu ngay trong phiên này, nút "Tải ảnh phiếu" vẫn bấm được dù phiên đã khóa
+                  // (batch APPROVED không nhận thêm ảnh mới — gap lộ ra khi thêm nút "Duyệt phiếu").
+                  disabled={!teamId || blocked || batch?.status === 'APPROVED' || captureMutation.isPending}
                 >
                   {captureMutation.isPending ? 'Đang xử lý ảnh…' : 'Tải ảnh phiếu'}
                   <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" multiple hidden onChange={(e) => handleFiles(e.target.files)} />

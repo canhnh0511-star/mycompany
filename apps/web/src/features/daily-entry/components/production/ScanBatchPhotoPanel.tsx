@@ -9,6 +9,7 @@ import {
   DialogContentText,
   DialogTitle,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ChevronLeftOutlinedIcon from '@mui/icons-material/ChevronLeftOutlined';
@@ -17,12 +18,13 @@ import ZoomInOutlinedIcon from '@mui/icons-material/ZoomInOutlined';
 import ZoomOutOutlinedIcon from '@mui/icons-material/ZoomOutOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import { LoadingButton } from '../../../../components/common/LoadingButton';
 import { SectionPanel } from '../../../../components/common/SectionPanel';
 import { StatusBadge, type StatusTone } from '../../../../components/common/StatusBadge';
 import { blue, neutral } from '../../../../theme/colors';
 import { useInvalidateRoster } from '../../hooks/useProductionRecords';
-import { useRemoveScanImage, useRetryScanImage } from '../../hooks/useScanBatch';
+import { useApproveScanBatch, useRemoveScanImage, useRetryScanImage } from '../../hooks/useScanBatch';
 import { parseOcrColumnTotals } from '../../utils/ocrParsing';
 import { useLatexTypes } from '../../../../hooks/useLookups';
 import { ScanBatchAlertList } from './ScanBatchAlertList';
@@ -72,6 +74,7 @@ export function ScanBatchPhotoPanel({
   const { data: latexTypes } = useLatexTypes();
   const retryImageMutation = useRetryScanImage();
   const removeImageMutation = useRemoveScanImage();
+  const approveBatchMutation = useApproveScanBatch();
   const invalidateRoster = useInvalidateRoster();
 
   if (loadingBatch) {
@@ -105,6 +108,12 @@ export function ScanBatchPhotoPanel({
   const canDeleteActiveImage =
     image.status === 'ACTIVE' && batch.status !== 'APPROVED' && batch.status !== 'CANCELLED';
   const confirmingImage = confirmRemoveImageId ? visibleImages.find((img) => img.id === confirmRemoveImageId) : undefined;
+  // Hành động "Duyệt phiếu" (chuyển toàn bộ record DRAFT của batch này sang APPROVED — CLAUDE.md §5)
+  // đã có sẵn API/hook (`useApproveScanBatch`) từ trước nhưng CHƯA từng gắn vào UI nào — không có
+  // cách nào approve từ web (phản hồi trực tiếp: "chỗ này để chuyển từ draft thành đã xác nhận trên
+  // web"). Hiện nút khi batch chưa ở trạng thái chung cuộc; CHỈ bấm được khi `canApprove` (backend đã
+  // tính sẵn — không còn conflict `blocking:true` nào đang OPEN).
+  const showApproveAction = batch.status !== 'APPROVED' && batch.status !== 'CANCELLED';
 
   return (
     <SectionPanel title="Ảnh phiếu hằng ngày" noContentPadding>
@@ -249,6 +258,33 @@ export function ScanBatchPhotoPanel({
       </Stack>
 
       <ScanBatchAlertList batch={batch} />
+
+      {showApproveAction && (
+        <Stack direction="row" spacing={1} sx={{ px: 2, py: 2, borderTop: `1px solid ${neutral[200]}`, justifyContent: 'flex-end' }}>
+          <Tooltip
+            title={
+              batch.canApprove
+                ? ''
+                : 'Còn cảnh báo chặn lưu cần xử lý ở "Cảnh báo cần xác nhận" phía trên trước khi duyệt.'
+            }
+          >
+            {/* span bọc ngoài để Tooltip vẫn hoạt động khi button disabled (MUI yêu cầu, button
+                disabled không nhận sự kiện hover trực tiếp). */}
+            <span>
+              <LoadingButton
+                variant="contained"
+                color="success"
+                startIcon={<CheckCircleOutlinedIcon sx={{ fontSize: 18 }} />}
+                loading={approveBatchMutation.isPending}
+                disabled={!batch.canApprove}
+                onClick={() => approveBatchMutation.mutate(batch.id, { onSuccess: invalidateRoster })}
+              >
+                Duyệt phiếu
+              </LoadingButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      )}
 
       {/* Xác nhận xóa ảnh ACTIVE — hành động hủy dữ liệu (dù chỉ là draft), không cho bấm nhầm 1 phát
           là mất luôn số liệu đã đọc được, kể cả khi Admin có thể tải ảnh khác lên làm lại. */}

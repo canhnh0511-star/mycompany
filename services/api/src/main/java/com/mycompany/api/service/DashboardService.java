@@ -134,8 +134,20 @@ public class DashboardService {
         Set<UUID> employeesWithProduction = productionRecordItemRepository.aggregateActiveProductionByDate(date).stream()
                 .map(OfficialProductionRow::employeeId)
                 .collect(Collectors.toSet());
+        // Nhân viên không có production_record RIÊNG nhưng vợ/chồng (spouse_employee_id, đang active)
+        // ĐÃ có sản lượng ngày này — sản lượng cặp này ghi CHUNG vào 1 dòng (CLAUDE.md §5, ADR-0024:
+        // chia đôi kg chỉ áp dụng lúc tính lương, không tách 2 record sản lượng thô). Không phải
+        // "thiếu sản lượng" thật, không nên tính vào cảnh báo này (phản hồi trực tiếp: "9 người chưa
+        // có sản lượng thì phải lọc các người không có sản lượng do vợ chồng ra") — cùng ý nghĩa với
+        // `withSpouseCombinedLabel` ở ProductionRosterTable.tsx (frontend), giờ áp cho widget này.
         long missingEmployeesCount = employeeRepository.findByStatus(EmployeeStatus.ACTIVE).stream()
                 .filter(e -> !employeesWithProduction.contains(e.getId()))
+                .filter(e -> {
+                    Employee spouse = e.getSpouseEmployee();
+                    boolean explainedBySpouse = spouse != null && spouse.getStatus() == EmployeeStatus.ACTIVE
+                            && employeesWithProduction.contains(spouse.getId());
+                    return !explainedBySpouse;
+                })
                 .count();
 
         List<WorkQueueItemResponse> items = new ArrayList<>();
