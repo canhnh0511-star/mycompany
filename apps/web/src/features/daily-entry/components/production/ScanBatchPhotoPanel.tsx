@@ -21,6 +21,7 @@ import { LoadingButton } from '../../../../components/common/LoadingButton';
 import { SectionPanel } from '../../../../components/common/SectionPanel';
 import { StatusBadge, type StatusTone } from '../../../../components/common/StatusBadge';
 import { blue, neutral } from '../../../../theme/colors';
+import { useInvalidateRoster } from '../../hooks/useProductionRecords';
 import { useRemoveScanImage, useRetryScanImage } from '../../hooks/useScanBatch';
 import { parseOcrColumnTotals } from '../../utils/ocrParsing';
 import { useLatexTypes } from '../../../../hooks/useLookups';
@@ -71,6 +72,7 @@ export function ScanBatchPhotoPanel({
   const { data: latexTypes } = useLatexTypes();
   const retryImageMutation = useRetryScanImage();
   const removeImageMutation = useRemoveScanImage();
+  const invalidateRoster = useInvalidateRoster();
 
   if (loadingBatch) {
     return (
@@ -79,7 +81,12 @@ export function ScanBatchPhotoPanel({
       </SectionPanel>
     );
   }
-  if (!batch || batch.images.length === 0) {
+  // Ảnh REPLACED/MOVED (đã bị "Xóa ảnh" hoặc chuyển phiên khác) — KHÔNG hard-delete khỏi DB
+  // (CLAUDE.md §4, giữ lại để đối chiếu/audit), nhưng phải LOẠI khỏi pager/thumbnail hiển thị: nếu
+  // không, Admin bấm "Xóa ảnh" xong vẫn thấy y nguyên ảnh đó (chỉ đổi badge trạng thái), trông như
+  // xóa không có tác dụng (phản hồi trực tiếp: "hình ảnh thì vẫn ở đó không mất").
+  const visibleImages = batch?.images.filter((img) => img.status !== 'REPLACED' && img.status !== 'MOVED') ?? [];
+  if (!batch || visibleImages.length === 0) {
     return (
       <SectionPanel title="Ảnh phiếu hằng ngày" noContentPadding>
         <Typography sx={{ fontSize: 13, color: 'text.secondary', p: 2.5 }}>
@@ -89,7 +96,7 @@ export function ScanBatchPhotoPanel({
     );
   }
 
-  const image = batch.images[Math.min(activeIndex, batch.images.length - 1)];
+  const image = visibleImages[Math.min(activeIndex, visibleImages.length - 1)];
   const columnTotals = parseOcrColumnTotals(image.ocrColumnTotals);
   // Ảnh ACTIVE đã tạo draft record (chưa qua bước "Duyệt" — CLAUDE.md §5, ADR-0006) vẫn xóa được để
   // Admin chụp/tải lại khi phát hiện đọc sai — backend (ScanBatchService.removeImage) đã hỗ trợ sẵn,
@@ -97,7 +104,7 @@ export function ScanBatchPhotoPanel({
   // xóa được nữa (record đã confirmed không được đụng vào qua đường này).
   const canDeleteActiveImage =
     image.status === 'ACTIVE' && batch.status !== 'APPROVED' && batch.status !== 'CANCELLED';
-  const confirmingImage = confirmRemoveImageId ? batch.images.find((img) => img.id === confirmRemoveImageId) : undefined;
+  const confirmingImage = confirmRemoveImageId ? visibleImages.find((img) => img.id === confirmRemoveImageId) : undefined;
 
   return (
     <SectionPanel title="Ảnh phiếu hằng ngày" noContentPadding>
@@ -126,9 +133,9 @@ export function ScanBatchPhotoPanel({
             <ChevronLeftOutlinedIcon sx={{ fontSize: 18 }} />
           </Button>
           <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: 'text.secondary' }}>
-            {activeIndex + 1} / {batch.images.length}
+            {activeIndex + 1} / {visibleImages.length}
           </Typography>
-          <Button size="small" disabled={activeIndex === batch.images.length - 1} onClick={() => setActiveIndex((i) => i + 1)} sx={{ minWidth: 32, px: 0.5 }}>
+          <Button size="small" disabled={activeIndex === visibleImages.length - 1} onClick={() => setActiveIndex((i) => i + 1)} sx={{ minWidth: 32, px: 0.5 }}>
             <ChevronRightOutlinedIcon sx={{ fontSize: 18 }} />
           </Button>
         </Stack>
@@ -183,7 +190,9 @@ export function ScanBatchPhotoPanel({
               // Ảnh FAILED chưa từng tạo dữ liệu gì — xóa thẳng không cần xác nhận (khớp hành vi cũ).
               // Ảnh ACTIVE đã có draft record thật — luôn hỏi lại trước vì đây là hành động hủy dữ liệu.
               onClick={() =>
-                image.status === 'FAILED' ? removeImageMutation.mutate(image.id) : setConfirmRemoveImageId(image.id)
+                image.status === 'FAILED'
+                  ? removeImageMutation.mutate(image.id, { onSuccess: invalidateRoster })
+                  : setConfirmRemoveImageId(image.id)
               }
             >
               Xóa ảnh
@@ -201,7 +210,7 @@ export function ScanBatchPhotoPanel({
           hẳn khối "trang", nhìn như thiếu chức năng (phát hiện qua phản hồi live test). */}
       <Stack direction="row" spacing={1.5} sx={{ mx: 2, mb: 2, alignItems: 'flex-start' }}>
         <Stack direction="row" spacing={1} sx={{ width: 168, flexShrink: 0, flexWrap: 'wrap' }}>
-            {batch.images.map((thumb, index) => (
+            {visibleImages.map((thumb, index) => (
               <Box
                 key={thumb.id}
                 onClick={() => setActiveIndex(index)}
@@ -235,7 +244,7 @@ export function ScanBatchPhotoPanel({
             }
           />
           <InfoRow label="Số dòng OCR đọc" value={image.ocrRowCount != null ? String(image.ocrRowCount) : '—'} />
-          <InfoRow label="Số trang" value={`${batch.images.length} trang`} />
+          <InfoRow label="Số trang" value={`${visibleImages.length} trang`} />
         </Stack>
       </Stack>
 
@@ -261,7 +270,16 @@ export function ScanBatchPhotoPanel({
             loading={removeImageMutation.isPending}
             onClick={() => {
               if (!confirmRemoveImageId) return;
-              removeImageMutation.mutate(confirmRemoveImageId, { onSuccess: () => setConfirmRemoveImageId(null) });
+              removeImageMutation.mutate(confirmRemoveImageId, {
+                onSuccess: () => {
+                  setConfirmRemoveImageId(null);
+                  // Ảnh ACTIVE đã tạo draft record thật — cascade hủy ở backend chỉ đổi cache
+                  // `scan-batch`, KHÔNG tự động refetch query roster (`production-records`) đang hiển
+                  // thị bên bảng — nếu không invalidate ở đây, Admin phải tự F5 mới thấy số liệu cũ
+                  // biến mất (phản hồi trực tiếp: "phải reset page mới mất").
+                  invalidateRoster();
+                },
+              });
             }}
           >
             Xóa ảnh
