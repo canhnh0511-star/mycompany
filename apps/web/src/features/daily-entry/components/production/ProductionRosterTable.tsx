@@ -53,16 +53,26 @@ function buildRow(employee: EmployeeOption, latexTypes: LatexTypeOption[], recor
   };
 }
 
-/** Sắp bảng khớp đúng thứ tự dòng trong ảnh gốc (rowIndex) thay vì thứ tự tạo nhân viên trong hệ
- * thống — dễ đối chiếu bằng mắt (phản hồi trực tiếp). Dòng chưa có rowIndex (chưa từng xuất hiện
- * trong ảnh nào — nhập tay thuần hoặc thật sự chưa có dữ liệu) xếp CUỐI, theo tên. */
+/**
+ * Sắp bảng khớp đúng thứ tự dòng trong ảnh gốc (rowIndex) thay vì thứ tự tạo nhân viên trong hệ
+ * thống — dễ đối chiếu bằng mắt (phản hồi trực tiếp).
+ *
+ * SỬA (phản hồi trực tiếp: "cố tình di chuyển các dòng không có dữ liệu xuống dưới cùng — khác ảnh")
+ * — bản trước ép MỌI dòng chưa có `rowIndex` xuống cuối bảng theo tên, tự bịa ra 1 thứ tự KHÔNG có
+ * trong ảnh gốc. Giờ: dòng chưa có `rowIndex` giữ nguyên vị trí GỐC của nó trong danh sách công nhân
+ * (theo `originalIndex` — thứ tự `useEmployees` trả về, không đổi) làm khóa sắp, chỉ những dòng CÓ
+ * `rowIndex` mới thật sự bị kéo về đúng vị trí trong ảnh. Không còn hành vi "dồn xuống cuối" nào cả.
+ */
 function sortRowsLikePhoto(rows: ProductionRowDraft[]): ProductionRowDraft[] {
-  return [...rows].sort((a, b) => {
-    if (a.rowIndex != null && b.rowIndex != null) return a.rowIndex - b.rowIndex;
-    if (a.rowIndex != null) return -1;
-    if (b.rowIndex != null) return 1;
-    return a.employeeName.localeCompare(b.employeeName, 'vi');
-  });
+  return rows
+    .map((row, originalIndex) => ({ row, originalIndex }))
+    .sort((a, b) => {
+      const keyA = a.row.rowIndex ?? a.originalIndex;
+      const keyB = b.row.rowIndex ?? b.originalIndex;
+      if (keyA !== keyB) return keyA - keyB;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(({ row }) => row);
 }
 
 /**
@@ -108,7 +118,17 @@ export function ProductionRosterTable({
       dirtyEmployeeIds.current = new Set();
       prevRosterKey.current = rosterKey;
     }
-    const recordByEmployee = new Map(records.content.map((r) => [r.employeeId, r]));
+    // Lọc bỏ record `cancelled` — API `GET /production-records` trả VỀ CẢ record đã hủy (không lọc
+    // status ở tầng đó, phục vụ cả màn tra cứu/lịch sử — CLAUDE.md §4 "không có hard delete"). Bảng
+    // roster này thì khác: record cancelled nghĩa là "không còn tồn tại" theo đúng nghiệp vụ (vd Admin
+    // vừa bấm "Xóa ảnh" hủy hết draft để tải ảnh khác nhập lại — CLAUDE.md §5), phải coi ngang "chưa
+    // có record nào" — dòng cũ CHỈ hiện lại số liệu tổng nếu record đó active thật, nếu không hủy 1
+    // ảnh xong nhân viên bị hủy vẫn hiện y nguyên số liệu CŨ trên roster (bịa ra vẻ như còn nhớ, dễ
+    // khiến Admin "Lưu tất cả" lại đè lên record đã bị người dùng chủ động xóa — phát hiện qua test
+    // trực tiếp tính năng "Xóa ảnh").
+    const recordByEmployee = new Map(
+      records.content.filter((r) => r.status !== 'CANCELLED').map((r) => [r.employeeId, r]),
+    );
     setRows((prev) => {
       const prevByEmployee = new Map(prev.map((r) => [r.employeeId, r]));
       const built = employees.map((employee) => {

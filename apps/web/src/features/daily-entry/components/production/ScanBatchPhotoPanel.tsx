@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { Alert, Box, Button, Stack, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Stack,
+  Typography,
+} from '@mui/material';
 import ChevronLeftOutlinedIcon from '@mui/icons-material/ChevronLeftOutlined';
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import ZoomInOutlinedIcon from '@mui/icons-material/ZoomInOutlined';
 import ZoomOutOutlinedIcon from '@mui/icons-material/ZoomOutOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import { LoadingButton } from '../../../../components/common/LoadingButton';
 import { SectionPanel } from '../../../../components/common/SectionPanel';
 import { StatusBadge, type StatusTone } from '../../../../components/common/StatusBadge';
 import { blue, neutral } from '../../../../theme/colors';
@@ -55,6 +67,7 @@ export function ScanBatchPhotoPanel({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoomPct, setZoomPct] = useState(100);
+  const [confirmRemoveImageId, setConfirmRemoveImageId] = useState<string | null>(null);
   const { data: latexTypes } = useLatexTypes();
   const retryImageMutation = useRetryScanImage();
   const removeImageMutation = useRemoveScanImage();
@@ -78,6 +91,13 @@ export function ScanBatchPhotoPanel({
 
   const image = batch.images[Math.min(activeIndex, batch.images.length - 1)];
   const columnTotals = parseOcrColumnTotals(image.ocrColumnTotals);
+  // Ảnh ACTIVE đã tạo draft record (chưa qua bước "Duyệt" — CLAUDE.md §5, ADR-0006) vẫn xóa được để
+  // Admin chụp/tải lại khi phát hiện đọc sai — backend (ScanBatchService.removeImage) đã hỗ trợ sẵn,
+  // tự hủy hết draft gắn với ảnh trước khi loại ảnh. Batch đã APPROVED/CANCELLED thì khóa hẳn, không
+  // xóa được nữa (record đã confirmed không được đụng vào qua đường này).
+  const canDeleteActiveImage =
+    image.status === 'ACTIVE' && batch.status !== 'APPROVED' && batch.status !== 'CANCELLED';
+  const confirmingImage = confirmRemoveImageId ? batch.images.find((img) => img.id === confirmRemoveImageId) : undefined;
 
   return (
     <SectionPanel title="Ảnh phiếu hằng ngày" noContentPadding>
@@ -151,10 +171,23 @@ export function ScanBatchPhotoPanel({
         {image.ocrRowCount != null && (
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Đọc được {image.ocrRowCount} dòng</Typography>
         )}
-        {image.status === 'FAILED' && (
+        {(image.status === 'FAILED' || canDeleteActiveImage) && (
           <Stack direction="row" spacing={0.5} sx={{ ml: 'auto' }}>
-            <Button size="small" startIcon={<RefreshOutlinedIcon />} onClick={() => retryImageMutation.mutate(image.id)}>Thử lại</Button>
-            <Button size="small" color="error" startIcon={<DeleteOutlinedIcon />} onClick={() => removeImageMutation.mutate(image.id)}>Xóa</Button>
+            {image.status === 'FAILED' && (
+              <Button size="small" startIcon={<RefreshOutlinedIcon />} onClick={() => retryImageMutation.mutate(image.id)}>Thử lại</Button>
+            )}
+            <Button
+              size="small"
+              color="error"
+              startIcon={<DeleteOutlinedIcon />}
+              // Ảnh FAILED chưa từng tạo dữ liệu gì — xóa thẳng không cần xác nhận (khớp hành vi cũ).
+              // Ảnh ACTIVE đã có draft record thật — luôn hỏi lại trước vì đây là hành động hủy dữ liệu.
+              onClick={() =>
+                image.status === 'FAILED' ? removeImageMutation.mutate(image.id) : setConfirmRemoveImageId(image.id)
+              }
+            >
+              Xóa ảnh
+            </Button>
           </Stack>
         )}
       </Stack>
@@ -207,6 +240,34 @@ export function ScanBatchPhotoPanel({
       </Stack>
 
       <ScanBatchAlertList batch={batch} />
+
+      {/* Xác nhận xóa ảnh ACTIVE — hành động hủy dữ liệu (dù chỉ là draft), không cho bấm nhầm 1 phát
+          là mất luôn số liệu đã đọc được, kể cả khi Admin có thể tải ảnh khác lên làm lại. */}
+      <Dialog open={confirmingImage != null} onClose={() => setConfirmRemoveImageId(null)}>
+        <DialogTitle>Xóa ảnh này?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Ảnh này đã đọc được{' '}
+            {confirmingImage?.ocrRowCount != null ? `${confirmingImage.ocrRowCount} dòng` : 'dữ liệu'} nhưng CHƯA được
+            xác nhận (còn ở trạng thái nháp). Xóa ảnh sẽ hủy toàn bộ dữ liệu tạo ra từ ảnh này — bạn có thể tải ảnh
+            khác lên để nhập lại.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmRemoveImageId(null)}>Hủy</Button>
+          <LoadingButton
+            variant="contained"
+            color="error"
+            loading={removeImageMutation.isPending}
+            onClick={() => {
+              if (!confirmRemoveImageId) return;
+              removeImageMutation.mutate(confirmRemoveImageId, { onSuccess: () => setConfirmRemoveImageId(null) });
+            }}
+          >
+            Xóa ảnh
+          </LoadingButton>
+        </DialogActions>
+      </Dialog>
     </SectionPanel>
   );
 }
