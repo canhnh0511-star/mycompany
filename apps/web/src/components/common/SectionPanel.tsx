@@ -15,6 +15,9 @@ type SectionPanelAction = { label: string } & ({ href: string; onClick?: never }
 
 interface SectionPanelProps {
   title: string;
+  /** Icon badge tròn bên trái title (vd phân biệt nhanh nhiều panel xếp dọc trên 1 trang — Hồ sơ).
+   * Optional — đa số panel hiện có (Home, 4 tab Thành phần lương...) không cần, chỉ title là đủ. */
+  icon?: ReactNode;
   /** Dòng mô tả nhỏ dưới title (vd mô tả phạm vi áp dụng 1 cấu hình — trước đây là `ConfigPanel.description`). */
   description?: string;
   /** Số đếm nổi bật cạnh title (vd "Cần xử lý" — badge đỏ số lượng issue). */
@@ -38,7 +41,7 @@ interface SectionPanelProps {
  * vì cùng 1 cấu trúc Panel > Header(Title, Action) > Content — 2 component riêng trước đây chỉ khác
  * mỗi kiểu action (link điều hướng vs nút onClick), không đáng để duy trì 2 nơi (UI audit vòng 3).
  */
-export function SectionPanel({ title, description, badgeCount, action, noContentPadding, sx, children }: SectionPanelProps) {
+export function SectionPanel({ title, icon, description, badgeCount, action, noContentPadding, sx, children }: SectionPanelProps) {
   return (
     <Paper
       variant="outlined"
@@ -66,33 +69,52 @@ export function SectionPanel({ title, description, badgeCount, action, noContent
           gap: 2,
         }}
       >
-        <Box>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Typography variant="h3">{title}</Typography>
-            {!!badgeCount && (
-              <Box
-                sx={{
-                  minWidth: 20,
-                  height: 20,
-                  px: 0.5,
-                  borderRadius: 999,
-                  bgcolor: red[600],
-                  color: '#FFFFFF',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {badgeCount}
-              </Box>
-            )}
-          </Stack>
-          {description && (
-            <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.25 }}>{description}</Typography>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+          {icon && (
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                bgcolor: green[50],
+                color: green[600],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </Box>
           )}
-        </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Typography variant="h3">{title}</Typography>
+              {!!badgeCount && (
+                <Box
+                  sx={{
+                    minWidth: 20,
+                    height: 20,
+                    px: 0.5,
+                    borderRadius: 999,
+                    bgcolor: red[600],
+                    color: '#FFFFFF',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {badgeCount}
+                </Box>
+              )}
+            </Stack>
+            {description && (
+              <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.25 }}>{description}</Typography>
+            )}
+          </Box>
+        </Stack>
 
         {action &&
           ('href' in action && action.href ? (

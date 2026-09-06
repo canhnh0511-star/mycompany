@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Box, InputAdornment, Stack, TextField, Typography, alpha } from '@mui/material';
+import { Box, IconButton, InputAdornment, Stack, TextField, Typography, alpha } from '@mui/material';
 import MailOutlineOutlinedIcon from '@mui/icons-material/MailOutlineOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
 import LocalPhoneOutlinedIcon from '@mui/icons-material/LocalPhoneOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { ApiError } from '../../../api/client';
 import { LoadingButton } from '../../../components/common/LoadingButton';
 import { SectionPanel } from '../../../components/common/SectionPanel';
@@ -21,9 +24,11 @@ const ROLE_LABEL: Record<string, string> = { ADMIN: 'Quản lý', TEAM_LEAD: 'T�
 /**
  * Hồ sơ cá nhân — chỉ sửa tên/chức vụ/SĐT (không tự đổi email/role — UserController.updateMe) +
  * đổi mật khẩu riêng. Layout theo đúng mockup người dùng cung cấp: banner nhận diện (avatar/tên/
- * vai trò + khẩu hiệu) phía trên, lưới 2 cột bên dưới gồm cả field chỉ xem (Email/Vai trò — vẫn vẽ
- * khung input nhưng `disabled` để phân biệt rõ không bấm sửa được) lẫn field sửa được, mỗi field có
- * icon riêng cho dễ quét mắt.
+ * vai trò + khẩu hiệu) phía trên, lưới bên dưới gồm cả field chỉ xem (Email/Vai trò — vẫn vẽ khung
+ * input nhưng `disabled` để phân biệt rõ không bấm sửa được) lẫn field sửa được, mỗi field có icon
+ * riêng cho dễ quét mắt. KHÔNG giới hạn `maxWidth` toàn trang (bản trước bó hẹp 680px trong khi các
+ * trang khác đều dùng hết chiều rộng nội dung — panel trông lệch/mất cân đối cạnh khoảng trắng thừa
+ * bên phải) — để 2 panel giãn hết chiều rộng như mọi trang khác trong app.
  */
 export function ProfilePage() {
   const { data: user, isLoading, isError, refetch } = useMe();
@@ -32,7 +37,7 @@ export function ProfilePage() {
   if (isError || !user) return <WidgetErrorState message="Không tải được hồ sơ." onRetry={() => refetch()} />;
 
   return (
-    <Stack spacing={2.5} sx={{ maxWidth: 680 }}>
+    <Stack spacing={2.5}>
       <ProfileHeader fullName={user.fullName} email={user.email} role={user.role} />
       <ProfileInfoPanel
         key={user.id}
@@ -190,7 +195,11 @@ function ProfileInfoPanel({
   }
 
   return (
-    <SectionPanel title="Thông tin cá nhân" description="Tên, chức vụ và số điện thoại hiển thị trong hệ thống.">
+    <SectionPanel
+      title="Thông tin cá nhân"
+      icon={<PersonOutlineOutlinedIcon sx={{ fontSize: 20 }} />}
+      description="Tên, chức vụ và số điện thoại hiển thị trong hệ thống."
+    >
       <Stack>
         <Box
           sx={{
@@ -282,22 +291,25 @@ function ProfileInfoPanel({
               },
             }}
           />
+          {/* Nút "Lưu" là ô thứ 6 trong lưới 2 cột (5 field ở trên) — grid auto-placement tự rơi
+              đúng vào cột phải, CÙNG HÀNG với "Số điện thoại", không phải 1 khối riêng lơ lửng bên
+              dưới toàn bộ form (vị trí cũ khiến nút trông lạc chỗ, không gắn với field nào). */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
+            <LoadingButton
+              variant="contained"
+              color="success"
+              startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
+              loading={updateMutation.isPending}
+              disabled={!fields.fullName.trim()}
+              onClick={handleSave}
+            >
+              Lưu
+            </LoadingButton>
+          </Box>
         </Box>
 
         {error && <Typography sx={{ fontSize: 13, mt: 2 }} color="error.main">{error}</Typography>}
         {saved && !error && <Typography sx={{ fontSize: 13, mt: 2 }} color="success.main">Đã lưu thông tin.</Typography>}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-          <LoadingButton
-            variant="contained"
-            color="success"
-            startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
-            loading={updateMutation.isPending}
-            disabled={!fields.fullName.trim()}
-            onClick={handleSave}
-          >
-            Lưu
-          </LoadingButton>
-        </Box>
       </Stack>
     </SectionPanel>
   );
@@ -305,9 +317,12 @@ function ProfileInfoPanel({
 
 const EMPTY_PASSWORD_FIELDS = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
+const EMPTY_VISIBILITY = { currentPassword: false, newPassword: false, confirmPassword: false };
+
 function ChangePasswordPanel() {
   const changePasswordMutation = useChangePassword();
   const [fields, setFields] = useState(EMPTY_PASSWORD_FIELDS);
+  const [visible, setVisible] = useState(EMPTY_VISIBILITY);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -339,43 +354,116 @@ function ChangePasswordPanel() {
     }
   }
 
+  function toggleVisible(field: keyof typeof visible) {
+    setVisible((v) => ({ ...v, [field]: !v[field] }));
+  }
+
+  function visibilityAdornment(field: keyof typeof visible) {
+    return (
+      <InputAdornment position="end">
+        <IconButton
+          size="small"
+          edge="end"
+          tabIndex={-1}
+          aria-label={visible[field] ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+          onClick={() => toggleVisible(field)}
+        >
+          {visible[field] ? (
+            <VisibilityOffOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+          ) : (
+            <VisibilityOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+          )}
+        </IconButton>
+      </InputAdornment>
+    );
+  }
+
   return (
-    <SectionPanel title="Đổi mật khẩu" description="Dùng mật khẩu mới cho lần đăng nhập tiếp theo.">
-      <Stack spacing={2} sx={{ maxWidth: 360 }}>
-        <TextField
-          label="Mật khẩu hiện tại"
-          type="password"
-          size="small"
-          fullWidth
-          value={fields.currentPassword}
-          onChange={(event) => setFields((f) => ({ ...f, currentPassword: event.target.value }))}
-        />
-        <TextField
-          label="Mật khẩu mới"
-          type="password"
-          size="small"
-          fullWidth
-          value={fields.newPassword}
-          error={tooShort}
-          helperText={tooShort ? 'Tối thiểu 8 ký tự.' : ' '}
-          onChange={(event) => setFields((f) => ({ ...f, newPassword: event.target.value }))}
-        />
-        <TextField
-          label="Nhập lại mật khẩu mới"
-          type="password"
-          size="small"
-          fullWidth
-          value={fields.confirmPassword}
-          error={mismatch}
-          helperText={mismatch ? 'Không khớp với mật khẩu mới.' : ' '}
-          onChange={(event) => setFields((f) => ({ ...f, confirmPassword: event.target.value }))}
-        />
-        {error && <Typography sx={{ fontSize: 13 }} color="error.main">{error}</Typography>}
-        {saved && !error && <Typography sx={{ fontSize: 13 }} color="success.main">Đã đổi mật khẩu.</Typography>}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+    <SectionPanel
+      title="Đổi mật khẩu"
+      icon={<LockOutlinedIcon sx={{ fontSize: 20 }} />}
+      description="Dùng mật khẩu mới cho lần đăng nhập tiếp theo."
+    >
+      <Stack>
+        {/* 3 field cùng 1 hàng, chiếm hết chiều rộng panel — đúng mockup, thay vì cột dọc hẹp
+            360px trước đây (lệch hẳn so với panel "Thông tin cá nhân" ngay phía trên, 2 panel
+            cùng trang mà 1 rộng 1 hẹp trông mất cân đối). */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' },
+            columnGap: 2,
+            rowGap: 2,
+          }}
+        >
+          <TextField
+            label="Mật khẩu hiện tại"
+            type={visible.currentPassword ? 'text' : 'password'}
+            size="small"
+            fullWidth
+            value={fields.currentPassword}
+            onChange={(event) => setFields((f) => ({ ...f, currentPassword: event.target.value }))}
+            helperText=" "
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+                endAdornment: visibilityAdornment('currentPassword'),
+              },
+            }}
+          />
+          <TextField
+            label="Mật khẩu mới"
+            type={visible.newPassword ? 'text' : 'password'}
+            size="small"
+            fullWidth
+            value={fields.newPassword}
+            error={tooShort}
+            helperText={tooShort ? 'Tối thiểu 8 ký tự.' : ' '}
+            onChange={(event) => setFields((f) => ({ ...f, newPassword: event.target.value }))}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+                endAdornment: visibilityAdornment('newPassword'),
+              },
+            }}
+          />
+          <TextField
+            label="Nhập lại mật khẩu mới"
+            type={visible.confirmPassword ? 'text' : 'password'}
+            size="small"
+            fullWidth
+            value={fields.confirmPassword}
+            error={mismatch}
+            helperText={mismatch ? 'Không khớp với mật khẩu mới.' : ' '}
+            onChange={(event) => setFields((f) => ({ ...f, confirmPassword: event.target.value }))}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon sx={{ fontSize: 18, color: text.secondary }} />
+                  </InputAdornment>
+                ),
+                endAdornment: visibilityAdornment('confirmPassword'),
+              },
+            }}
+          />
+        </Box>
+
+        {error && <Typography sx={{ fontSize: 13, mt: 1 }} color="error.main">{error}</Typography>}
+        {saved && !error && <Typography sx={{ fontSize: 13, mt: 1 }} color="success.main">Đã đổi mật khẩu.</Typography>}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
           <LoadingButton
             variant="contained"
             color="success"
+            startIcon={<SaveOutlinedIcon sx={{ fontSize: 18 }} />}
             loading={changePasswordMutation.isPending}
             disabled={!fields.currentPassword || !fields.newPassword || !fields.confirmPassword}
             onClick={handleSave}
