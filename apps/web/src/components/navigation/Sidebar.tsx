@@ -1,4 +1,4 @@
-import { Box, Stack, Typography, alpha } from '@mui/material';
+import { Box, Drawer, Stack, Typography, alpha } from '@mui/material';
 import { NavLink } from 'react-router-dom';
 import ExpandMoreOutlinedIcon from '@mui/icons-material/ExpandMoreOutlined';
 import logoMark from '../../assets/logo-mark.png';
@@ -12,12 +12,13 @@ import { useCurrentUser } from '../../features/auth/hooks/useCurrentUser';
 /** Tên thương hiệu tĩnh (logo sidebar) — độc lập với user đang đăng nhập. */
 const BRAND_NAME = 'DAVID DŨNG';
 
-function NavRow({ item }: { item: NavItem }) {
+function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   return (
     <Box
       component={NavLink}
       to={item.path}
       end={item.path === '/'}
+      onClick={onNavigate}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -79,22 +80,21 @@ function NavParentRow({ parent }: { parent: NavExpandableParent }) {
   );
 }
 
-export function Sidebar() {
+/**
+ * Nội dung nav dùng chung cho cả sidebar cố định (desktop, `md` trở lên) lẫn Drawer mobile —
+ * tách riêng để không viết lại logic map `sidebarSections` 2 lần (xem `Sidebar`/`SidebarDrawer`).
+ */
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { data: user } = useCurrentUser();
 
   return (
     <Box
-      component="nav"
       sx={{
-        width: SIDEBAR_WIDTH,
-        flexShrink: 0,
-        bgcolor: sidebar.background,
-        color: sidebar.text,
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
-        position: 'sticky',
-        top: 0,
+        height: '100%',
+        bgcolor: sidebar.background,
+        color: sidebar.text,
       }}
     >
       {/* Logo area — spec §2/§3: logo mark thật (asset thương hiệu do người
@@ -140,14 +140,14 @@ export function Sidebar() {
       {/* Nav */}
       <Stack spacing={2.5} sx={{ px: 1.5, pt: 2, flex: 1, overflowY: 'auto', pb: 2 }}>
         <Stack spacing={0.5}>
-          <NavRow item={overviewNavItem} />
+          <NavRow item={overviewNavItem} onNavigate={onNavigate} />
         </Stack>
 
         {sidebarSections.map((section) => {
           if (section.kind === 'item') {
             return (
               <Stack spacing={0.5} key={section.item.path}>
-                <NavRow item={section.item} />
+                <NavRow item={section.item} onNavigate={onNavigate} />
               </Stack>
             );
           }
@@ -162,7 +162,7 @@ export function Sidebar() {
                   sx={{ pl: 2, ml: 1.75, borderLeft: `1px solid ${alpha('#FFFFFF', 0.16)}` }}
                 >
                   {section.children.map((item) => (
-                    <NavRow item={item} key={item.path} />
+                    <NavRow item={item} key={item.path} onNavigate={onNavigate} />
                   ))}
                 </Stack>
               </Stack>
@@ -183,7 +183,7 @@ export function Sidebar() {
                 {section.group.label}
               </Typography>
               {section.group.items.map((item) => (
-                <NavRow item={item} key={item.path} />
+                <NavRow item={item} key={item.path} onNavigate={onNavigate} />
               ))}
             </Stack>
           );
@@ -221,6 +221,51 @@ export function Sidebar() {
         </Stack>
       </Box>
     </Box>
+  );
+}
+
+/**
+ * Sidebar cố định — chỉ hiển thị từ `md` trở lên (desktop/tablet lớn). Ở mobile/tablet nhỏ
+ * (`xs`/`sm`) ẩn hẳn, thay bằng `SidebarDrawer` mở qua nút hamburger ở `TopBar`.
+ */
+export function Sidebar() {
+  return (
+    <Box
+      component="nav"
+      sx={{
+        display: { xs: 'none', md: 'flex' },
+        width: SIDEBAR_WIDTH,
+        flexShrink: 0,
+        flexDirection: 'column',
+        height: '100vh',
+        position: 'sticky',
+        top: 0,
+      }}
+    >
+      <SidebarContent />
+    </Box>
+  );
+}
+
+/**
+ * Drawer tạm (`variant="temporary"`) chứa nguyên nội dung Sidebar cho mobile/tablet nhỏ — tái dùng
+ * `SidebarContent`, đóng lại khi bấm chọn 1 mục nav hoặc bấm ra ngoài (hành vi mặc định của
+ * `Drawer` temporary qua `onClose`).
+ */
+export function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Drawer
+      variant="temporary"
+      open={open}
+      onClose={onClose}
+      ModalProps={{ keepMounted: true }}
+      sx={{
+        display: { xs: 'block', md: 'none' },
+        '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH, boxSizing: 'border-box', border: 'none' },
+      }}
+    >
+      <SidebarContent onNavigate={onClose} />
+    </Drawer>
   );
 }
 

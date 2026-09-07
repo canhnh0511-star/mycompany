@@ -1,4 +1,5 @@
 import { Badge, Box, IconButton, Stack, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
 import { DateSelector } from './DateSelector';
 import { UserMenu } from './UserMenu';
@@ -10,31 +11,50 @@ interface TopBarProps {
   greeting?: string;
   /** Số thông báo chưa đọc — chỉ hiển thị badge khi > 0 (spec §9), không mock. */
   notificationCount?: number;
+  /** Mở Drawer sidebar — chỉ truyền ở mobile/tablet nhỏ, nút hamburger chỉ hiện khi có prop này. */
+  onMenuClick?: () => void;
 }
 
-export function TopBar({ title, greeting, notificationCount = 0 }: TopBarProps) {
+export function TopBar({ title, greeting, notificationCount = 0, onMenuClick }: TopBarProps) {
   return (
     <Stack
       direction="row"
       sx={{
         alignItems: 'center',
         justifyContent: 'space-between',
-        px: 3.5,
+        px: { xs: 1.5, md: 3.5 },
         py: 1.75,
         borderBottom: `1px solid ${neutral[200]}`,
         bgcolor: 'background.paper',
         flexWrap: 'wrap',
-        gap: 2,
+        gap: { xs: 1, md: 2 },
       }}
     >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h1">{title}</Typography>
-        {greeting && (
-          <Typography sx={{ fontSize: 14.5, fontWeight: 500, color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}>
-            {greeting}
-          </Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+        {onMenuClick && (
+          <IconButton
+            size="small"
+            aria-label="Mở menu điều hướng"
+            onClick={onMenuClick}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, flexShrink: 0 }}
+          >
+            <MenuIcon />
+          </IconButton>
         )}
-      </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h1" noWrap>
+            {title}
+          </Typography>
+          {greeting && (
+            <Typography
+              sx={{ fontSize: 14.5, fontWeight: 500, color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}
+              noWrap
+            >
+              {greeting}
+            </Typography>
+          )}
+        </Box>
+      </Stack>
 
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
         <DateSelector />

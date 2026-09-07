@@ -68,7 +68,7 @@ const secondarySx = { fontSize: 12.5, fontWeight: 500, color: 'text.secondary' }
 export function PayrollKpiRow({ summary, isLoading }: { summary: PayrollSummary | undefined; isLoading: boolean }) {
   if (isLoading || !summary) {
     return (
-      <Stack direction="row" spacing={2}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
         {Array.from({ length: 4 }).map((_, index) => (
           <Paper
             key={index}

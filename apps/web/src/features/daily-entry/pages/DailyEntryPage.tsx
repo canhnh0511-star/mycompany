@@ -176,7 +176,13 @@ export function DailyEntryPage() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' },
+              // `minmax(0, Nfr)` thay vì `Nfr` trần — tránh "grid blowout": mặc định `min-width:auto`
+              // của grid item để item RỘNG HƠN track khi nội dung bên trong có min-content lớn (ở đây
+              // là bảng roster `minWidth:640` cộng ScanBatchPhotoPanel) — track tự phình theo nội dung
+              // thay vì co đúng 1 cột như khai báo, kéo tràn ngang CẢ TRANG ở mobile (phát hiện lúc
+              // live-test 375px, không thấy được chỉ bằng đọc code). `minmax(0, …)` ép item co về 0
+              // trước, buộc nội dung tự cuộn ngang trong khung riêng của nó (đã có overflow wrapper).
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1.6fr) minmax(0, 1fr)' },
               gap: 2.5,
               alignItems: 'stretch',
               height: { lg: 'calc(100vh - 232px)' },

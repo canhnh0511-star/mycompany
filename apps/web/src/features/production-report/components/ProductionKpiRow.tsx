@@ -15,9 +15,14 @@ import type { ProductionDashboardFilters } from '../types/productionReport.types
 
 const iconSx = { fontSize: 18 } as const;
 
+// `minmax(0, 1fr)` thay vì `1fr` trần — chặn "grid blowout" (xem giải thích ở DailyEntryPage.tsx).
 const gridSx = {
   display: 'grid',
-  gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' },
+  gridTemplateColumns: {
+    xs: 'repeat(2, minmax(0, 1fr))',
+    sm: 'repeat(3, minmax(0, 1fr))',
+    lg: 'repeat(5, minmax(0, 1fr))',
+  },
   gap: 2,
 };
 
