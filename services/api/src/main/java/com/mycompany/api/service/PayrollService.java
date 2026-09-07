@@ -2,6 +2,7 @@ package com.mycompany.api.service;
 
 import com.mycompany.api.dto.PayrollDetailResponse;
 import com.mycompany.api.dto.PayrollLineItem;
+import com.mycompany.api.dto.PayrollRateSnapshot;
 import com.mycompany.api.dto.PayrollRowResponse;
 import com.mycompany.api.dto.PayrollRowStatus;
 import com.mycompany.api.dto.PayrollSummaryResponse;
@@ -46,6 +47,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -263,6 +265,29 @@ public class PayrollService {
         }
         payrollPeriodLockRepository.deleteById(yearMonth);
         return summary(yearMonth, null, null, null);
+    }
+
+    // ============================================================= Xuất Excel — snapshot đơn giá
+
+    /** Đơn giá đã dùng để tính lương tháng này (mốc tham chiếu cuối tháng, xem javadoc class) — CHỈ
+     * phục vụ {@link PayrollExcelExportService} hiện tường minh bảng đơn giá + làm ô tham chiếu công
+     * thức trong file xuất, KHÔNG lộ ra route hiển thị nào trên web. Tính lại {@code loadRateContext}
+     * riêng (không dùng chung `summary()`) — nhẹ, chỉ vài lookup, tránh phải đổi chữ ký `summary()`
+     * đang được frontend dùng trực tiếp. */
+    public PayrollRateSnapshot currentRates(String yearMonth) {
+        YearMonth ym = parseYearMonth(yearMonth);
+        RateContext rates = loadRateContext(ym.atEndOfMonth());
+        Map<String, BigDecimal> gradeRates = new LinkedHashMap<>();
+        for (TechnicalGrade grade : TechnicalGrade.values()) {
+            gradeRates.put(grade.name(), rates.gradeRates().getOrDefault(grade, ZERO));
+        }
+        return new PayrollRateSnapshot(
+                rates.waterRate(), rates.mixedLatexRate(),
+                rates.allowanceRates().getOrDefault(AttendanceType.MEDICATION, ZERO),
+                rates.allowanceRates().getOrDefault(AttendanceType.ATTENDANCE, ZERO),
+                rates.allowanceRates().getOrDefault(AttendanceType.STORM_ALLOWANCE, ZERO),
+                rates.allowanceRates().getOrDefault(AttendanceType.SEASONAL_WORK, ZERO),
+                gradeRates, defaultAdvance());
     }
 
     // ============================================================= Tính toán cốt lõi (dùng chung bulk/single)

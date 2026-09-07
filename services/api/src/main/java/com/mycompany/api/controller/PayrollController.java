@@ -1,15 +1,20 @@
 package com.mycompany.api.controller;
 
 import com.mycompany.api.dto.PayrollDetailResponse;
+import com.mycompany.api.dto.PayrollRateSnapshot;
 import com.mycompany.api.dto.PayrollRowResponse;
 import com.mycompany.api.dto.PayrollSummaryResponse;
 import com.mycompany.api.dto.UpdateDeductionRequest;
 import com.mycompany.api.dto.UpdateTechnicalGradeRequest;
 import com.mycompany.api.entity.User;
+import com.mycompany.api.service.PayrollExcelExportService;
 import com.mycompany.api.service.PayrollService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -30,7 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PayrollController {
 
+    private static final MediaType XLSX_MEDIA_TYPE =
+            MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
     private final PayrollService payrollService;
+    private final PayrollExcelExportService payrollExcelExportService;
 
     @GetMapping
     public PayrollSummaryResponse summary(
@@ -56,6 +65,25 @@ public class PayrollController {
     public PayrollRowResponse updateTechnicalGrade(@PathVariable UUID employeeId, @RequestParam String yearMonth,
             @Valid @RequestBody UpdateTechnicalGradeRequest request, @AuthenticationPrincipal User currentUser) {
         return payrollService.updateTechnicalGrade(employeeId, yearMonth, request.grade(), currentUser);
+    }
+
+    // Xuất Excel — mỗi Tổ 1 sheet, mọi cột số đều là công thức tham chiếu bảng đơn giá đầu sheet
+    // (không phải số tĩnh — xem javadoc PayrollExcelExportService). Tôn trọng filter đang xem trên
+    // web (vd Admin đang lọc 1 Tổ/trạng thái/tên) — export CHỈ đúng những gì đang hiển thị, không
+    // phải luôn luôn toàn bộ, cùng nguyên tắc `/reports/*/export/xlsx` đã có.
+    @GetMapping("/export/xlsx")
+    public ResponseEntity<byte[]> exportXlsx(
+            @RequestParam String yearMonth,
+            @RequestParam(required = false) UUID teamId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String query) {
+        PayrollSummaryResponse summary = payrollService.summary(yearMonth, teamId, status, query);
+        PayrollRateSnapshot rates = payrollService.currentRates(yearMonth);
+        byte[] file = payrollExcelExportService.exportPayroll(summary, rates, yearMonth);
+        return ResponseEntity.ok()
+                .contentType(XLSX_MEDIA_TYPE)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"bang-luong-" + yearMonth + ".xlsx\"")
+                .body(file);
     }
 
     // "Chốt lương" — cờ đơn giản theo THÁNG, KHÔNG immutable (mục 2.4 spec — dữ liệu vẫn sửa được

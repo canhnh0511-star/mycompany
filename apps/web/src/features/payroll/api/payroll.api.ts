@@ -1,4 +1,5 @@
 import { apiGet, apiPatch, apiPostAuthed } from '../../../api/client';
+import { downloadFile } from '../../../api/downloadFile';
 import type { PayrollDetail, PayrollSummary, TechnicalGrade } from '../model/payroll.types';
 // Lookup dùng chung (Bảng lương/Thành phần lương/Phiếu đều cần) — xem `src/api/lookups.api.ts`.
 export type { TeamOption } from '../../../api/lookups.api';
@@ -39,4 +40,14 @@ export function lockPayroll(yearMonth: string): Promise<PayrollSummary> {
 
 export function unlockPayroll(yearMonth: string): Promise<PayrollSummary> {
   return apiPostAuthed<PayrollSummary>('/api/v1/payroll/unlock', { yearMonth });
+}
+
+/** Mỗi Tổ 1 sheet, mọi cột số đều là công thức Excel (xem PayrollExcelExportService) — tôn trọng
+ * filter đang xem trên bảng (Tổ/trạng thái/tìm kiếm), không phải luôn xuất toàn bộ. */
+export function exportPayrollXlsx(filters: PayrollFilters): Promise<void> {
+  return downloadFile(
+    '/api/v1/payroll/export/xlsx',
+    { yearMonth: filters.yearMonth, teamId: filters.teamId, status: filters.status, query: filters.query || undefined },
+    `bang-luong-${filters.yearMonth}.xlsx`,
+  );
 }

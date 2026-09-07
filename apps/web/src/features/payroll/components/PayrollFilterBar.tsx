@@ -1,6 +1,7 @@
-import { Button, InputAdornment, MenuItem, Stack, TextField } from '@mui/material';
+import { InputAdornment, MenuItem, Stack, TextField } from '@mui/material';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import { LoadingButton } from '../../../components/common/LoadingButton';
 import { neutral } from '../../../theme/colors';
 import { PAYROLL_ROW_STATUS_LABEL } from '../model/payroll.types';
 import type { TeamOption } from '../api/payroll.api';
@@ -22,6 +23,7 @@ export function PayrollFilterBar({
   onQueryChange,
   teams,
   onExport,
+  exporting = false,
 }: {
   yearMonth: string;
   onYearMonthChange: (value: string) => void;
@@ -33,6 +35,7 @@ export function PayrollFilterBar({
   onQueryChange: (value: string) => void;
   teams: TeamOption[];
   onExport: () => void;
+  exporting?: boolean;
 }) {
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ alignItems: { md: 'center' } }}>
@@ -85,15 +88,16 @@ export function PayrollFilterBar({
         }}
       />
 
-      <Button
+      <LoadingButton
         variant="contained"
         color="success"
         startIcon={<FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />}
+        loading={exporting}
         onClick={onExport}
         sx={{ whiteSpace: 'nowrap' }}
       >
         Xuất bảng lương
-      </Button>
+      </LoadingButton>
     </Stack>
   );
 }

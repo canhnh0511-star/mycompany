@@ -8,7 +8,13 @@ import { PayrollKpiRow } from '../components/PayrollKpiRow';
 import { PayrollFilterBar } from '../components/PayrollFilterBar';
 import { PayrollTable } from '../components/PayrollTable';
 import { PayrollDetailPanel } from '../components/PayrollDetailPanel';
-import { usePayrollSummary, useTeams, useLockPayrollMutation, useUnlockPayrollMutation } from '../hooks/usePayroll';
+import {
+  useExportPayrollXlsx,
+  useLockPayrollMutation,
+  usePayrollSummary,
+  useTeams,
+  useUnlockPayrollMutation,
+} from '../hooks/usePayroll';
 import { toIsoDate } from '../../../utils/format';
 
 function currentMonthKey(): string {
@@ -41,8 +47,17 @@ export function PayrollPage() {
   const { data: teams } = useTeams();
   const lockMutation = useLockPayrollMutation();
   const unlockMutation = useUnlockPayrollMutation();
+  const exportMutation = useExportPayrollXlsx();
 
   const locked = summary?.locked ?? false;
+
+  async function handleExport() {
+    try {
+      await exportMutation.mutateAsync(filters);
+    } catch {
+      setNotice('Xuất Excel thất bại, thử lại giúp tôi.');
+    }
+  }
 
   return (
     <Stack spacing={2.5}>
@@ -70,7 +85,8 @@ export function PayrollPage() {
             query={query}
             onQueryChange={setQuery}
             teams={teams ?? []}
-            onExport={() => setNotice('Xuất Excel sẽ có ở phiên bản sau.')}
+            onExport={handleExport}
+            exporting={exportMutation.isPending}
           />
         </Box>
         <LoadingButton

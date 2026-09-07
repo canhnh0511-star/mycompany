@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  exportPayrollXlsx,
   getPayrollDetail,
   getPayrollSummary,
   lockPayroll,
@@ -69,4 +70,8 @@ export function useUnlockPayrollMutation() {
     mutationFn: (yearMonth: string) => unlockPayroll(yearMonth),
     onSuccess: () => invalidate(),
   });
+}
+
+export function useExportPayrollXlsx() {
+  return useMutation({ mutationFn: exportPayrollXlsx });
 }
