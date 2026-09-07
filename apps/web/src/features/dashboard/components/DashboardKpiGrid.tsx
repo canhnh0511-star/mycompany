@@ -22,7 +22,8 @@ const iconSx = { fontSize: 20 } as const;
  */
 const kpiRowSx = {
   display: { xs: 'grid', lg: 'flex' },
-  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+  // `minmax(0, 1fr)` thay vì `1fr` trần — chặn "grid blowout" (xem giải thích ở DailyEntryPage.tsx).
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' },
   flexWrap: { lg: 'wrap' as const },
   gap: 2,
 };

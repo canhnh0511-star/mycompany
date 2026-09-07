@@ -119,7 +119,10 @@ export function LatexSaleEntryPage() {
 
   return (
     <Stack spacing={2.5}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' }, gap: 2.5, alignItems: 'stretch' }}>
+      {/* `minmax(0, Nfr)` thay vì `Nfr` trần — tránh "grid blowout" (min-width:auto mặc định của grid
+          item khiến track tự phình theo min-content của bảng/panel ảnh bên trong, tràn ngang cả trang
+          ở mobile) — cùng nguyên nhân/cách sửa như DailyEntryPage.tsx (phát hiện lúc live-test 375px). */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1.6fr) minmax(0, 1fr)' }, gap: 2.5, alignItems: 'stretch' }}>
         <Stack spacing={2.5}>
           {controlCard}
           {uploadError && <Typography sx={{ fontSize: 13, color: 'error.main' }}>{uploadError}</Typography>}

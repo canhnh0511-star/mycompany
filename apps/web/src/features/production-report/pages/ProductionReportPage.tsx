@@ -19,10 +19,13 @@ import { downloadCsv } from '../utils/csvExport';
 import type { ProductionAlert } from '../types/productionReport.types';
 
 // Grid theo spec §3.2 (desktop >=1440) / §16 (breakpoint hẹp hơn) — repeat(12,1fr), span như mockup.
+// `minmax(0, 1fr)` thay vì `1fr` trần — chặn "grid blowout" (grid item mặc định `min-width:auto`,
+// tự phình theo min-content của widget con — vd ProductionHeatmap nhiều cột ngày — tràn ngang cả
+// trang ở mobile) — xem giải thích đầy đủ ở DailyEntryPage.tsx.
 const gridSx = {
   display: 'grid',
   gap: 2.5,
-  gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' },
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(12, minmax(0, 1fr))' },
 };
 
 export function ProductionReportPage() {

@@ -35,7 +35,10 @@ export function DashboardPage() {
     <Stack spacing={2.5}>
       <DashboardKpiGrid workDate={workDate} />
 
-      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', lg: '9fr 11fr' }, alignItems: 'start' }}>
+      {/* `minmax(0, Nfr)` thay vì `Nfr` trần — chặn "grid blowout" (grid item mặc định
+          `min-width:auto`, tự phình theo min-content của bảng/panel con, tràn ngang cả trang ở
+          mobile) — xem giải thích đầy đủ ở DailyEntryPage.tsx (nơi phát hiện bug lúc live-test 375px). */}
+      <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 9fr) minmax(0, 11fr)' }, alignItems: 'start' }}>
         <Stack spacing={2.5}>
           <WorkQueuePanel workDate={workDate} />
           <PayrollSummaryPanel workDate={workDate} month={month} />
