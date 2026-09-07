@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { SectionPanel } from '../../../components/common/SectionPanel';
 import { LoadingSkeleton } from '../../../components/feedback/LoadingSkeleton';
@@ -6,7 +7,13 @@ import { WidgetEmptyState } from '../../../components/feedback/WidgetEmptyState'
 import { green, neutral } from '../../../theme/colors';
 import { useProductionDashboard } from '../hooks/useProductionReport';
 import { formatKg } from '../utils/productionReportFormatters';
+import { TopWorkersDialog } from './TopWorkersDialog';
 import type { ProductionDashboardFilters } from '../types/productionReport.types';
+
+// Panel rút gọn chỉ hiện TOP 4 (đủ nhìn nhanh, đúng chiều cao 2 panel cùng hàng — Hiệu suất theo
+// Tổ/Cảnh báo) — backend đã trả sẵn tới top 10 (TOP_WORKERS_LIMIT), phần còn lại xem qua "Xem thêm"
+// (phản hồi trực tiếp: "top công nhân hiển thị top 4 thôi nhưng thêm action xem thêm").
+const COMPACT_LIMIT = 4;
 
 export function TopWorkersTable({
   filters,
@@ -16,10 +23,19 @@ export function TopWorkersTable({
   onSelectWorker: (employeeId: string) => void;
 }) {
   const { data, isLoading, isError, refetch } = useProductionDashboard(filters);
+  const [showAll, setShowAll] = useState(false);
+  const compactWorkers = data?.topWorkers.slice(0, COMPACT_LIMIT) ?? [];
   const maxKg = data?.topWorkers[0]?.productionKg ?? 0;
 
   return (
-    <SectionPanel title="Top công nhân theo sản lượng">
+    <SectionPanel
+      title="Top công nhân theo sản lượng"
+      action={
+        data && data.topWorkers.length > COMPACT_LIMIT
+          ? { label: 'Xem thêm', onClick: () => setShowAll(true) }
+          : undefined
+      }
+    >
       {isLoading ? (
         <LoadingSkeleton rows={6} rowHeight={26} />
       ) : isError || !data ? (
@@ -28,7 +44,7 @@ export function TopWorkersTable({
         <WidgetEmptyState title="Chưa có dữ liệu" description="Không có công nhân nào có sản lượng đã chốt trong kỳ." />
       ) : (
         <Stack spacing={1.25}>
-          {data.topWorkers.map((worker, index) => (
+          {compactWorkers.map((worker, index) => (
             <Stack
               key={worker.employeeId}
               direction="row"
@@ -66,6 +82,7 @@ export function TopWorkersTable({
           ))}
         </Stack>
       )}
+      {data && <TopWorkersDialog open={showAll} onClose={() => setShowAll(false)} dashboard={data} />}
     </SectionPanel>
   );
 }

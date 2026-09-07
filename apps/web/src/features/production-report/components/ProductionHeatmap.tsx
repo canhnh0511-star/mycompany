@@ -42,21 +42,21 @@ export function ProductionHeatmap({
 
   if (isLoading) {
     return (
-      <SectionPanel title="Sản lượng theo ngày / theo Tổ">
+      <SectionPanel title="Sản lượng theo ngày / theo Tổ" sx={{ height: '100%' }}>
         <LoadingSkeleton rows={4} rowHeight={32} />
       </SectionPanel>
     );
   }
   if (isError || !data) {
     return (
-      <SectionPanel title="Sản lượng theo ngày / theo Tổ">
+      <SectionPanel title="Sản lượng theo ngày / theo Tổ" sx={{ height: '100%' }}>
         <WidgetErrorState message="Không tải được heatmap." onRetry={() => refetch()} />
       </SectionPanel>
     );
   }
   if (data.heatmap.length === 0) {
     return (
-      <SectionPanel title="Sản lượng theo ngày / theo Tổ">
+      <SectionPanel title="Sản lượng theo ngày / theo Tổ" sx={{ height: '100%' }}>
         <WidgetEmptyState title="Chưa có Tổ nào" />
       </SectionPanel>
     );
@@ -68,7 +68,7 @@ export function ProductionHeatmap({
   const maxKg = Math.max(0, ...data.heatmap.map((c) => c.productionKg ?? 0));
 
   return (
-    <SectionPanel title="Sản lượng theo ngày / theo Tổ" noContentPadding>
+    <SectionPanel title="Sản lượng theo ngày / theo Tổ" noContentPadding sx={{ height: '100%' }}>
       <Box sx={{ overflowX: 'auto', px: 2.5, py: 1.75 }}>
         <Box sx={{ display: 'inline-block', minWidth: '100%' }}>
           <Box sx={{ display: 'flex' }}>

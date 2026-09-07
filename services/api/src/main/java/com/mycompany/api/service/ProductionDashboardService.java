@@ -280,16 +280,27 @@ public class ProductionDashboardService {
     // ---- top workers (spec §9) ----
 
     private List<TopWorker> buildTopWorkers(List<ProductionAggregateRow> currentAgg) {
-        record Acc(String employeeName, UUID teamId, String teamName, BigDecimal kg) { }
+        // `byType` gộp theo LinkedHashMap riêng từng nhân viên — cần cho popup "Xem thêm" (top 10, đủ
+        // cột từng loại mủ + Tổng, phản hồi trực tiếp: "top công nhân... thêm popup top 10... sản
+        // lượng mủ các loại và cột tổng").
+        record Acc(String employeeName, UUID teamId, String teamName, BigDecimal kg, Map<String, BigDecimal> byType) { }
         Map<UUID, Acc> byEmployee = new LinkedHashMap<>();
         for (ProductionAggregateRow row : currentAgg) {
-            byEmployee.merge(row.employeeId(),
-                    new Acc(row.employeeName(), row.teamId(), row.teamName(), row.totalKg()),
-                    (a, b) -> new Acc(a.employeeName(), a.teamId(), a.teamName(), a.kg().add(b.kg())));
+            Acc existing = byEmployee.get(row.employeeId());
+            if (existing == null) {
+                Map<String, BigDecimal> byType = new LinkedHashMap<>();
+                byType.put(row.latexTypeCode(), row.totalKg());
+                byEmployee.put(row.employeeId(),
+                        new Acc(row.employeeName(), row.teamId(), row.teamName(), row.totalKg(), byType));
+            } else {
+                existing.byType().merge(row.latexTypeCode(), row.totalKg(), BigDecimal::add);
+                byEmployee.put(row.employeeId(), new Acc(existing.employeeName(), existing.teamId(),
+                        existing.teamName(), existing.kg().add(row.totalKg()), existing.byType()));
+            }
         }
         return byEmployee.entrySet().stream()
                 .map(e -> new TopWorker(e.getKey(), e.getValue().employeeName(), e.getValue().teamId(),
-                        e.getValue().teamName(), e.getValue().kg()))
+                        e.getValue().teamName(), e.getValue().kg(), e.getValue().byType()))
                 .sorted(Comparator.comparing(TopWorker::productionKg).reversed())
                 .limit(TOP_WORKERS_LIMIT)
                 .toList();
@@ -382,8 +393,19 @@ public class ProductionDashboardService {
 
         Set<UUID> presentIds = new HashSet<>(
                 productionRecordRepository.findDistinctEmployeeIdsWithRecordOnDate(checkDate, teamId));
+        // Nhân viên không có production_record RIÊNG nhưng vợ/chồng (spouse_employee_id, đang active)
+        // ĐÃ có sản lượng ngày này — sản lượng cặp này ghi CHUNG vào 1 dòng (CLAUDE.md §5, ADR-0024).
+        // Không phải "thiếu dữ liệu" thật, không tính vào alert này — cùng lỗi/cách sửa đã áp dụng ở
+        // DashboardService.getWorkQueue() (widget "Cần xử lý" ở Trang chủ) — phản hồi trực tiếp: alert
+        // này báo 9 người trong khi đúng ra chỉ 2.
         List<String> missingNames = activeEmployees.stream()
                 .filter(e -> !presentIds.contains(e.getId()))
+                .filter(e -> {
+                    Employee spouse = e.getSpouseEmployee();
+                    boolean explainedBySpouse = spouse != null && spouse.getStatus() == EmployeeStatus.ACTIVE
+                            && presentIds.contains(spouse.getId());
+                    return !explainedBySpouse;
+                })
                 .map(Employee::getFullName)
                 .sorted()
                 .toList();

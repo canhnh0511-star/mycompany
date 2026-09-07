@@ -52,6 +52,9 @@ export interface TopWorker {
   teamId: string;
   teamName: string;
   productionKg: number;
+  /** kg theo từng loại mủ (key = code, khớp `latexTypeCodes`/`latexTypeLabels` ở response cha) —
+   * dùng cho popup "Xem thêm" (top 10, đủ cột từng loại mủ + cột Tổng). */
+  kgByLatexType: Record<string, number>;
 }
 
 export interface ProductionAlert {
