@@ -102,4 +102,36 @@ public interface ProductionRecordItemRepository extends JpaRepository<Production
             GROUP BY pr.team.id, pr.team.name, pr.employee.id, pri.latexType.code
             """)
     List<OfficialProductionRow> aggregateActiveProductionByDate(@Param("date") LocalDate date);
+
+    // Dashboard "Báo cáo sản lượng" (docs/specs — Heatmap §12 + cơ cấu loại mủ §7) — group theo cả
+    // Tổ/ngày/loại mủ trong 1 query, CHỈ APPROVED (cùng quy ước aggregateForReport). ProductionDashboardService
+    // tự pivot tiếp: cộng theo latexType cho donut, cộng theo (team,date) cho heatmap cell + trend theo
+    // Tổ. Tránh N query rời cho từng widget trên cùng 1 khoảng ngày.
+    @Query("""
+            SELECT new com.mycompany.api.repository.TeamDateLatexRow(
+                pr.team.id, pr.team.name, pr.recordDate, pri.latexType.code, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.status = com.mycompany.api.entity.RecordStatus.APPROVED
+              AND pr.recordDate BETWEEN :fromDate AND :toDate
+              AND (:teamId IS NULL OR pr.team.id = :teamId)
+            GROUP BY pr.team.id, pr.team.name, pr.recordDate, pri.latexType.code
+            """)
+    List<TeamDateLatexRow> aggregateTeamDateLatex(
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("teamId") UUID teamId);
+
+    // ProductionWorkerDrawer (spec §9.3 "lịch sử sản lượng") — tổng kg/ngày của ĐÚNG 1 nhân viên. Tách
+    // khỏi aggregateDailyTotals (không có employeeId, dùng cho Home dashboard "Sản lượng 7 ngày" toàn
+    // Tổ) để không đổi signature đang được nơi khác dùng.
+    @Query("""
+            SELECT new com.mycompany.api.repository.DailyTotalRow(pr.recordDate, SUM(pri.kg))
+            FROM ProductionRecordItem pri
+              JOIN pri.productionRecord pr
+            WHERE pr.status = com.mycompany.api.entity.RecordStatus.APPROVED
+              AND pr.recordDate BETWEEN :fromDate AND :toDate
+              AND pr.employee.id = :employeeId
+            GROUP BY pr.recordDate
+            """)
+    List<DailyTotalRow> aggregateDailyTotalsForEmployee(
+            @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate, @Param("employeeId") UUID employeeId);
 }

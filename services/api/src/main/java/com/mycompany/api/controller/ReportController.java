@@ -2,9 +2,12 @@ package com.mycompany.api.controller;
 
 import com.mycompany.api.dto.LatexSaleReportResponse;
 import com.mycompany.api.dto.ProductionDailyTrendResponse;
+import com.mycompany.api.dto.ProductionDashboardResponse;
 import com.mycompany.api.dto.ProductionReportResponse;
+import com.mycompany.api.dto.ProductionWorkerDetailResponse;
 import com.mycompany.api.service.ExcelReportExportService;
 import com.mycompany.api.service.PdfReportExportService;
+import com.mycompany.api.service.ProductionDashboardService;
 import com.mycompany.api.service.ReportService;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +37,7 @@ public class ReportController {
     private final ReportService reportService;
     private final ExcelReportExportService excelReportExportService;
     private final PdfReportExportService pdfReportExportService;
+    private final ProductionDashboardService productionDashboardService;
 
     @GetMapping("/production-records")
     public ProductionReportResponse productionReport(
@@ -51,6 +56,22 @@ public class ReportController {
             @RequestParam(required = false) UUID teamId,
             @RequestParam(required = false) String latexTypeCode) {
         return reportService.productionDailyTrend(fromDate, toDate, teamId, latexTypeCode);
+    }
+
+    // Dashboard "Báo cáo sản lượng" (WEB UI SPEC — BÁO CÁO SẢN LƯỢNG) — KPI/trend/donut/team
+    // performance/top workers/alerts/completeness/heatmap gộp 1 response (xem ProductionDashboardService).
+    @GetMapping("/production-records/dashboard")
+    public ProductionDashboardResponse productionDashboard(
+            @RequestParam LocalDate fromDate, @RequestParam LocalDate toDate,
+            @RequestParam(required = false) UUID teamId) {
+        return productionDashboardService.getDashboard(fromDate, toDate, teamId);
+    }
+
+    // ProductionWorkerDrawer (spec §9.3) — click 1 công nhân trong Top công nhân.
+    @GetMapping("/production-records/dashboard/workers/{employeeId}")
+    public ProductionWorkerDetailResponse productionWorkerDetail(
+            @PathVariable UUID employeeId, @RequestParam LocalDate fromDate, @RequestParam LocalDate toDate) {
+        return productionDashboardService.getWorkerDetail(employeeId, fromDate, toDate);
     }
 
     @GetMapping("/latex-sales")
